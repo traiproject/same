@@ -11,6 +11,7 @@ import (
 type Graph struct {
 	tasks          map[InternedString]Task
 	executionOrder []InternedString
+	dependents     map[InternedString][]InternedString
 }
 
 // NewGraph creates a new empty Graph.
@@ -31,9 +32,10 @@ func (g *Graph) AddTask(t *Task) error {
 }
 
 // Validate checks for cycles in the graph using a topological sort.
-// It populates the executionOrder slice if successful.
+// It populates the executionOrder slice and dependents map if successful.
 func (g *Graph) Validate() error {
 	g.executionOrder = make([]InternedString, 0, len(g.tasks))
+	g.dependents = g.buildDependentsMap()
 	visited := make(map[InternedString]int) // 0: unvisited, 1: visiting, 2: visited
 	var path []InternedString
 
@@ -84,6 +86,17 @@ func (g *Graph) Validate() error {
 	return nil
 }
 
+// buildDependentsMap creates a reverse adjacency list (dependents map).
+func (g *Graph) buildDependentsMap() map[InternedString][]InternedString {
+	dependents := make(map[InternedString][]InternedString)
+	for _, task := range g.tasks {
+		for _, dep := range task.Dependencies {
+			dependents[dep] = append(dependents[dep], task.Name)
+		}
+	}
+	return dependents
+}
+
 // buildCycleError constructs an error with cycle path metadata.
 func (g *Graph) buildCycleError(path []InternedString, dep InternedString) error {
 	cyclePath := ""
@@ -111,4 +124,15 @@ func (g *Graph) Walk() iter.Seq[Task] {
 			}
 		}
 	}
+}
+
+// Dependents returns the list of tasks that depend on the given task.
+// Returns an empty slice if no tasks depend on it.
+func (g *Graph) Dependents(task InternedString) []InternedString {
+	return g.dependents[task]
+}
+
+// TaskCount returns the total number of tasks in the graph.
+func (g *Graph) TaskCount() int {
+	return len(g.tasks)
 }

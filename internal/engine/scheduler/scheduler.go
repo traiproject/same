@@ -121,7 +121,6 @@ type result struct {
 
 type schedulerRunState struct {
 	inDegree    map[domain.InternedString]int
-	dependents  map[domain.InternedString][]domain.InternedString
 	tasks       map[domain.InternedString]domain.Task
 	ready       []domain.InternedString
 	active      int
@@ -133,16 +132,13 @@ type schedulerRunState struct {
 }
 
 func (s *Scheduler) newRunState(ctx context.Context, parallelism int) *schedulerRunState {
-	inDegree := make(map[domain.InternedString]int)
-	dependents := make(map[domain.InternedString][]domain.InternedString)
-	tasks := make(map[domain.InternedString]domain.Task)
+	taskCount := s.graph.TaskCount()
+	inDegree := make(map[domain.InternedString]int, taskCount)
+	tasks := make(map[domain.InternedString]domain.Task, taskCount)
 
 	for task := range s.graph.Walk() {
 		tasks[task.Name] = task
 		inDegree[task.Name] = len(task.Dependencies)
-		for _, dep := range task.Dependencies {
-			dependents[dep] = append(dependents[dep], task.Name)
-		}
 	}
 
 	var ready []domain.InternedString
@@ -154,7 +150,6 @@ func (s *Scheduler) newRunState(ctx context.Context, parallelism int) *scheduler
 
 	return &schedulerRunState{
 		inDegree:    inDegree,
-		dependents:  dependents,
 		tasks:       tasks,
 		ready:       ready,
 		resultsCh:   make(chan result, parallelism),
@@ -189,7 +184,7 @@ func (state *schedulerRunState) handleResult(res result) {
 		state.s.updateStatus(res.task, StatusFailed)
 	} else {
 		state.s.updateStatus(res.task, StatusCompleted)
-		for _, dep := range state.dependents[res.task] {
+		for _, dep := range state.s.graph.Dependents(res.task) {
 			state.inDegree[dep]--
 			if state.inDegree[dep] == 0 {
 				state.ready = append(state.ready, dep)
