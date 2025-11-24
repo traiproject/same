@@ -55,6 +55,7 @@ func Load(path string) (*domain.Graph, error) {
 
 		task := &domain.Task{
 			Name:         domain.NewInternedString(name),
+			Command:      dto.Cmd,
 			Inputs:       internStrings(dto.Input),
 			Outputs:      internStrings(dto.Target),
 			Dependencies: internStrings(dto.DependsOn),

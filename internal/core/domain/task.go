@@ -4,6 +4,7 @@ package domain
 // It uses InternedString for fields that are frequently repeated to save memory.
 type Task struct {
 	Name         InternedString
+	Command      []string
 	Inputs       []InternedString
 	Outputs      []InternedString
 	Dependencies []InternedString
