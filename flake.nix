@@ -31,8 +31,17 @@
           version = "${version}";
           env.CGO_ENABLED = 0;
           src = ./.;
-          vendorHash = "sha256-0HGkUUQuoKG8teoH5c/KC6YIx2vY0PdUBWe2duJ8lK0=";
+          vendorHash = "sha256-bnHZtHmdMBXqrs9Bb+x+OamXmubXcqMmPdi4atvVx8Q=";
           excludePackages = [ ];
+          nativeBuildInputs = [ pkgs.mockgen ];
+          preBuild = ''
+            # Generate mocks for tests
+            cd internal/core/ports
+            mkdir -p mocks
+            mockgen -source=logger.go -destination=mocks/mock_logger.go -package=mocks
+            mockgen -source=executor.go -destination=mocks/mock_executor.go -package=mocks
+            cd ../../..
+          '';
         };
 
         devShells.default = pkgs.mkShell {
