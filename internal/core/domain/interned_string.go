@@ -25,3 +25,16 @@ func (is InternedString) String() string {
 func (is InternedString) Value() unique.Handle[string] {
 	return is.h
 }
+
+// MarshalText implements encoding.TextMarshaler.
+// It returns the bytes of the underlying string value.
+func (is InternedString) MarshalText() ([]byte, error) {
+	return []byte(is.h.Value()), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+// It creates a new handle from the provided text.
+func (is *InternedString) UnmarshalText(text []byte) error {
+	is.h = unique.Make(string(text))
+	return nil
+}
