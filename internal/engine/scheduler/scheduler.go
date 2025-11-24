@@ -8,6 +8,7 @@ import (
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/zerr"
 )
 
 // TaskStatus represents the status of a task.
@@ -180,7 +181,8 @@ func (state *schedulerRunState) schedule() {
 func (state *schedulerRunState) handleResult(res result) {
 	state.active--
 	if res.err != nil {
-		state.errs = errors.Join(state.errs, res.err)
+		wrappedErr := zerr.With(zerr.Wrap(res.err, "task execution failed"), "task", res.task.String())
+		state.errs = errors.Join(state.errs, wrappedErr)
 		state.s.updateStatus(res.task, StatusFailed)
 	} else {
 		state.s.updateStatus(res.task, StatusCompleted)
