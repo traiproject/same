@@ -1,0 +1,60 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
+    - gocritic
+    - prealloc
+    - testifylint
+    - gosec
+    - cyclop
+    - misspell
+    - nilerr
+    - godot
+
+  settings:
+    govet:
+      enable:
+        - shadow
+
+    gocritic:
+      enabled-tags:
+        - performance
+        - style
+        - diagnostic
+
+    cyclop:
+      max-complexity: 10
+
+    misspell:
+      locale: US
+
+    gosec:
+      severity: medium
+      confidence: medium
+
+    godot:
+      scope: toplevel
+      exclude:
+        - "^(?i)todo:"
+        - "^(?i)fixme:"
+      period: true
+
+    testifylint:
+      enable-all: true
+
+formatters:
+  enable:
+    - gofmt
+
