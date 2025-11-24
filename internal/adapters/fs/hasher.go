@@ -10,6 +10,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/zerr"
 )
 
 // Hasher provides hashing functionality for tasks and files.
@@ -26,13 +27,13 @@ func NewHasher(walker *Walker) *Hasher {
 func (h *Hasher) ComputeFileHash(path string) (uint64, error) {
 	f, err := os.Open(path) //nolint:gosec // Path is controlled by caller
 	if err != nil {
-		return 0, err
+		return 0, zerr.With(zerr.Wrap(err, "failed to open file"), "path", path)
 	}
 	defer f.Close() //nolint:errcheck // Best effort close in defer
 
 	hasher := xxhash.New()
 	if _, err := io.Copy(hasher, f); err != nil {
-		return 0, err
+		return 0, zerr.With(zerr.Wrap(err, "failed to hash file content"), "path", path)
 	}
 
 	return hasher.Sum64(), nil
@@ -132,13 +133,13 @@ func (h *Hasher) tryGlobAndHash(path string, hasher *xxhash.Digest) error {
 		return nil
 	}
 	// If not a glob or no matches, return error as the input is missing
-	return fmt.Errorf("input not found: %s", path)
+	return zerr.With(zerr.New("input not found"), "path", path)
 }
 
 func (h *Hasher) hashPath(path string, mainHasher io.Writer) error {
 	info, err := os.Stat(path)
 	if err != nil {
-		return err
+		return zerr.With(zerr.Wrap(err, "failed to stat path"), "path", path)
 	}
 
 	if info.IsDir() {
@@ -172,7 +173,7 @@ func (h *Hasher) hashFile(path string, mainHasher io.Writer) error {
 
 	// Write hash to main hasher
 	if err := binary.Write(mainHasher, binary.LittleEndian, hash); err != nil {
-		return err
+		return zerr.Wrap(err, "failed to write hash to digest")
 	}
 	return nil
 }

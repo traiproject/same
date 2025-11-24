@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"iter"
 	"path/filepath"
+
+	"go.trai.ch/zerr"
 )
 
 // Walker provides file walking functionality.
@@ -23,7 +25,7 @@ func (w *Walker) WalkFiles(root string, ignores []string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
-				return err
+				return zerr.With(zerr.Wrap(err, "failed to walk directory"), "path", path)
 			}
 
 			// Check if we should skip this directory
