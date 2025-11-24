@@ -2,6 +2,8 @@
 package scheduler
 
 import (
+	"context"
+	"errors"
 	"sync"
 
 	"go.trai.ch/bob/internal/core/domain"
@@ -66,5 +68,126 @@ func (s *Scheduler) initTaskStatuses() {
 
 	for task := range s.graph.Walk() {
 		s.taskStatus[task.Name] = StatusPending
+	}
+}
+
+// updateStatus updates the status of a task.
+func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.taskStatus[name] = status
+}
+
+// Run executes the tasks in the graph with the specified parallelism.
+// Run executes the tasks in the graph with the specified parallelism.
+func (s *Scheduler) Run(ctx context.Context, parallelism int) error {
+	state := s.newRunState(ctx, parallelism)
+
+	for !state.isDone() {
+		state.schedule()
+
+		if state.isDone() {
+			break
+		}
+
+		if state.ctx.Err() != nil && state.active == 0 {
+			return errors.Join(state.errs, state.ctx.Err())
+		}
+
+		select {
+		case res := <-state.resultsCh:
+			state.handleResult(res)
+		case <-state.ctx.Done():
+		}
+	}
+
+	if state.ctx.Err() != nil {
+		state.errs = errors.Join(state.errs, state.ctx.Err())
+	}
+
+	return state.errs
+}
+
+type result struct {
+	task domain.InternedString
+	err  error
+}
+
+type schedulerRunState struct {
+	inDegree    map[domain.InternedString]int
+	dependents  map[domain.InternedString][]domain.InternedString
+	tasks       map[domain.InternedString]domain.Task
+	ready       []domain.InternedString
+	active      int
+	resultsCh   chan result
+	errs        error
+	ctx         context.Context
+	parallelism int
+	s           *Scheduler
+}
+
+func (s *Scheduler) newRunState(ctx context.Context, parallelism int) *schedulerRunState {
+	inDegree := make(map[domain.InternedString]int)
+	dependents := make(map[domain.InternedString][]domain.InternedString)
+	tasks := make(map[domain.InternedString]domain.Task)
+
+	for task := range s.graph.Walk() {
+		tasks[task.Name] = task
+		inDegree[task.Name] = len(task.Dependencies)
+		for _, dep := range task.Dependencies {
+			dependents[dep] = append(dependents[dep], task.Name)
+		}
+	}
+
+	var ready []domain.InternedString
+	for name, degree := range inDegree {
+		if degree == 0 {
+			ready = append(ready, name)
+		}
+	}
+
+	return &schedulerRunState{
+		inDegree:    inDegree,
+		dependents:  dependents,
+		tasks:       tasks,
+		ready:       ready,
+		resultsCh:   make(chan result),
+		ctx:         ctx,
+		parallelism: parallelism,
+		s:           s,
+	}
+}
+
+func (state *schedulerRunState) isDone() bool {
+	return state.active == 0 && len(state.ready) == 0
+}
+
+func (state *schedulerRunState) schedule() {
+	for len(state.ready) > 0 && state.active < state.parallelism && state.ctx.Err() == nil {
+		taskName := state.ready[0]
+		state.ready = state.ready[1:]
+
+		state.active++
+		state.s.updateStatus(taskName, StatusRunning)
+
+		go func(t domain.Task) {
+			state.resultsCh <- result{task: t.Name, err: state.s.executor.Execute(state.ctx, &t)}
+		}(state.tasks[taskName])
+	}
+}
+
+func (state *schedulerRunState) handleResult(res result) {
+	state.active--
+	if res.err != nil {
+		state.errs = errors.Join(state.errs, res.err)
+		state.s.updateStatus(res.task, StatusFailed)
+	} else {
+		state.s.updateStatus(res.task, StatusCompleted)
+		for _, dep := range state.dependents[res.task] {
+			state.inDegree[dep]--
+			if state.inDegree[dep] == 0 {
+				state.ready = append(state.ready, dep)
+			}
+		}
 	}
 }
