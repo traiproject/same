@@ -34,14 +34,20 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a new Scheduler with the given graph and executor.
-func NewScheduler(graph *domain.Graph, executor ports.Executor) *Scheduler {
+// It validates the graph before proceeding and returns an error if validation fails.
+func NewScheduler(graph *domain.Graph, executor ports.Executor) (*Scheduler, error) {
+	// Explicitly validate the graph to ensure executionOrder is populated
+	if err := graph.Validate(); err != nil {
+		return nil, err
+	}
+
 	s := &Scheduler{
 		graph:      graph,
 		executor:   executor,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
 	s.initTaskStatuses()
-	return s
+	return s, nil
 }
 
 // initTaskStatuses initializes all tasks in the graph to Pending.

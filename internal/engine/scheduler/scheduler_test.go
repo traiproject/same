@@ -29,12 +29,11 @@ func TestScheduler_Init(t *testing.T) {
 			t.Fatalf("failed to add task2: %v", err)
 		}
 
-		if err := g.Validate(); err != nil {
-			t.Fatalf("failed to validate graph: %v", err)
-		}
-
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := NewScheduler(g, mockExec)
+		s, err := NewScheduler(g, mockExec)
+		if err != nil {
+			t.Fatalf("failed to create scheduler: %v", err)
+		}
 
 		// Verify
 		s.mu.RLock()
@@ -73,12 +72,12 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		_ = g.AddTask(taskB)
 		_ = g.AddTask(taskC)
 		_ = g.AddTask(taskD)
-		if err := g.Validate(); err != nil {
-			t.Fatalf("failed to validate graph: %v", err)
-		}
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := NewScheduler(g, mockExec)
+		s, err := NewScheduler(g, mockExec)
+		if err != nil {
+			t.Fatalf("failed to create scheduler: %v", err)
+		}
 
 		// Channels for synchronization
 		dStarted := make(chan struct{})
@@ -146,7 +145,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		close(cProceed)
 
 		// Wait for Run to finish
-		err := <-errCh
+		err = <-errCh
 
 		// Verify error
 		if err == nil {
