@@ -1,5 +1,7 @@
 .direnv
 
+bin
+
 # Mocks
 **/mocks/*_mock.go
 **/mocks/mock_*.go
