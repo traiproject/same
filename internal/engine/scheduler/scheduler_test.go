@@ -1,42 +1,20 @@
 package scheduler
 
 import (
-	"context"
 	"testing"
 	"testing/synctest"
 
 	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.uber.org/mock/gomock"
 )
 
-type MockExecutor struct {
-	ExecuteCalled chan *domain.Task
-	FinishExecute chan error
-}
-
-func NewMockExecutor() *MockExecutor {
-	return &MockExecutor{
-		ExecuteCalled: make(chan *domain.Task, 1),
-		FinishExecute: make(chan error, 1),
-	}
-}
-
-func (m *MockExecutor) Execute(ctx context.Context, task *domain.Task) error {
-	select {
-	case m.ExecuteCalled <- task:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-
-	select {
-	case err := <-m.FinishExecute:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
 func TestScheduler_Init(t *testing.T) {
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
+		// Setup gomock controller
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Setup
 		g := domain.NewGraph()
 		task1 := &domain.Task{Name: domain.NewInternedString("task1")}
@@ -53,7 +31,7 @@ func TestScheduler_Init(t *testing.T) {
 			t.Fatalf("failed to validate graph: %v", err)
 		}
 
-		mockExec := NewMockExecutor()
+		mockExec := mocks.NewMockExecutor(ctrl)
 		s := NewScheduler(g, mockExec)
 
 		// Verify

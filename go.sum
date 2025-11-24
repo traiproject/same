@@ -1,2 +1,4 @@
 go.trai.ch/zerr v0.2.0 h1:1XVrJhiqSB1dynP4h/OpNWjZkg4Nd8JkEPiejS65Jxo=
 go.trai.ch/zerr v0.2.0/go.mod h1:Nd1+7J8K9zB7kXiE4MYB76IjjgmIrpZ18dloRMZEbCM=
+go.uber.org/mock v0.6.0 h1:hyF9dfmbgIX5EfOdasqLsWD6xqpNZlXblLB/Dbnwv3Y=
+go.uber.org/mock v0.6.0/go.mod h1:KiVJ4BqZJaMj4svdfmHM0AUx4NJYO8ZNpPnZn1Z+BBU=

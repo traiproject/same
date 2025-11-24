@@ -8,6 +8,8 @@ import (
 )
 
 // Executor defines the interface for executing tasks.
+//
+//go:generate mockgen -source=executor.go -destination=mocks/mock_executor.go -package=mocks
 type Executor interface {
 	// Execute runs the given task.
 	// It returns an error if the task execution fails.

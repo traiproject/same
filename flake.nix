@@ -45,9 +45,9 @@
             gopls
             delve
             golangci-lint
+            mockgen
           ];
         };
       }
     );
 }
-
