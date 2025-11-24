@@ -19,8 +19,14 @@ func TestGraph_AddTask(t *testing.T) {
 		t.Error("expected error when adding duplicate task, got nil")
 	} else {
 		// Verify error is of correct type
-		if _, ok := err.(*zerr.Error); !ok {
+		zErr, ok := err.(*zerr.Error)
+		if !ok {
 			t.Errorf("expected *zerr.Error, got %T", err)
+		}
+		// Verify metadata
+		meta := zErr.Metadata()
+		if taskName, ok := meta["task_name"].(string); !ok || taskName != "task1" {
+			t.Errorf("expected metadata task_name=task1, got %v", meta["task_name"])
 		}
 	}
 }
@@ -49,8 +55,15 @@ func TestGraph_Validate_Cycle(t *testing.T) {
 	}
 
 	// Verify error is of correct type
-	if _, ok := err.(*zerr.Error); !ok {
+	zErr, ok := err.(*zerr.Error)
+	if !ok {
 		t.Fatalf("expected *zerr.Error, got %T", err)
+	}
+
+	// Verify metadata contains cycle information
+	meta := zErr.Metadata()
+	if cycle, ok := meta["cycle"].(string); !ok || cycle == "" {
+		t.Errorf("expected metadata cycle to be non-empty string, got %v", meta["cycle"])
 	}
 }
 
