@@ -3,6 +3,7 @@ package domain
 
 import (
 	"iter"
+	"slices"
 
 	"go.trai.ch/zerr"
 )
@@ -66,16 +67,11 @@ func (g *Graph) Validate() error {
 		return nil
 	}
 
-	// We need to iterate over all tasks to ensure we cover disconnected components
-	// To ensure deterministic order for disconnected components, we can sort keys or just iterate.
-	// Iteration order of map is random. For deterministic build order, we might want to sort keys first.
-	// But for correctness, any topological sort is valid.
-	// However, usually we want deterministic builds.
-	// Let's iterate in a deterministic way (e.g. sorted by name) if we want stability.
-	// But for now, random map iteration is acceptable for correctness.
-	// Wait, if I want deterministic `Walk`, I should probably iterate sorted keys.
-	// I'll stick to map iteration for now as it's O(N). Sorting is O(N log N).
-	for name := range g.tasks {
+	// We need to iterate over all tasks to ensure we cover disconnected components.
+	// To ensure deterministic order for disconnected components, we sort the keys alphabetically.
+	sortedNames := g.getSortedTaskNames()
+
+	for _, name := range sortedNames {
 		if visited[name] == 0 {
 			if err := visit(name); err != nil {
 				return err
@@ -95,6 +91,24 @@ func (g *Graph) buildDependentsMap() map[InternedString][]InternedString {
 		}
 	}
 	return dependents
+}
+
+// getSortedTaskNames returns all task names sorted alphabetically.
+func (g *Graph) getSortedTaskNames() []InternedString {
+	sortedNames := make([]InternedString, 0, len(g.tasks))
+	for name := range g.tasks {
+		sortedNames = append(sortedNames, name)
+	}
+	slices.SortFunc(sortedNames, func(a, b InternedString) int {
+		if a.String() < b.String() {
+			return -1
+		}
+		if a.String() > b.String() {
+			return 1
+		}
+		return 0
+	})
+	return sortedNames
 }
 
 // buildCycleError constructs an error with cycle path metadata.

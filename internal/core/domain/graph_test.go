@@ -111,3 +111,43 @@ func TestGraph_Walk(t *testing.T) {
 		t.Errorf("unexpected execution order: %v", executed)
 	}
 }
+
+func TestGraph_Validate_DeterministicOrder(t *testing.T) {
+	g := domain.NewGraph()
+	// Create two independent tasks named "B" and "A" (intentionally out of alphabetical order)
+	// They should be executed in alphabetical order: ["A", "B"]
+	taskB := domain.Task{
+		Name:         domain.NewInternedString("B"),
+		Dependencies: []domain.InternedString{},
+	}
+	taskA := domain.Task{
+		Name:         domain.NewInternedString("A"),
+		Dependencies: []domain.InternedString{},
+	}
+
+	// Add tasks in non-alphabetical order
+	if err := g.AddTask(&taskB); err != nil {
+		t.Fatalf("failed to add task B: %v", err)
+	}
+	if err := g.AddTask(&taskA); err != nil {
+		t.Fatalf("failed to add task A: %v", err)
+	}
+
+	if err := g.Validate(); err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+
+	executionOrder := make([]string, 0, 2)
+	for task := range g.Walk() {
+		executionOrder = append(executionOrder, task.Name.String())
+	}
+
+	if len(executionOrder) != 2 {
+		t.Fatalf("expected 2 tasks in execution order, got %d", len(executionOrder))
+	}
+
+	// Verify deterministic alphabetical order
+	if executionOrder[0] != "A" || executionOrder[1] != "B" {
+		t.Errorf("expected execution order [A, B], got %v", executionOrder)
+	}
+}
