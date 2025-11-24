@@ -3,6 +3,7 @@ package config
 
 import (
 	"os"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 
@@ -56,8 +57,8 @@ func Load(path string) (*domain.Graph, error) {
 		task := &domain.Task{
 			Name:         domain.NewInternedString(name),
 			Command:      dto.Cmd,
-			Inputs:       internStrings(dto.Input),
-			Outputs:      internStrings(dto.Target),
+			Inputs:       canonicalizeStrings(dto.Input),
+			Outputs:      canonicalizeStrings(dto.Target),
 			Dependencies: internStrings(dto.DependsOn),
 		}
 
@@ -73,6 +74,28 @@ func internStrings(strs []string) []domain.InternedString {
 	res := make([]domain.InternedString, len(strs))
 	for i, s := range strs {
 		res[i] = domain.NewInternedString(s)
+	}
+	return res
+}
+
+func canonicalizeStrings(strs []string) []domain.InternedString {
+	if len(strs) == 0 {
+		return nil
+	}
+
+	// Sort strings
+	sorted := make([]string, len(strs))
+	copy(sorted, strs)
+	sort.Strings(sorted)
+
+	// Deduplicate and intern
+	res := make([]domain.InternedString, 0, len(sorted))
+	var last string
+	for i, s := range sorted {
+		if i == 0 || s != last {
+			res = append(res, domain.NewInternedString(s))
+			last = s
+		}
 	}
 	return res
 }
