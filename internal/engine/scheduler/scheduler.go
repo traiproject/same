@@ -151,7 +151,7 @@ func (s *Scheduler) newRunState(ctx context.Context, parallelism int) *scheduler
 		dependents:  dependents,
 		tasks:       tasks,
 		ready:       ready,
-		resultsCh:   make(chan result),
+		resultsCh:   make(chan result, parallelism),
 		ctx:         ctx,
 		parallelism: parallelism,
 		s:           s,
