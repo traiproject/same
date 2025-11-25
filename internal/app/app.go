@@ -32,9 +32,9 @@ func (a *App) Run(ctx context.Context, targetNames []string) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// 2. Default to "all" if no targets specified
+	// 2. Validate targets
 	if len(targetNames) == 0 {
-		targetNames = []string{"all"}
+		return fmt.Errorf("no targets specified")
 	}
 
 	// 3. Run the scheduler

@@ -34,9 +34,35 @@ func TestApp_Build(t *testing.T) {
 		mockExecutor.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(nil)
 
 		// Execute
-		err := a.Run(context.Background(), nil)
+		err := a.Run(context.Background(), []string{"task1"})
 		if err != nil {
 			t.Errorf("Build failed: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_NoTargets(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+
+		// Setup App
+		sched := scheduler.NewScheduler(mockExecutor)
+		a := app.New(mockLoader, sched)
+
+		// Expectations
+		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
+
+		// Execute
+		err := a.Run(context.Background(), nil)
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		if err.Error() != "no targets specified" {
+			t.Errorf("Expected 'no targets specified', got '%v'", err)
 		}
 	})
 }
