@@ -20,10 +20,14 @@ func New(a *app.App) *CLI {
 		SilenceUsage: true,
 	}
 
-	return &CLI{
+	c := &CLI{
 		app:     a,
 		rootCmd: rootCmd,
 	}
+
+	rootCmd.AddCommand(c.newRunCmd())
+
+	return c
 }
 
 // Execute runs the root command.
