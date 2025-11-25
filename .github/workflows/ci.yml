@@ -5,12 +5,10 @@ on:
     branches: [ main ]
   pull_request:
 
-# Cancel in-progress runs when a new workflow is triggered on the same ref
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Grant GITHUB_TOKEN minimal permissions
 permissions:
   contents: read
 
@@ -26,48 +24,43 @@ jobs:
         os: [ubuntu-24.04, macos-26]
 
     steps:
-      # Checkout code from repository
       - name: Checkout code
         uses: actions/checkout@v6
 
-      # Set up Go toolchain
       - name: Set up Go 1.25
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
           cache: true
 
-      # Install Nix package manager
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Configure Cachix binary cache for faster builds
       - name: Configure Cachix binary cache
         uses: cachix/cachix-action@v16
         with:
           name: bob
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
-      # Validate Nix flake configuration
       - name: Validate Nix flake configuration
         run: nix flake check
 
-      # Generate Go code (mocks, etc.)
       - name: Generate Go source files
         run: nix develop -c go generate ./...
 
-      # Run golangci-lint for code quality checks
       - name: Run golangci-lint
-        run: nix develop --command golangci-lint run
+        run: nix develop -c golangci-lint run
 
-      # Run unit and integration tests with race detector
       # Note: Running outside nix dev shell until https://github.com/NixOS/nixpkgs/pull/461615 is resolved
-      - name: Run tests with race detection
-        run: go test -v -race ./...
+      - name: Run tests with race detection and cover profile
+        run: go test -v -race -coverprofile=coverage.txt ./...
 
-      # Build the final binary using Nix
       - name: Build binary with Nix
         run: nix build
 
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
