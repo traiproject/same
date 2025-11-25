@@ -36,13 +36,13 @@ func run() error {
 	// Initialize BuildInfoStore
 	// Note: Currently not used by Scheduler, but initialized as requested.
 	// This might be used in future iterations for caching.
-	_, err = cas.NewStore("bob_state.json")
+	store, err := cas.NewStore("bob_state.json")
 	if err != nil {
 		return err
 	}
 
 	// Initialize engine
-	sched, err := scheduler.NewScheduler(graph, executor)
+	sched, err := scheduler.NewScheduler(graph, executor, nil, store)
 	if err != nil {
 		return err
 	}

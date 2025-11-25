@@ -23,12 +23,16 @@ const (
 	StatusCompleted TaskStatus = "Completed"
 	// StatusFailed indicates the task execution failed.
 	StatusFailed TaskStatus = "Failed"
+	// StatusCached indicates the task was skipped because it was cached.
+	StatusCached TaskStatus = "Cached"
 )
 
 // Scheduler manages the execution of tasks in the dependency graph.
 type Scheduler struct {
 	graph    *domain.Graph
 	executor ports.Executor
+	hasher   ports.Hasher
+	store    ports.BuildInfoStore
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
@@ -36,7 +40,12 @@ type Scheduler struct {
 
 // NewScheduler creates a new Scheduler with the given graph and executor.
 // It validates the graph before proceeding and returns an error if validation fails.
-func NewScheduler(graph *domain.Graph, executor ports.Executor) (*Scheduler, error) {
+func NewScheduler(
+	graph *domain.Graph,
+	executor ports.Executor,
+	hasher ports.Hasher,
+	store ports.BuildInfoStore,
+) (*Scheduler, error) {
 	// Explicitly validate the graph to ensure executionOrder is populated
 	if err := graph.Validate(); err != nil {
 		return nil, err
@@ -45,6 +54,8 @@ func NewScheduler(graph *domain.Graph, executor ports.Executor) (*Scheduler, err
 	s := &Scheduler{
 		graph:      graph,
 		executor:   executor,
+		hasher:     hasher,
+		store:      store,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
 	s.initTaskStatuses()

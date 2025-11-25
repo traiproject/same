@@ -31,7 +31,7 @@ func TestScheduler_Init(t *testing.T) {
 		}
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s, err := scheduler.NewScheduler(g, mockExec)
+		s, err := scheduler.NewScheduler(g, mockExec, nil, nil)
 		if err != nil {
 			t.Fatalf("failed to create scheduler: %v", err)
 		}
@@ -89,7 +89,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		_ = g.AddTask(taskD)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s, err := scheduler.NewScheduler(g, mockExec)
+		s, err := scheduler.NewScheduler(g, mockExec, nil, nil)
 		if err != nil {
 			t.Fatalf("failed to create scheduler: %v", err)
 		}
