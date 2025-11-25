@@ -86,7 +86,6 @@ func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) 
 }
 
 // Run executes the tasks in the graph with the specified parallelism.
-// Run executes the tasks in the graph with the specified parallelism.
 func (s *Scheduler) Run(ctx context.Context, parallelism int) error {
 	state := s.newRunState(ctx, parallelism)
 
