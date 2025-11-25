@@ -179,3 +179,122 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		}
 	})
 }
+
+func TestScheduler_Run_CacheHit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Setup: Single task graph
+		g := domain.NewGraph()
+		task1 := &domain.Task{
+			Name: domain.NewInternedString("task1"),
+		}
+		_ = g.AddTask(task1)
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+
+		// Setup cache hit scenario
+		// ComputeInputHash returns "hash123"
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil)
+
+		// Store.Get returns a BuildInfo with matching InputHash
+		cachedBuildInfo := &domain.BuildInfo{
+			TaskName:  "task1",
+			InputHash: "hash123",
+		}
+		mockStore.EXPECT().Get("task1").Return(cachedBuildInfo, nil)
+
+		// Executor.Execute should NOT be called on cache hit
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
+
+		s, err := scheduler.NewScheduler(g, mockExec, mockHasher, mockStore)
+		if err != nil {
+			t.Fatalf("failed to create scheduler: %v", err)
+		}
+
+		// Run scheduler
+		err = s.Run(context.Background(), 1)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+
+		// Verify task status is Cached
+		taskStatus := s.GetTaskStatusMap()
+		if status := taskStatus[task1.Name]; status != scheduler.StatusCached {
+			t.Errorf("expected task1 status to be Cached, got %s", status)
+		}
+	})
+}
+
+func TestScheduler_Run_CacheMiss_And_Save(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Setup: Single task with outputs
+		g := domain.NewGraph()
+		task1 := &domain.Task{
+			Name: domain.NewInternedString("task1"),
+			Outputs: []domain.InternedString{
+				domain.NewInternedString("output1.txt"),
+				domain.NewInternedString("output2.txt"),
+			},
+		}
+		_ = g.AddTask(task1)
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+
+		// Setup cache miss scenario
+		// ComputeInputHash returns "hash456"
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash456", nil)
+
+		// Store.Get returns nil (cache miss)
+		mockStore.EXPECT().Get("task1").Return(nil, nil)
+
+		// Executor.Execute should be called exactly once
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+		// ComputeFileHash should be called for each output
+		mockHasher.EXPECT().ComputeFileHash("output1.txt").Return(uint64(111), nil)
+		mockHasher.EXPECT().ComputeFileHash("output2.txt").Return(uint64(222), nil)
+
+		// Store.Put should be called to save the new build info
+		mockStore.EXPECT().Put(gomock.Any()).DoAndReturn(func(info domain.BuildInfo) error {
+			// Verify the BuildInfo has the correct values
+			if info.TaskName != "task1" {
+				t.Errorf("expected TaskName 'task1', got %s", info.TaskName)
+			}
+			if info.InputHash != "hash456" {
+				t.Errorf("expected InputHash 'hash456', got %s", info.InputHash)
+			}
+			// OutputHash should be a combination of the file hashes
+			expectedOutputHash := "6fde"
+			if info.OutputHash != expectedOutputHash {
+				t.Errorf("expected OutputHash '%s', got %s", expectedOutputHash, info.OutputHash)
+			}
+			return nil
+		})
+
+		s, err := scheduler.NewScheduler(g, mockExec, mockHasher, mockStore)
+		if err != nil {
+			t.Fatalf("failed to create scheduler: %v", err)
+		}
+
+		// Run scheduler
+		err = s.Run(context.Background(), 1)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+
+		// Verify task status is Completed
+		taskStatus := s.GetTaskStatusMap()
+		if status := taskStatus[task1.Name]; status != scheduler.StatusCompleted {
+			t.Errorf("expected task1 status to be Completed, got %s", status)
+		}
+	})
+}
