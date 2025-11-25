@@ -31,7 +31,9 @@ func TestScheduler_Init(t *testing.T) {
 		}
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s, err := scheduler.NewScheduler(g, mockExec, nil, nil)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		s, err := scheduler.NewScheduler(g, mockExec, mockHasher, mockStore)
 		if err != nil {
 			t.Fatalf("failed to create scheduler: %v", err)
 		}
@@ -89,7 +91,16 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		_ = g.AddTask(taskD)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s, err := scheduler.NewScheduler(g, mockExec, nil, nil)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+
+		// Default expectations for Hasher and Store (Cache Miss)
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash", nil).AnyTimes()
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
+		mockHasher.EXPECT().ComputeFileHash(gomock.Any()).Return(uint64(123), nil).AnyTimes()
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+
+		s, err := scheduler.NewScheduler(g, mockExec, mockHasher, mockStore)
 		if err != nil {
 			t.Fatalf("failed to create scheduler: %v", err)
 		}

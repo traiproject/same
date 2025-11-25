@@ -4,7 +4,10 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"sync"
+	"time"
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
@@ -96,6 +99,13 @@ func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) 
 	s.taskStatus[name] = status
 }
 
+// getStatus retrieves the status of a task.
+func (s *Scheduler) getStatus(name domain.InternedString) TaskStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.taskStatus[name]
+}
+
 // Run executes the tasks in the graph with the specified parallelism.
 func (s *Scheduler) Run(ctx context.Context, parallelism int) error {
 	state := s.newRunState(ctx, parallelism)
@@ -183,9 +193,92 @@ func (state *schedulerRunState) schedule() {
 		state.s.updateStatus(taskName, StatusRunning)
 
 		go func(t domain.Task) {
-			state.resultsCh <- result{task: t.Name, err: state.s.executor.Execute(state.ctx, &t)}
+			state.resultsCh <- result{task: t.Name, err: state.executeTaskWithCache(state.ctx, &t)}
 		}(state.tasks[taskName])
 	}
+}
+
+func (state *schedulerRunState) executeTaskWithCache(ctx context.Context, task *domain.Task) error {
+	// 1. Prepare Context
+	env := parseEnvironment()
+
+	// 2. Calculate Input Hash
+	inputHash, err := state.s.hasher.ComputeInputHash(task, env, ".")
+	if err != nil {
+		return err
+	}
+
+	// 3. Check Cache (Read)
+	if state.checkCacheHit(task, inputHash) {
+		return nil
+	}
+
+	// 4. Execute (Cache Miss)
+	if err := state.s.executor.Execute(ctx, task); err != nil {
+		return err
+	}
+
+	// 5. Update Cache (Write)
+	return state.updateCache(task, inputHash)
+}
+
+func parseEnvironment() map[string]string {
+	env := make(map[string]string)
+	for _, e := range os.Environ() {
+		// Parse KEY=VALUE format
+		for i := 0; i < len(e); i++ {
+			if e[i] == '=' {
+				env[e[:i]] = e[i+1:]
+				break
+			}
+		}
+	}
+	return env
+}
+
+func (state *schedulerRunState) checkCacheHit(task *domain.Task, inputHash string) bool {
+	buildInfo, err := state.s.store.Get(task.Name.String())
+	if err == nil && buildInfo != nil && buildInfo.InputHash == inputHash {
+		// Cache Hit
+		state.s.updateStatus(task.Name, StatusCached)
+		return true
+	}
+	return false
+}
+
+func (state *schedulerRunState) updateCache(task *domain.Task, inputHash string) error {
+	// Calculate OutputHash
+	outputHashStr, err := state.computeOutputHash(task)
+	if err != nil {
+		return err
+	}
+
+	// Construct BuildInfo
+	newBuildInfo := domain.BuildInfo{
+		TaskName:   task.Name.String(),
+		InputHash:  inputHash,
+		OutputHash: outputHashStr,
+		Timestamp:  time.Now(),
+	}
+
+	// Save
+	if err := state.s.store.Put(newBuildInfo); err != nil {
+		return fmt.Errorf("failed to store build info: %w", err)
+	}
+
+	return nil
+}
+
+func (state *schedulerRunState) computeOutputHash(task *domain.Task) (string, error) {
+	var outputHashStr string
+	for _, outputFile := range task.Outputs {
+		h, err := state.s.hasher.ComputeFileHash(outputFile.String())
+		if err != nil {
+			return "", fmt.Errorf("failed to compute output hash for %s: %w", outputFile, err)
+		}
+		outputHashStr += fmt.Sprintf("%x", h)
+	}
+	return outputHashStr, nil
 }
 
 func (state *schedulerRunState) handleResult(res result) {
@@ -195,7 +288,10 @@ func (state *schedulerRunState) handleResult(res result) {
 		state.errs = errors.Join(state.errs, wrappedErr)
 		state.s.updateStatus(res.task, StatusFailed)
 	} else {
-		state.s.updateStatus(res.task, StatusCompleted)
+		// Only update to Completed if it wasn't Cached.
+		if state.s.getStatus(res.task) != StatusCached {
+			state.s.updateStatus(res.task, StatusCompleted)
+		}
 		for _, dep := range state.s.graph.Dependents(res.task) {
 			state.inDegree[dep]--
 			if state.inDegree[dep] == 0 {
