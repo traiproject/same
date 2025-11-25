@@ -27,12 +27,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Set up Go 1.25
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25'
-          cache: true
-
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
@@ -53,9 +47,8 @@ jobs:
       - name: Run golangci-lint
         run: nix develop -c golangci-lint run
 
-      # Note: Running outside nix dev shell until https://github.com/NixOS/nixpkgs/pull/461615 is resolved
       - name: Run tests with race detection and cover profile
-        run: go test -v -race -coverprofile=coverage.txt ./...
+        run: nix develop -c go test -v -race -coverprofile=coverage.txt ./...
 
       - name: Build binary with Nix
         run: nix build
