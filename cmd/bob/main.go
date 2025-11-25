@@ -9,6 +9,7 @@ import (
 
 	"go.trai.ch/bob/internal/adapters/cas"
 	"go.trai.ch/bob/internal/adapters/config"
+	"go.trai.ch/bob/internal/adapters/fs"
 	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/engine/scheduler"
 )
@@ -33,6 +34,10 @@ func run() error {
 	logger := &stdLogger{}
 	executor := shell.NewExecutor(logger)
 
+	// Initialize Hasher
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
 	// Initialize BuildInfoStore
 	// Note: Currently not used by Scheduler, but initialized as requested.
 	// This might be used in future iterations for caching.
@@ -42,7 +47,7 @@ func run() error {
 	}
 
 	// Initialize engine
-	sched, err := scheduler.NewScheduler(graph, executor, nil, store)
+	sched, err := scheduler.NewScheduler(graph, executor, hasher, store)
 	if err != nil {
 		return err
 	}
