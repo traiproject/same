@@ -1,0 +1,32 @@
+// Package commands implements the CLI commands for the bob build tool.
+package commands
+
+import (
+	"github.com/spf13/cobra"
+	"go.trai.ch/bob/internal/app"
+)
+
+// CLI represents the command line interface for bob.
+type CLI struct {
+	app     *app.App
+	rootCmd *cobra.Command
+}
+
+// New creates a new CLI instance with the given app.
+func New(a *app.App) *CLI {
+	rootCmd := &cobra.Command{
+		Use:          "bob",
+		Short:        "A modern build tool for monorepos",
+		SilenceUsage: true,
+	}
+
+	return &CLI{
+		app:     a,
+		rootCmd: rootCmd,
+	}
+}
+
+// Execute runs the root command.
+func (c *CLI) Execute() error {
+	return c.rootCmd.Execute()
+}
