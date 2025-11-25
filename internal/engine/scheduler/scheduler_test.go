@@ -1,4 +1,4 @@
-package scheduler
+package scheduler_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.trai.ch/bob/internal/engine/scheduler"
 	"go.uber.org/mock/gomock"
 )
 
@@ -30,23 +31,21 @@ func TestScheduler_Init(t *testing.T) {
 		}
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s, err := NewScheduler(g, mockExec)
+		s, err := scheduler.NewScheduler(g, mockExec)
 		if err != nil {
 			t.Fatalf("failed to create scheduler: %v", err)
 		}
 
 		// Verify
-		s.mu.RLock()
-		defer s.mu.RUnlock()
-
-		if len(s.taskStatus) != 2 {
-			t.Errorf("expected 2 tasks, got %d", len(s.taskStatus))
+		taskStatus := s.GetTaskStatusMap()
+		if len(taskStatus) != 2 {
+			t.Errorf("expected 2 tasks, got %d", len(taskStatus))
 		}
 
-		if status, ok := s.taskStatus[task1.Name]; !ok || status != StatusPending {
+		if status, ok := taskStatus[task1.Name]; !ok || status != scheduler.StatusPending {
 			t.Errorf("expected task1 to be Pending, got %s", status)
 		}
-		if status, ok := s.taskStatus[task2.Name]; !ok || status != StatusPending {
+		if status, ok := taskStatus[task2.Name]; !ok || status != scheduler.StatusPending {
 			t.Errorf("expected task2 to be Pending, got %s", status)
 		}
 	})
@@ -63,9 +62,25 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		// B depends on D
 		// C depends on D
 		g := domain.NewGraph()
-		taskA := &domain.Task{Name: domain.NewInternedString("A"), Dependencies: []domain.InternedString{domain.NewInternedString("B"), domain.NewInternedString("C")}}
-		taskB := &domain.Task{Name: domain.NewInternedString("B"), Dependencies: []domain.InternedString{domain.NewInternedString("D")}}
-		taskC := &domain.Task{Name: domain.NewInternedString("C"), Dependencies: []domain.InternedString{domain.NewInternedString("D")}}
+		taskA := &domain.Task{
+			Name: domain.NewInternedString("A"),
+			Dependencies: []domain.InternedString{
+				domain.NewInternedString("B"),
+				domain.NewInternedString("C"),
+			},
+		}
+		taskB := &domain.Task{
+			Name: domain.NewInternedString("B"),
+			Dependencies: []domain.InternedString{
+				domain.NewInternedString("D"),
+			},
+		}
+		taskC := &domain.Task{
+			Name: domain.NewInternedString("C"),
+			Dependencies: []domain.InternedString{
+				domain.NewInternedString("D"),
+			},
+		}
 		taskD := &domain.Task{Name: domain.NewInternedString("D")}
 
 		_ = g.AddTask(taskA)
@@ -74,7 +89,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		_ = g.AddTask(taskD)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s, err := NewScheduler(g, mockExec)
+		s, err := scheduler.NewScheduler(g, mockExec)
 		if err != nil {
 			t.Fatalf("failed to create scheduler: %v", err)
 		}

@@ -13,6 +13,10 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - dupl
+    - goconst
+    - mnd
+    - lll
     - revive
     - gocritic
     - prealloc
@@ -22,6 +26,10 @@ linters:
     - misspell
     - nilerr
     - godot
+    - testpackage
+    - thelper
+    - tparallel
+    - depguard
 
   settings:
     govet:
@@ -54,7 +62,60 @@ linters:
     testifylint:
       enable-all: true
 
+    mnd:
+      ignored-numbers:
+        - "0"
+        - "1"
+        - "2"
+    depguard:
+      rules:
+        # 1) Pure domain layer: internal/core/*
+        core:
+          list-mode: strict
+          files:
+            - "internal/core/**/*.go"
+          allow:
+            - $gostd
+            - "go.trai.ch/bob/internal/core"   # domain + ports
+          # no external libs, no engine/app/adapters allowed
+
+        # 2) Engine: core logic, but no infra or app
+        engine:
+          list-mode: lax
+          files:
+            - "internal/engine/**/*.go"
+          deny:
+            - pkg: "go.trai.ch/bob/internal/adapters"
+              desc: "engine must not depend on adapters (infra layer)"
+            - pkg: "go.trai.ch/bob/internal/app"
+              desc: "engine must not depend on app layer"
+            - pkg: "go.trai.ch/bob/cmd"
+              desc: "engine must not depend on cmd"
+
+        # 3) Adapters: infra implementing ports, know about core, but not engine/app
+        adapters:
+          list-mode: lax
+          files:
+            - "internal/adapters/**/*.go"
+          deny:
+            - pkg: "go.trai.ch/bob/internal/engine"
+              desc: "adapters must not depend on engine"
+            - pkg: "go.trai.ch/bob/internal/app"
+              desc: "adapters must not depend on app"
+
+        # 4) App layer: orchestrates use-cases, talks to core + engine (optionally only via ports)
+        app:
+          list-mode: lax
+          files:
+            - "internal/app/**/*.go"
+          deny:
+            - pkg: "go.trai.ch/bob/internal/adapters"
+              desc: "app should depend on ports, not concrete adapters"
+            - pkg: "go.trai.ch/bob/cmd"
+              desc: "app must not depend on cmd"
+
 formatters:
   enable:
-    - gofmt
+    - gofumpt
+    - gci
 

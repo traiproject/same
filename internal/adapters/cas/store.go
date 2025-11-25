@@ -13,6 +13,11 @@ import (
 	"go.trai.ch/zerr"
 )
 
+const (
+	dirPerm  = 0o750
+	filePerm = 0o644
+)
+
 // Store implements ports.BuildInfoStore using a flat JSON file.
 type Store struct {
 	path  string
@@ -66,12 +71,12 @@ func (s *Store) save() error {
 	}
 
 	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return zerr.Wrap(err, "failed to create directory for build info store")
 	}
 
 	//nolint:gosec // Path is cleaned and provided by trusted caller
-	if err := os.WriteFile(s.path, data, 0o644); err != nil {
+	if err := os.WriteFile(s.path, data, filePerm); err != nil {
 		return zerr.Wrap(err, "failed to write build info store")
 	}
 

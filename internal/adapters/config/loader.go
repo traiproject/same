@@ -5,10 +5,9 @@ import (
 	"os"
 	"sort"
 
-	"gopkg.in/yaml.v3"
-
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/zerr"
+	"gopkg.in/yaml.v3"
 )
 
 // Bobfile represents the structure of the bob.yaml configuration file.

@@ -55,6 +55,8 @@
             delve
             golangci-lint
             mockgen
+            gci
+            gofumpt
           ];
         };
       }

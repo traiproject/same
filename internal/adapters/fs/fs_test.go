@@ -30,15 +30,26 @@ func TestWalker_WalkFiles(t *testing.T) { //nolint:cyclop // Test complexity is 
 	if err := os.MkdirAll(filepath.Join(tmpDir, ".git"), 0o750); err != nil { //nolint:gosec // Test directory permissions
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, ".git", "config"), []byte("git config"), 0o600); err != nil { //nolint:gosec // Test file permissions
+	if err := os.WriteFile(
+		filepath.Join(tmpDir, ".git", "config"),
+		[]byte("git config"),
+		0o600,
+	); err != nil { //nolint:gosec // Test file permissions
 		t.Fatal(err)
 	}
 
 	// Create ignored directory
-	if err := os.MkdirAll(filepath.Join(tmpDir, "ignored"), 0o750); err != nil { //nolint:gosec // Test directory permissions
+	if err := os.MkdirAll(
+		filepath.Join(tmpDir, "ignored"),
+		0o750,
+	); err != nil { //nolint:gosec // Test directory permissions
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "ignored", "file"), []byte("ignored content"), 0o600); err != nil { //nolint:gosec // Test file permissions
+	if err := os.WriteFile(
+		filepath.Join(tmpDir, "ignored", "file"),
+		[]byte("ignored content"),
+		0o600,
+	); err != nil { //nolint:gosec // Test file permissions
 		t.Fatal(err)
 	}
 
@@ -46,12 +57,20 @@ func TestWalker_WalkFiles(t *testing.T) { //nolint:cyclop // Test complexity is 
 	if err := os.MkdirAll(filepath.Join(tmpDir, "src"), 0o750); err != nil { //nolint:gosec // Test directory permissions
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "src", "main.go"), []byte("package main"), 0o600); err != nil { //nolint:gosec // Test file permissions
+	if err := os.WriteFile(
+		filepath.Join(tmpDir, "src", "main.go"),
+		[]byte("package main"),
+		0o600,
+	); err != nil { //nolint:gosec // Test file permissions
 		t.Fatal(err)
 	}
 
 	// Create README.md
-	if err := os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Readme"), 0o600); err != nil { //nolint:gosec // Test file permissions
+	if err := os.WriteFile(
+		filepath.Join(tmpDir, "README.md"),
+		[]byte("# Readme"),
+		0o600,
+	); err != nil { //nolint:gosec // Test file permissions
 		t.Fatal(err)
 	}
 
@@ -129,7 +148,11 @@ func TestHasher_ComputeInputHash(t *testing.T) { //nolint:cyclop // Test complex
 
 	// Create input file
 	inputFile := filepath.Join(tmpDir, "input.txt")
-	if writeErr := os.WriteFile(inputFile, []byte("input content"), 0o600); writeErr != nil { //nolint:gosec // Test file permissions
+	if writeErr := os.WriteFile(
+		inputFile,
+		[]byte("input content"),
+		0o600,
+	); writeErr != nil { //nolint:gosec // Test file permissions
 		t.Fatal(writeErr)
 	}
 
@@ -171,7 +194,11 @@ func TestHasher_ComputeInputHash(t *testing.T) { //nolint:cyclop // Test complex
 	}
 
 	// 3. Verify hash changes with file content
-	if writeErr := os.WriteFile(inputFile, []byte("modified content"), 0o600); writeErr != nil { //nolint:gosec // Test file permissions
+	if writeErr := os.WriteFile(
+		inputFile,
+		[]byte("modified content"),
+		0o600,
+	); writeErr != nil { //nolint:gosec // Test file permissions
 		t.Fatal(writeErr)
 	}
 	hash4, err := hasher.ComputeInputHash(task, env, tmpDir)

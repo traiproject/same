@@ -1,16 +1,18 @@
-package domain
+package domain_test
 
 import (
 	"encoding/json"
 	"testing"
+
+	"go.trai.ch/bob/internal/core/domain"
 )
 
 func TestInternedString(t *testing.T) {
 	s1 := "hello"
 	s2 := "hello"
 
-	is1 := NewInternedString(s1)
-	is2 := NewInternedString(s2)
+	is1 := domain.NewInternedString(s1)
+	is2 := domain.NewInternedString(s2)
 
 	// Verify that the underlying handles are equal
 	if is1.Value() != is2.Value() {
@@ -25,7 +27,7 @@ func TestInternedString(t *testing.T) {
 
 func TestInternedStringJSON(t *testing.T) {
 	t.Run("Marshal and Unmarshal preserve string value", func(t *testing.T) {
-		original := NewInternedString("test-task-name")
+		original := domain.NewInternedString("test-task-name")
 
 		// Marshal to JSON
 		data, err := json.Marshal(original)
@@ -40,7 +42,7 @@ func TestInternedStringJSON(t *testing.T) {
 		}
 
 		// Unmarshal from JSON
-		var unmarshaled InternedString
+		var unmarshaled domain.InternedString
 		err = json.Unmarshal(data, &unmarshaled)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal InternedString: %v", err)
@@ -54,11 +56,11 @@ func TestInternedStringJSON(t *testing.T) {
 
 	t.Run("Marshal and Unmarshal in struct", func(t *testing.T) {
 		type TestStruct struct {
-			Name InternedString `json:"name"`
+			Name domain.InternedString `json:"name"`
 		}
 
 		original := TestStruct{
-			Name: NewInternedString("build"),
+			Name: domain.NewInternedString("build"),
 		}
 
 		// Marshal to JSON

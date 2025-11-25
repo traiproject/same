@@ -1,9 +1,10 @@
-package shell
+package shell_test
 
 import (
 	"context"
 	"testing"
 
+	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports/mocks"
 	"go.uber.org/mock/gomock"
@@ -14,7 +15,7 @@ func TestExecutor_Execute(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := mocks.NewMockLogger(ctrl)
-	executor := NewExecutor(mockLogger)
+	executor := shell.NewExecutor(mockLogger)
 
 	t.Run("Success", func(t *testing.T) {
 		task := &domain.Task{
