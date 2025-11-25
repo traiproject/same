@@ -207,30 +207,15 @@ func (s *Scheduler) resolveTargetTasks(
 	tasksToRun := make(map[domain.InternedString]bool)
 	var allTasks []domain.InternedString
 
-	// Calculate transitive dependencies for targets
-	var visit func(name domain.InternedString) error
-	visit = func(name domain.InternedString) error {
-		if tasksToRun[name] {
-			return nil
-		}
-		task, ok := graph.GetTask(name)
-		if !ok {
-			return zerr.With(domain.ErrTaskNotFound, "task", name.String())
-		}
-		tasksToRun[name] = true
-		allTasks = append(allTasks, name)
-		for _, dep := range task.Dependencies {
-			if err := visit(dep); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
 	for _, nameStr := range targetNames {
 		name := domain.NewInternedString(nameStr)
-		if err := visit(name); err != nil {
-			return nil, nil, err
+		if _, ok := graph.GetTask(name); !ok {
+			return nil, nil, zerr.With(domain.ErrTaskNotFound, "task", name.String())
+		}
+
+		if !tasksToRun[name] {
+			tasksToRun[name] = true
+			allTasks = append(allTasks, name)
 		}
 	}
 

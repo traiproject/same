@@ -134,7 +134,7 @@ func TestScheduler_Run_Partial(t *testing.T) {
 
 		// Graph: A->B, B->C, D
 		// Target: A
-		// Expected: C, B, A run. D does not run.
+		// Expected: A runs. B, C, D do not run.
 		g := domain.NewGraph()
 		taskA := &domain.Task{
 			Name: domain.NewInternedString("A"),
@@ -161,11 +161,11 @@ func TestScheduler_Run_Partial(t *testing.T) {
 
 		// Mock Expectations
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
-			if task.Name.String() == "D" {
-				t.Error("Task D should not be executed")
+			if task.Name.String() != "A" {
+				t.Errorf("Task %s should not be executed", task.Name)
 			}
 			return nil
-		}).Times(3) // A, B, C
+		}).Times(1) // Only A
 
 		err := s.Run(context.Background(), g, []string{"A"}, 1)
 		if err != nil {
