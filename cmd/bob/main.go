@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
 
 	"go.trai.ch/bob/internal/adapters/cas"
 	"go.trai.ch/bob/internal/adapters/config"
 	"go.trai.ch/bob/internal/adapters/shell"
+	"go.trai.ch/bob/internal/app"
 	"go.trai.ch/bob/internal/engine/scheduler"
 )
 
@@ -25,10 +25,7 @@ func run() error {
 	ctx := context.Background()
 
 	// Initialize adapters
-	graph, err := config.Load("bob.yaml")
-	if err != nil {
-		return err
-	}
+	configLoader := &config.FileConfigLoader{Filename: "bob.yaml"}
 
 	logger := &stdLogger{}
 	executor := shell.NewExecutor(logger)
@@ -36,23 +33,20 @@ func run() error {
 	// Initialize BuildInfoStore
 	// Note: Currently not used by Scheduler, but initialized as requested.
 	// This might be used in future iterations for caching.
-	_, err = cas.NewStore("bob_state.json")
+	_, err := cas.NewStore("bob_state.json")
 	if err != nil {
 		return err
 	}
 
 	// Initialize engine
-	sched, err := scheduler.NewScheduler(graph, executor)
-	if err != nil {
-		return err
-	}
+	sched := scheduler.NewScheduler(executor)
 
-	// Run scheduler
-	if err := sched.Run(ctx, runtime.NumCPU()); err != nil {
-		return err
-	}
+	// Initialize app
+	application := app.New(configLoader, sched)
 
-	return nil
+	// Run build
+	// TODO: Parse targets from args
+	return application.Run(ctx, nil)
 }
 
 type stdLogger struct{}

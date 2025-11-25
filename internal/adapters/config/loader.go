@@ -3,12 +3,24 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"sort"
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/zerr"
 	"gopkg.in/yaml.v3"
 )
+
+// FileConfigLoader implements ports.ConfigLoader using a YAML file.
+type FileConfigLoader struct {
+	Filename string
+}
+
+// Load reads the configuration from the given working directory.
+func (l *FileConfigLoader) Load(cwd string) (*domain.Graph, error) {
+	path := filepath.Join(cwd, l.Filename)
+	return Load(path)
+}
 
 // Bobfile represents the structure of the bob.yaml configuration file.
 type Bobfile struct {

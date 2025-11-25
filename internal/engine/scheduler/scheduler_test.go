@@ -12,45 +12,6 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestScheduler_Init(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		// Setup gomock controller
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		// Setup
-		g := domain.NewGraph()
-		task1 := &domain.Task{Name: domain.NewInternedString("task1")}
-		task2 := &domain.Task{Name: domain.NewInternedString("task2")}
-
-		if err := g.AddTask(task1); err != nil {
-			t.Fatalf("failed to add task1: %v", err)
-		}
-		if err := g.AddTask(task2); err != nil {
-			t.Fatalf("failed to add task2: %v", err)
-		}
-
-		mockExec := mocks.NewMockExecutor(ctrl)
-		s, err := scheduler.NewScheduler(g, mockExec)
-		if err != nil {
-			t.Fatalf("failed to create scheduler: %v", err)
-		}
-
-		// Verify
-		taskStatus := s.GetTaskStatusMap()
-		if len(taskStatus) != 2 {
-			t.Errorf("expected 2 tasks, got %d", len(taskStatus))
-		}
-
-		if status, ok := taskStatus[task1.Name]; !ok || status != scheduler.StatusPending {
-			t.Errorf("expected task1 to be Pending, got %s", status)
-		}
-		if status, ok := taskStatus[task2.Name]; !ok || status != scheduler.StatusPending {
-			t.Errorf("expected task2 to be Pending, got %s", status)
-		}
-	})
-}
-
 func TestScheduler_Run_Diamond(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -89,10 +50,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		_ = g.AddTask(taskD)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s, err := scheduler.NewScheduler(g, mockExec)
-		if err != nil {
-			t.Fatalf("failed to create scheduler: %v", err)
-		}
+		s := scheduler.NewScheduler(mockExec)
 
 		// Channels for synchronization
 		dStarted := make(chan struct{})
@@ -130,7 +88,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		// Run Scheduler in a goroutine
 		errCh := make(chan error)
 		go func() {
-			errCh <- s.Run(context.Background(), 2)
+			errCh <- s.Run(context.Background(), g, nil, 2)
 		}()
 
 		// Assert D is running
@@ -160,11 +118,58 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		close(cProceed)
 
 		// Wait for Run to finish
-		err = <-errCh
+		err := <-errCh
 
 		// Verify error
 		if err == nil {
 			t.Error("expected error from Run, got nil")
+		}
+	})
+}
+
+func TestScheduler_Run_Partial(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Graph: A->B, B->C, D
+		// Target: A
+		// Expected: C, B, A run. D does not run.
+		g := domain.NewGraph()
+		taskA := &domain.Task{
+			Name: domain.NewInternedString("A"),
+			Dependencies: []domain.InternedString{
+				domain.NewInternedString("B"),
+			},
+		}
+		taskB := &domain.Task{
+			Name: domain.NewInternedString("B"),
+			Dependencies: []domain.InternedString{
+				domain.NewInternedString("C"),
+			},
+		}
+		taskC := &domain.Task{Name: domain.NewInternedString("C")}
+		taskD := &domain.Task{Name: domain.NewInternedString("D")}
+
+		_ = g.AddTask(taskA)
+		_ = g.AddTask(taskB)
+		_ = g.AddTask(taskC)
+		_ = g.AddTask(taskD)
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		s := scheduler.NewScheduler(mockExec)
+
+		// Mock Expectations
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
+			if task.Name.String() == "D" {
+				t.Error("Task D should not be executed")
+			}
+			return nil
+		}).Times(3) // A, B, C
+
+		err := s.Run(context.Background(), g, []string{"A"}, 1)
+		if err != nil {
+			t.Errorf("Run failed: %v", err)
 		}
 	})
 }
