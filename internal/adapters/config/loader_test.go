@@ -89,3 +89,50 @@ tasks:
 		t.Errorf("expected metadata missing_dependency=missing, got %v", meta["missing_dependency"])
 	}
 }
+
+func TestLoad_ReservedTaskName(t *testing.T) {
+	content := `
+version: "1"
+tasks:
+  all:
+    cmd: ["echo hello"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	// Load the config
+	_, err := config.Load(configPath)
+	if err == nil {
+		t.Fatal("expected error for reserved task name 'all', got nil")
+	}
+
+	// Verify error message contains "reserved"
+	if !contains(err.Error(), "reserved") {
+		t.Errorf("expected error message to contain 'reserved', got: %v", err)
+	}
+
+	// Verify error metadata
+	zErr, ok := err.(*zerr.Error)
+	if !ok {
+		t.Fatalf("expected *zerr.Error, got %T: %v", err, err)
+	}
+
+	meta := zErr.Metadata()
+	if taskName, ok := meta["task_name"].(string); !ok || taskName != "all" {
+		t.Errorf("expected metadata task_name=all, got %v", meta["task_name"])
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && func() bool {
+		for i := 0; i <= len(s)-len(substr); i++ {
+			if s[i:i+len(substr)] == substr {
+				return true
+			}
+		}
+		return false
+	}())
+}

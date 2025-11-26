@@ -58,6 +58,11 @@ func Load(path string) (*domain.Graph, error) {
 
 	// Second pass: Create tasks and add to graph
 	for name, dto := range bobfile.Tasks {
+		// Validate reserved task names
+		if name == "all" {
+			return nil, zerr.With(zerr.New("task name 'all' is reserved"), "task_name", name)
+		}
+
 		// Validate dependencies exist
 		for _, dep := range dto.DependsOn {
 			if !taskNames[dep] {

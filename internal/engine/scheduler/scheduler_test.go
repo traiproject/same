@@ -88,7 +88,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		// Run Scheduler in a goroutine
 		errCh := make(chan error)
 		go func() {
-			errCh <- s.Run(context.Background(), g, nil, 2)
+			errCh <- s.Run(context.Background(), g, []string{"all"}, 2)
 		}()
 
 		// Assert D is running
@@ -170,6 +170,159 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		err := s.Run(context.Background(), g, []string{"A"}, 1)
 		if err != nil {
 			t.Errorf("Run failed: %v", err)
+		}
+	})
+}
+
+func TestScheduler_Run_ExplicitAll(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Graph: A, B, C (no dependencies)
+		// Target: "all"
+		// Expected: All tasks run
+		g := domain.NewGraph()
+		taskA := &domain.Task{Name: domain.NewInternedString("A")}
+		taskB := &domain.Task{Name: domain.NewInternedString("B")}
+		taskC := &domain.Task{Name: domain.NewInternedString("C")}
+
+		_ = g.AddTask(taskA)
+		_ = g.AddTask(taskB)
+		_ = g.AddTask(taskC)
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		s := scheduler.NewScheduler(mockExec)
+
+		// Expect all three tasks to execute
+		executedTasks := make(map[string]bool)
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
+			executedTasks[task.Name.String()] = true
+			return nil
+		}).Times(3)
+
+		err := s.Run(context.Background(), g, []string{"all"}, 2)
+		if err != nil {
+			t.Errorf("Run failed: %v", err)
+		}
+
+		// Verify all tasks were executed
+		if !executedTasks["A"] || !executedTasks["B"] || !executedTasks["C"] {
+			t.Errorf("Not all tasks were executed: %v", executedTasks)
+		}
+	})
+}
+
+func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Graph: A, B, C (no dependencies)
+		// Target: ["all", "A"]
+		// Expected: All tasks run ("all" takes precedence)
+		g := domain.NewGraph()
+		taskA := &domain.Task{Name: domain.NewInternedString("A")}
+		taskB := &domain.Task{Name: domain.NewInternedString("B")}
+		taskC := &domain.Task{Name: domain.NewInternedString("C")}
+
+		_ = g.AddTask(taskA)
+		_ = g.AddTask(taskB)
+		_ = g.AddTask(taskC)
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		s := scheduler.NewScheduler(mockExec)
+
+		// Expect all three tasks to execute
+		executedTasks := make(map[string]bool)
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
+			executedTasks[task.Name.String()] = true
+			return nil
+		}).Times(3)
+
+		err := s.Run(context.Background(), g, []string{"all", "A"}, 2)
+		if err != nil {
+			t.Errorf("Run failed: %v", err)
+		}
+
+		// Verify all tasks were executed
+		if !executedTasks["A"] || !executedTasks["B"] || !executedTasks["C"] {
+			t.Errorf("Not all tasks were executed: %v", executedTasks)
+		}
+	})
+}
+
+func TestScheduler_Run_EmptyTargets(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Graph: A, B, C (no dependencies)
+		// Target: [] (empty)
+		// Expected: No tasks run
+		g := domain.NewGraph()
+		taskA := &domain.Task{Name: domain.NewInternedString("A")}
+		taskB := &domain.Task{Name: domain.NewInternedString("B")}
+		taskC := &domain.Task{Name: domain.NewInternedString("C")}
+
+		_ = g.AddTask(taskA)
+		_ = g.AddTask(taskB)
+		_ = g.AddTask(taskC)
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		s := scheduler.NewScheduler(mockExec)
+
+		// Expect no tasks to execute
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
+
+		err := s.Run(context.Background(), g, []string{}, 2)
+		if err != nil {
+			t.Errorf("Run failed: %v", err)
+		}
+	})
+}
+
+func TestScheduler_Run_SpecificTargets(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Graph: A, B, C (no dependencies)
+		// Target: ["A", "B"]
+		// Expected: Only A and B run, not C
+		g := domain.NewGraph()
+		taskA := &domain.Task{Name: domain.NewInternedString("A")}
+		taskB := &domain.Task{Name: domain.NewInternedString("B")}
+		taskC := &domain.Task{Name: domain.NewInternedString("C")}
+
+		_ = g.AddTask(taskA)
+		_ = g.AddTask(taskB)
+		_ = g.AddTask(taskC)
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		s := scheduler.NewScheduler(mockExec)
+
+		// Expect only A and B to execute
+		executedTasks := make(map[string]bool)
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
+			if task.Name.String() == "C" {
+				t.Errorf("Task C should not execute")
+			}
+			executedTasks[task.Name.String()] = true
+			return nil
+		}).Times(2)
+
+		err := s.Run(context.Background(), g, []string{"A", "B"}, 2)
+		if err != nil {
+			t.Errorf("Run failed: %v", err)
+		}
+
+		// Verify A and B were executed, C was not
+		if !executedTasks["A"] || !executedTasks["B"] {
+			t.Errorf("Expected A and B to execute, got: %v", executedTasks)
+		}
+		if executedTasks["C"] {
+			t.Error("Task C should not have executed")
 		}
 	})
 }

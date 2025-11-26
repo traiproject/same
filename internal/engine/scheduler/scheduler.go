@@ -61,8 +61,8 @@ func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) 
 }
 
 // Run executes the tasks in the graph with the specified parallelism.
-// If targetNames is empty or contains "all", all tasks in the graph are executed.
-// Otherwise, only the specified tasks and their dependencies are executed.
+// If targetNames contains "all", all tasks in the graph are executed.
+// Otherwise, only the specified tasks are executed.
 func (s *Scheduler) Run(ctx context.Context, graph *domain.Graph, targetNames []string, parallelism int) error {
 	// Explicitly validate the graph to ensure executionOrder is populated
 	if err := graph.Validate(); err != nil {
@@ -173,12 +173,7 @@ func (s *Scheduler) resolveTasksToRun(
 	graph *domain.Graph,
 	targetNames []string,
 ) (map[domain.InternedString]bool, []domain.InternedString, error) {
-	runAll := len(targetNames) == 0
-	if !runAll {
-		if slices.Contains(targetNames, "all") {
-			runAll = true
-		}
-	}
+	runAll := slices.Contains(targetNames, "all")
 
 	if runAll {
 		return s.resolveAllTasks(graph)
