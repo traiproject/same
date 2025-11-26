@@ -27,7 +27,7 @@ func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 
 	task := &domain.Task{
 		Name:    domain.NewInternedString("test-task"),
-		Command: []string{"printf", "line1\\nline2\\n"},
+		Command: []string{"sh", "-c", "echo line1; echo line2"},
 	}
 
 	err := executor.Execute(context.Background(), task)

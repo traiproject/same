@@ -36,9 +36,21 @@ func TestRun_Success(t *testing.T) {
 	// Initialize CLI
 	cli := commands.New(a)
 
-	// Setup expectations
-	mockLoader.EXPECT().Load(".").Return(g, nil)
-	mockExecutor.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(nil)
+	// Setup strict expectations in the correct sequence
+	// 1. Loader.Load is called first
+	mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+
+	// 2. Hasher.ComputeInputHash is called once to compute input hash
+	mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
+
+	// 3. Store.Get is called once to check for cached build info (simulate cache miss by returning nil)
+	mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+
+	// 4. Executor.Execute is called once to run the task (since it's a cache miss)
+	mockExecutor.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	// 5. Store.Put is called once to save the new build result
+	mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
 
 	// Set command args
 	cli.SetArgs([]string{"run", "build"})
