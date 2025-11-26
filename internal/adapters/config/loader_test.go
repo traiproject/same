@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,7 +113,7 @@ tasks:
 	}
 
 	// Verify error message contains "reserved"
-	if !contains(err.Error(), "reserved") {
+	if !strings.Contains(err.Error(), "reserved") {
 		t.Errorf("expected error message to contain 'reserved', got: %v", err)
 	}
 
@@ -126,17 +127,6 @@ tasks:
 	if taskName, ok := meta["task_name"].(string); !ok || taskName != "all" {
 		t.Errorf("expected metadata task_name=all, got %v", meta["task_name"])
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && func() bool {
-		for i := 0; i <= len(s)-len(substr); i++ {
-			if s[i:i+len(substr)] == substr {
-				return true
-			}
-		}
-		return false
-	}())
 }
 
 func TestLoad_Errors(t *testing.T) {

@@ -49,6 +49,19 @@ func (c *CLI) GetConfigPath() string {
 	return config
 }
 
+// SetConfigHook sets up a PersistentPreRun function that retrieves the config flag
+// and calls the provided callback with the config path.
+func (c *CLI) SetConfigHook(fn func(string)) {
+	c.rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		configPath, err := cmd.Flags().GetString("config")
+		if err != nil {
+			return err
+		}
+		fn(configPath)
+		return nil
+	}
+}
+
 // SetArgs sets the arguments for the root command. Used for testing.
 func (c *CLI) SetArgs(args []string) {
 	c.rootCmd.SetArgs(args)
