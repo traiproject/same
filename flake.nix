@@ -35,12 +35,7 @@
           excludePackages = [ ];
           nativeBuildInputs = [ pkgs.mockgen ];
           preBuild = ''
-            # Generate mocks for tests
-            cd internal/core/ports
-            mkdir -p mocks
-            mockgen -source=logger.go -destination=mocks/mock_logger.go -package=mocks
-            mockgen -source=executor.go -destination=mocks/mock_executor.go -package=mocks
-            cd ../../..
+            go generate ./...
           '';
         };
 
