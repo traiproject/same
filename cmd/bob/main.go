@@ -2,8 +2,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"go.trai.ch/bob/cmd/bob/commands"
 	"go.trai.ch/bob/internal/adapters/config"
@@ -14,6 +17,9 @@ import (
 )
 
 func main() {
+	// 0. Context with signal handling
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
 	// 1. Infrastructure
 	log := logger.New()
 	configLoader := &config.FileConfigLoader{Filename: "bob.yaml"}
@@ -29,8 +35,10 @@ func main() {
 	cli := commands.New(application)
 
 	// 5. Execution
-	if err := cli.Execute(); err != nil {
+	if err := cli.Execute(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %+v\n", err)
+		cancel()
 		os.Exit(1)
 	}
+	cancel()
 }

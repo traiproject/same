@@ -2,6 +2,8 @@
 package commands
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 	"go.trai.ch/bob/internal/app"
 )
@@ -30,7 +32,8 @@ func New(a *app.App) *CLI {
 	return c
 }
 
-// Execute runs the root command.
-func (c *CLI) Execute() error {
+// Execute runs the root command with the given context.
+func (c *CLI) Execute(ctx context.Context) error {
+	c.rootCmd.SetContext(ctx)
 	return c.rootCmd.Execute()
 }
