@@ -2,62 +2,141 @@ package main
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestRun_Integration(t *testing.T) {
-	// Setup
-	tempDir := t.TempDir()
-	bobYamlPath := filepath.Join(tempDir, "bob.yaml")
-	err := os.WriteFile(bobYamlPath, []byte("version: \"1\"\ntasks: { build: { cmd: [\"echo\", \"hello\"] } }\n"), 0o600)
-	require.NoError(t, err)
-
-	originalWd, err := os.Getwd()
-	require.NoError(t, err)
+func TestParseConfigFlag(t *testing.T) {
+	// Save original args and defer restoration
 	originalArgs := os.Args
 	defer func() {
-		_ = os.Chdir(originalWd)
 		os.Args = originalArgs
 	}()
 
-	err = os.Chdir(tempDir)
-	require.NoError(t, err)
+	tests := []struct {
+		name     string
+		args     []string
+		expected string
+	}{
+		{
+			name:     "Default behavior (no flags)",
+			args:     []string{"bob"},
+			expected: "bob.yaml",
+		},
+		{
+			name:     "Short flag",
+			args:     []string{"bob", "-c", "custom.yaml"},
+			expected: "custom.yaml",
+		},
+		{
+			name:     "Long flag",
+			args:     []string{"bob", "--config", "custom.yaml"},
+			expected: "custom.yaml",
+		},
+		{
+			name:     "Equals format",
+			args:     []string{"bob", "--config=custom.yaml"},
+			expected: "custom.yaml",
+		},
+		{
+			name:     "Flag at the end",
+			args:     []string{"bob", "run", "build", "-c", "custom.yaml"},
+			expected: "custom.yaml",
+		},
+		{
+			name:     "Flag in the middle",
+			args:     []string{"bob", "-c", "custom.yaml", "run"},
+			expected: "custom.yaml",
+		},
+		{
+			name:     "Flag present but no value (edge case)",
+			args:     []string{"bob", "-c"},
+			expected: "bob.yaml",
+		},
+		{
+			name:     "Long flag present but no value (edge case)",
+			args:     []string{"bob", "--config"},
+			expected: "bob.yaml",
+		},
+	}
 
-	// Set args to run the 'build' task
-	os.Args = []string{"bob", "run", "build"}
-
-	// Execution
-	exitCode := run()
-
-	// Assertion
-	assert.Equal(t, 0, exitCode)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Args = tt.args
+			got := parseConfigFlag()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
 }
 
-func TestRun_MissingConfig(t *testing.T) {
-	// Setup
-	tempDir := t.TempDir()
-
-	originalWd, err := os.Getwd()
-	require.NoError(t, err)
+func TestRun(t *testing.T) {
+	// Save original args
 	originalArgs := os.Args
 	defer func() {
-		_ = os.Chdir(originalWd)
 		os.Args = originalArgs
 	}()
 
-	err = os.Chdir(tempDir)
-	require.NoError(t, err)
+	tests := []struct {
+		name         string
+		setupConfig  func(tmpDir string) string
+		args         []string
+		expectedExit int
+	}{
+		{
+			name: "Success with valid config",
+			setupConfig: func(tmpDir string) string {
+				configPath := tmpDir + "/bob.yaml"
+				configContent := `version: "1"
+tasks:
+  test:
+    cmd: ["echo", "hello"]
+`
+				err := os.WriteFile(configPath, []byte(configContent), 0o600)
+				if err != nil {
+					t.Fatalf("failed to write config: %v", err)
+				}
+				return configPath
+			},
+			args:         []string{"bob", "run", "test"},
+			expectedExit: 0,
+		},
+		{
+			name: "Error with missing config",
+			setupConfig: func(tmpDir string) string {
+				return tmpDir + "/nonexistent.yaml"
+			},
+			args:         []string{"bob", "-c", "nonexistent.yaml", "run", "test"},
+			expectedExit: 1,
+		},
+	}
 
-	// Set args to run a task, which should trigger config load
-	os.Args = []string{"bob", "run", "build"}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
 
-	// Execution
-	exitCode := run()
+			// Setup config
+			configPath := tt.setupConfig(tmpDir)
 
-	// Assertion
-	assert.Equal(t, 1, exitCode)
+			// Change to tmpDir for relative path resolution
+			originalWd, _ := os.Getwd()
+			err := os.Chdir(tmpDir)
+			if err != nil {
+				t.Fatalf("failed to chdir: %v", err)
+			}
+			defer func() {
+				_ = os.Chdir(originalWd)
+			}()
+
+			// Set args
+			os.Args = tt.args
+			if tt.args[1] == "-c" {
+				os.Args[2] = configPath
+			}
+
+			// Run and capture exit code
+			exitCode := run()
+			assert.Equal(t, tt.expectedExit, exitCode)
+		})
+	}
 }

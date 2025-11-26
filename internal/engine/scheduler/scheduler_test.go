@@ -7,6 +7,8 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports/mocks"
 	"go.trai.ch/bob/internal/engine/scheduler"
@@ -334,5 +336,26 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		if executedTasks["C"] {
 			t.Error("Task C should not have executed")
 		}
+	})
+}
+
+func TestScheduler_Run_TaskNotFound(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		g := domain.NewGraph()
+		taskA := &domain.Task{Name: domain.NewInternedString("A")}
+		_ = g.AddTask(taskA)
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		s := scheduler.NewScheduler(mockExec)
+
+		// Expect no execution
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
+
+		err := s.Run(context.Background(), g, []string{"B"}, 1)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "task not found")
 	})
 }

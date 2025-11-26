@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.trai.ch/bob/internal/adapters/config"
 	"go.trai.ch/zerr"
 )
@@ -135,4 +137,30 @@ func contains(s, substr string) bool {
 		}
 		return false
 	}())
+}
+
+func TestLoad_Errors(t *testing.T) {
+	t.Run("File Not Found", func(t *testing.T) {
+		_, err := config.Load("non-existent-file.yaml")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read config file")
+	})
+
+	t.Run("Invalid YAML", func(t *testing.T) {
+		content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["echo hello"]
+    input: ["src/**/*"  # Unclosed list/quote
+`
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "invalid.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		_, err = config.Load(configPath)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse config file")
+	})
 }

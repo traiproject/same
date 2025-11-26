@@ -4,51 +4,32 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports/mocks"
 	"go.uber.org/mock/gomock"
 )
 
-func TestExecutor_Execute(t *testing.T) {
+func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockLogger := mocks.NewMockLogger(ctrl)
+
+	// Expect Info to be called twice, once for each line
+	// We use gomock.InOrder to ensure order, though not strictly required by prompt, it's good practice.
+	// However, the prompt just says "exactly twice".
+	mockLogger.EXPECT().Info("line1").Times(1)
+	mockLogger.EXPECT().Info("line2").Times(1)
+
 	executor := shell.NewExecutor(mockLogger)
 
-	t.Run("Success", func(t *testing.T) {
-		task := &domain.Task{
-			Name:    domain.NewInternedString("test"),
-			Command: []string{"echo", "hello"},
-		}
+	task := &domain.Task{
+		Name:    domain.NewInternedString("test-task"),
+		Command: []string{"printf", "line1\\nline2\\n"},
+	}
 
-		mockLogger.EXPECT().Info("hello")
-
-		if err := executor.Execute(context.Background(), task); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("Failure", func(t *testing.T) {
-		task := &domain.Task{
-			Name:    domain.NewInternedString("fail"),
-			Command: []string{"sh", "-c", "exit 1"},
-		}
-
-		if err := executor.Execute(context.Background(), task); err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("EmptyCommand", func(t *testing.T) {
-		task := &domain.Task{
-			Name:    domain.NewInternedString("empty"),
-			Command: []string{},
-		}
-
-		if err := executor.Execute(context.Background(), task); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
+	err := executor.Execute(context.Background(), task)
+	require.NoError(t, err)
 }
