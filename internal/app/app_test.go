@@ -22,6 +22,7 @@ func TestApp_Build(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
 
 		// Setup Graph
 		g := domain.NewGraph()
@@ -29,17 +30,21 @@ func TestApp_Build(t *testing.T) {
 		_ = g.AddTask(task)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
 		a := app.New(mockLoader, sched)
 
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
-		mockExecutor.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(nil)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return("hash", nil)
+		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), task).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
 
-		// Execute
+		// Run
 		err := a.Run(context.Background(), []string{"task1"})
+		// Assert
 		if err != nil {
-			t.Errorf("Build failed: %v", err)
+			t.Errorf("Expected no error, got: %v", err)
 		}
 	})
 }
@@ -54,9 +59,10 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
 		a := app.New(mockLoader, sched)
 
 		// Expectations

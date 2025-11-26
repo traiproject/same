@@ -41,7 +41,7 @@ func run() int {
 	}
 
 	// 2. Engine
-	sched := scheduler.NewScheduler(executor, store, hasher, verifier)
+	sched := scheduler.NewScheduler(executor, store, hasher, verifier, log)
 
 	// 3. Application
 	application := app.New(configLoader, sched)

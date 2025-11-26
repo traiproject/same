@@ -4,8 +4,10 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
@@ -32,23 +34,26 @@ type Scheduler struct {
 	store    ports.BuildInfoStore
 	hasher   ports.Hasher
 	verifier ports.Verifier
+	logger   ports.Logger
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
 }
 
-// NewScheduler creates a new Scheduler with the given executor, store, hasher, and verifier.
+// NewScheduler creates a new Scheduler with the given executor, store, hasher, verifier, and logger.
 func NewScheduler(
 	executor ports.Executor,
 	store ports.BuildInfoStore,
 	hasher ports.Hasher,
 	verifier ports.Verifier,
+	logger ports.Logger,
 ) *Scheduler {
 	s := &Scheduler{
 		executor:   executor,
 		store:      store,
 		hasher:     hasher,
 		verifier:   verifier,
+		logger:     logger,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
 	return s
@@ -113,8 +118,10 @@ func (s *Scheduler) Run(ctx context.Context, graph *domain.Graph, targetNames []
 }
 
 type result struct {
-	task domain.InternedString
-	err  error
+	task      domain.InternedString
+	err       error
+	skipped   bool
+	inputHash string
 }
 
 type schedulerRunState struct {
@@ -271,19 +278,48 @@ func (state *schedulerRunState) schedule() {
 		state.s.updateStatus(taskName, StatusRunning)
 
 		go func(t domain.Task) {
-			state.resultsCh <- result{task: t.Name, err: state.s.executor.Execute(state.ctx, &t)}
+			// Check cache
+			skipped, hash, err := state.s.checkTaskCache(state.ctx, &t)
+			if err != nil {
+				state.resultsCh <- result{task: t.Name, err: err}
+				return
+			}
+
+			if skipped {
+				state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
+				return
+			}
+
+			state.resultsCh <- result{task: t.Name, err: state.s.executor.Execute(state.ctx, &t), inputHash: hash}
 		}(state.tasks[taskName])
 	}
 }
 
 func (state *schedulerRunState) handleResult(res result) {
 	state.active--
+
 	if res.err != nil {
-		wrappedErr := zerr.With(zerr.Wrap(res.err, "task execution failed"), "task", res.task.String())
-		state.errs = errors.Join(state.errs, wrappedErr)
+		// Enhance error with task name
+		enhancedErr := zerr.With(zerr.Wrap(res.err, "task execution failed"), "task", res.task.String())
+		state.errs = errors.Join(state.errs, enhancedErr)
 		state.s.updateStatus(res.task, StatusFailed)
 	} else {
 		state.s.updateStatus(res.task, StatusCompleted)
+		if res.skipped {
+			state.s.logger.Info(fmt.Sprintf("Skipping %s (cached)", res.task))
+		} else {
+			// Persist build info
+			err := state.s.store.Put(domain.BuildInfo{
+				TaskName:  res.task.String(),
+				InputHash: res.inputHash,
+				Timestamp: time.Now(),
+			})
+			if err != nil {
+				// We log the error but don't fail the build if cache update fails
+				state.s.logger.Error(zerr.With(zerr.Wrap(err, "failed to update build info store"), "task", res.task.String()))
+			}
+		}
+
 		for _, dep := range state.graph.Dependents(res.task) {
 			// Only consider dependents that are part of the current execution
 			if _, ok := state.tasks[dep]; ok {

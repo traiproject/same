@@ -56,7 +56,8 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 
 		// Channels for synchronization
 		dStarted := make(chan struct{})
@@ -68,6 +69,10 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 
 		// Mock Expectations
 		// D runs first
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
 			switch task.Name.String() {
 			case "D":
@@ -166,9 +171,14 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 
 		// Mock Expectations
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
@@ -213,9 +223,14 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 
 		// Expect all three tasks to execute
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
@@ -258,9 +273,14 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 
 		// Expect all three tasks to execute
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
@@ -303,7 +323,8 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 
 		// Expect no tasks to execute
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
@@ -336,9 +357,14 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 
 		// Expect only A and B to execute
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
@@ -379,7 +405,8 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockVerifier := mocks.NewMockVerifier(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 
 		// Expect no execution
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
@@ -398,8 +425,9 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockVerifier := mocks.NewMockVerifier(ctrl)
+	mockLogger := mocks.NewMockLogger(ctrl)
 
-	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier)
+	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 	task := &domain.Task{
 		Name:    domain.NewInternedString("test-task"),
 		Outputs: []domain.InternedString{domain.NewInternedString("out.txt")},
@@ -495,5 +523,87 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 		require.Error(t, err)
 		assert.False(t, skipped)
 		assert.Equal(t, testHash, h)
+	})
+}
+
+func TestScheduler_Run_Caching(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
+		g := domain.NewGraph()
+		task := &domain.Task{
+			Name:    domain.NewInternedString("build"),
+			Outputs: []domain.InternedString{domain.NewInternedString("out")},
+		}
+		_ = g.AddTask(task)
+
+		ctx := context.Background()
+		const hash1 = "hash1"
+		const hash2 = "hash2"
+
+		// 1. First Run: Cache Miss (Execution)
+		// Hasher returns hash1
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		// Store returns nil (no info)
+		mockStore.EXPECT().Get("build").Return(nil, nil)
+		// Executor runs
+		mockExec.EXPECT().Execute(ctx, task).Return(nil)
+		// Store updates with hash1
+		mockStore.EXPECT().Put(gomock.Any()).DoAndReturn(func(info domain.BuildInfo) error {
+			assert.Equal(t, "build", info.TaskName)
+			assert.Equal(t, hash1, info.InputHash)
+			return nil
+		})
+
+		err := s.Run(ctx, g, []string{"build"}, 1)
+		require.NoError(t, err)
+
+		// 2. Second Run: Cache Hit (Skip)
+		// Hasher returns hash1
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		// Store returns info with hash1
+		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
+			TaskName:  "build",
+			InputHash: hash1,
+		}, nil)
+		// Verifier checks outputs
+		mockVerifier.EXPECT().VerifyOutputs(".", []string{"out"}).Return(true, nil)
+		// Logger logs skip
+		mockLogger.EXPECT().Info(gomock.Any()).Do(func(msg string) {
+			assert.Contains(t, msg, "Skipping build (cached)")
+		})
+		// Executor DOES NOT run
+		// Store DOES NOT update
+
+		err = s.Run(ctx, g, []string{"build"}, 1)
+		require.NoError(t, err)
+
+		// 3. Third Run: Input Modified (Execution)
+		// Hasher returns hash2
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash2, nil)
+		// Store returns info with hash1
+		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
+			TaskName:  "build",
+			InputHash: hash1,
+		}, nil)
+		// Executor runs
+		mockExec.EXPECT().Execute(ctx, task).Return(nil)
+		// Store updates with hash2
+		mockStore.EXPECT().Put(gomock.Any()).DoAndReturn(func(info domain.BuildInfo) error {
+			assert.Equal(t, "build", info.TaskName)
+			assert.Equal(t, hash2, info.InputHash)
+			return nil
+		})
+
+		err = s.Run(ctx, g, []string{"build"}, 1)
+		require.NoError(t, err)
 	})
 }

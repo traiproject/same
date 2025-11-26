@@ -22,6 +22,7 @@ func TestRun_Success(t *testing.T) {
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockVerifier := mocks.NewMockVerifier(ctrl)
+	mockLogger := mocks.NewMockLogger(ctrl)
 
 	// Create a graph with one task named "build"
 	g := domain.NewGraph()
@@ -29,7 +30,7 @@ func TestRun_Success(t *testing.T) {
 	_ = g.AddTask(buildTask)
 
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -60,9 +61,10 @@ func TestRun_NoTargets(t *testing.T) {
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockVerifier := mocks.NewMockVerifier(ctrl)
+	mockLogger := mocks.NewMockLogger(ctrl)
 
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -90,9 +92,10 @@ func TestRoot_Help(t *testing.T) {
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockVerifier := mocks.NewMockVerifier(ctrl)
+	mockLogger := mocks.NewMockLogger(ctrl)
 
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
