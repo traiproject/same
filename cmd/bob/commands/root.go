@@ -28,6 +28,7 @@ func New(a *app.App) *CLI {
 	}
 
 	rootCmd.AddCommand(c.newRunCmd())
+	rootCmd.AddCommand(c.newVersionCmd())
 
 	return c
 }

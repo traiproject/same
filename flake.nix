@@ -30,8 +30,14 @@
           pname = "bob";
           version = "${version}";
           env.CGO_ENABLED = 0;
+
           src = ./.;
           vendorHash = "sha256-O7P6VnixJxs6WQyt8O4aLvKnxa7rN4pqANnbLRDJ5fA=";
+
+          ldflags = [
+            "-X go.trai.ch/bob/internal/build.Version=${version}"
+          ];
+
           excludePackages = [ ];
           nativeBuildInputs = [ pkgs.mockgen ];
           preBuild = ''
