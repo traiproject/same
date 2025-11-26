@@ -4,7 +4,7 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/zerr"
@@ -97,16 +97,13 @@ func canonicalizeStrings(strs []string) []domain.InternedString {
 	// Sort strings
 	sorted := make([]string, len(strs))
 	copy(sorted, strs)
-	sort.Strings(sorted)
+	slices.Sort(sorted)
 
 	// Deduplicate and intern
-	res := make([]domain.InternedString, 0, len(sorted))
-	var last string
-	for i, s := range sorted {
-		if i == 0 || s != last {
-			res = append(res, domain.NewInternedString(s))
-			last = s
-		}
+	unique := slices.Compact(sorted)
+	res := make([]domain.InternedString, len(unique))
+	for i, s := range unique {
+		res[i] = domain.NewInternedString(s)
 	}
 	return res
 }

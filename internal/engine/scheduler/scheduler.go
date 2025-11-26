@@ -4,6 +4,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 
 	"go.trai.ch/bob/internal/core/domain"
@@ -174,11 +175,8 @@ func (s *Scheduler) resolveTasksToRun(
 ) (map[domain.InternedString]bool, []domain.InternedString, error) {
 	runAll := len(targetNames) == 0
 	if !runAll {
-		for _, name := range targetNames {
-			if name == "all" {
-				runAll = true
-				break
-			}
+		if slices.Contains(targetNames, "all") {
+			runAll = true
 		}
 	}
 
