@@ -7,26 +7,17 @@ import (
 
 	"go.trai.ch/bob/cmd/bob/commands"
 	"go.trai.ch/bob/internal/adapters/config"
+	"go.trai.ch/bob/internal/adapters/logger"
 	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/app"
 	"go.trai.ch/bob/internal/engine/scheduler"
 )
 
-type StdLogger struct{}
-
-func (l *StdLogger) Info(msg string) {
-	fmt.Println(msg)
-}
-
-func (l *StdLogger) Error(msg string) {
-	fmt.Fprintln(os.Stderr, msg)
-}
-
 func main() {
 	// 1. Infrastructure
-	logger := &StdLogger{}
+	log := logger.New()
 	configLoader := &config.FileConfigLoader{Filename: "bob.yaml"}
-	executor := shell.NewExecutor(logger)
+	executor := shell.NewExecutor(log)
 
 	// 2. Engine
 	sched := scheduler.NewScheduler(executor)
