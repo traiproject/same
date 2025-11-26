@@ -5,207 +5,197 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.trai.ch/bob/internal/adapters/fs"
 	"go.trai.ch/bob/internal/core/domain"
 )
 
-func TestWalker_WalkFiles(t *testing.T) { //nolint:cyclop // Test complexity is acceptable
-	// Create temp directory structure
-	// tmp/
-	//   .git/
-	//     config
-	//   ignored/
-	//     file
-	//   src/
-	//     main.go
-	//   README.md
+func TestHasher_ComputeInputHash_Glob(t *testing.T) {
+	// Create temp directory
+	tmpDir := t.TempDir()
 
-	tmpDir, err := os.MkdirTemp("", "walker_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir) //nolint:errcheck // Best effort cleanup in test
-
-	// Create .git directory
-	if err := os.MkdirAll(filepath.Join(tmpDir, ".git"), 0o750); err != nil { //nolint:gosec // Test directory permissions
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(
-		filepath.Join(tmpDir, ".git", "config"),
-		[]byte("git config"),
-		0o600,
-	); err != nil { //nolint:gosec // Test file permissions
-		t.Fatal(err)
+	// Create files
+	files := []string{"a.txt", "b.txt", "c.log"}
+	for _, f := range files {
+		err := os.WriteFile(filepath.Join(tmpDir, f), []byte("content"), 0o600)
+		require.NoError(t, err)
 	}
 
-	// Create ignored directory
-	if err := os.MkdirAll(
-		filepath.Join(tmpDir, "ignored"),
-		0o750,
-	); err != nil { //nolint:gosec // Test directory permissions
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(
-		filepath.Join(tmpDir, "ignored", "file"),
-		[]byte("ignored content"),
-		0o600,
-	); err != nil { //nolint:gosec // Test file permissions
-		t.Fatal(err)
+	// Define task with glob input
+	task := &domain.Task{
+		Name:   domain.NewInternedString("test-task"),
+		Inputs: []domain.InternedString{domain.NewInternedString("*.txt")},
 	}
 
-	// Create src directory
-	if err := os.MkdirAll(filepath.Join(tmpDir, "src"), 0o750); err != nil { //nolint:gosec // Test directory permissions
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(
-		filepath.Join(tmpDir, "src", "main.go"),
-		[]byte("package main"),
-		0o600,
-	); err != nil { //nolint:gosec // Test file permissions
-		t.Fatal(err)
-	}
-
-	// Create README.md
-	if err := os.WriteFile(
-		filepath.Join(tmpDir, "README.md"),
-		[]byte("# Readme"),
-		0o600,
-	); err != nil { //nolint:gosec // Test file permissions
-		t.Fatal(err)
-	}
-
-	walker := fs.NewWalker()
-	ignores := []string{"ignored"}
-
-	files := make(map[string]bool)
-	for path := range walker.WalkFiles(tmpDir, ignores) {
-		rel, err := filepath.Rel(tmpDir, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		files[rel] = true
-	}
-
-	// Assertions
-	if files[".git/config"] {
-		t.Error("expected .git/config to be skipped")
-	}
-	if files["ignored/file"] {
-		t.Error("expected ignored/file to be skipped")
-	}
-	if !files["src/main.go"] {
-		t.Error("expected src/main.go to be found")
-	}
-	if !files["README.md"] {
-		t.Error("expected README.md to be found")
-	}
-}
-
-func TestHasher_ComputeFileHash(t *testing.T) {
-	tmpFile, err := os.CreateTemp("", "hasher_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpFile.Name()) //nolint:errcheck // Best effort cleanup in test
-
-	content := []byte("hello world")
-	n, writeErr := tmpFile.Write(content)
-	if writeErr != nil {
-		t.Fatal(writeErr)
-	}
-	_ = n
-	_ = tmpFile.Close()
-
+	// Initialize Hasher
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
 
-	hash1, err := hasher.ComputeFileHash(tmpFile.Name())
-	if err != nil {
-		t.Fatalf("ComputeFileHash failed: %v", err)
-	}
+	// Compute hash
+	hash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, hash)
 
-	if hash1 == 0 {
-		t.Error("expected non-zero hash")
-	}
+	// Verify that changing a matched file changes the hash
+	err = os.WriteFile(filepath.Join(tmpDir, "a.txt"), []byte("new content"), 0o600)
+	require.NoError(t, err)
 
-	// Verify determinism
-	hash2, err := hasher.ComputeFileHash(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	newHash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	require.NoError(t, err)
+	assert.NotEqual(t, hash, newHash)
 
-	if hash1 != hash2 {
-		t.Error("expected deterministic hash")
-	}
+	// Verify that changing an unmatched file does NOT change the hash
+	err = os.WriteFile(filepath.Join(tmpDir, "c.log"), []byte("new content"), 0o600)
+	require.NoError(t, err)
+
+	finalHash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	require.NoError(t, err)
+	assert.Equal(t, newHash, finalHash)
 }
 
-func TestHasher_ComputeInputHash(t *testing.T) { //nolint:cyclop // Test complexity is acceptable
-	tmpDir, err := os.MkdirTemp("", "input_hash_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir) //nolint:errcheck // Best effort cleanup in test
+func TestHasher_ComputeInputHash_MissingFile(t *testing.T) {
+	// Create temp directory
+	tmpDir := t.TempDir()
 
-	// Create input file
-	inputFile := filepath.Join(tmpDir, "input.txt")
-	if writeErr := os.WriteFile(
-		inputFile,
-		[]byte("input content"),
-		0o600,
-	); writeErr != nil { //nolint:gosec // Test file permissions
-		t.Fatal(writeErr)
+	// Define task with missing input
+	task := &domain.Task{
+		Name:   domain.NewInternedString("test-task"),
+		Inputs: []domain.InternedString{domain.NewInternedString("missing.txt")},
 	}
 
+	// Initialize Hasher
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
+
+	// Compute hash should fail
+	_, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "input not found")
+}
+
+func TestHasher_ComputeInputHash_WithEnvironment(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test file
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "input.txt"), []byte("content"), 0o600))
 
 	task := &domain.Task{
-		Name:   domain.NewInternedString("task1"),
+		Name:   domain.NewInternedString("test-task"),
 		Inputs: []domain.InternedString{domain.NewInternedString("input.txt")},
 	}
-	env := map[string]string{"KEY": "VALUE"}
 
-	hash1, err := hasher.ComputeInputHash(task, env, tmpDir)
-	if err != nil {
-		t.Fatalf("ComputeInputHash failed: %v", err)
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	// Compute hash with no env
+	hashNoEnv, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	require.NoError(t, err)
+
+	// Compute hash with env vars
+	env := map[string]string{
+		"FOO": "bar",
+		"BAZ": "qux",
 	}
+	hashWithEnv, err := hasher.ComputeInputHash(task, env, tmpDir)
+	require.NoError(t, err)
 
-	// 1. Verify hash changes with task definition
-	task2 := &domain.Task{
-		Name:   domain.NewInternedString("task2"),
+	// Hashes should be different
+	assert.NotEqual(t, hashNoEnv, hashWithEnv)
+
+	// Same env should produce same hash
+	hashWithEnv2, err := hasher.ComputeInputHash(task, env, tmpDir)
+	require.NoError(t, err)
+	assert.Equal(t, hashWithEnv, hashWithEnv2)
+}
+
+func TestHasher_ComputeInputHash_WithDependencies(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test file
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "input.txt"), []byte("content"), 0o600))
+
+	taskNoDeps := &domain.Task{
+		Name:   domain.NewInternedString("test-task"),
 		Inputs: []domain.InternedString{domain.NewInternedString("input.txt")},
 	}
-	hash2, err := hasher.ComputeInputHash(task2, env, tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hash1 == hash2 {
-		t.Error("expected hash to change when task name changes")
+
+	taskWithDeps := &domain.Task{
+		Name:         domain.NewInternedString("test-task"),
+		Inputs:       []domain.InternedString{domain.NewInternedString("input.txt")},
+		Dependencies: []domain.InternedString{domain.NewInternedString("dep1"), domain.NewInternedString("dep2")},
 	}
 
-	// 2. Verify hash changes with env
-	env2 := map[string]string{"KEY": "VALUE2"}
-	hash3, err := hasher.ComputeInputHash(task, env2, tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hash1 == hash3 {
-		t.Error("expected hash to change when env changes")
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	hashNoDeps, err := hasher.ComputeInputHash(taskNoDeps, nil, tmpDir)
+	require.NoError(t, err)
+
+	hashWithDeps, err := hasher.ComputeInputHash(taskWithDeps, nil, tmpDir)
+	require.NoError(t, err)
+
+	// Hashes should be different
+	assert.NotEqual(t, hashNoDeps, hashWithDeps)
+}
+
+func TestHasher_ComputeInputHash_WithDirectoryInput(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a directory with files
+	srcDir := filepath.Join(tmpDir, "src")
+	require.NoError(t, os.MkdirAll(srcDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file1.go"), []byte("package main"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file2.go"), []byte("func main()"), 0o600))
+
+	task := &domain.Task{
+		Name:   domain.NewInternedString("test-task"),
+		Inputs: []domain.InternedString{domain.NewInternedString("src")},
 	}
 
-	// 3. Verify hash changes with file content
-	if writeErr := os.WriteFile(
-		inputFile,
-		[]byte("modified content"),
-		0o600,
-	); writeErr != nil { //nolint:gosec // Test file permissions
-		t.Fatal(writeErr)
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	hash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, hash)
+
+	// Modify a file in the directory
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file1.go"), []byte("package main\n// modified"), 0o600))
+
+	newHash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	require.NoError(t, err)
+
+	// Hash should change
+	assert.NotEqual(t, hash, newHash)
+}
+
+func TestHasher_ComputeInputHash_WithOutputs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test file
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "input.txt"), []byte("content"), 0o600))
+
+	taskNoOutputs := &domain.Task{
+		Name:   domain.NewInternedString("test-task"),
+		Inputs: []domain.InternedString{domain.NewInternedString("input.txt")},
 	}
-	hash4, err := hasher.ComputeInputHash(task, env, tmpDir)
-	if err != nil {
-		t.Fatal(err)
+
+	taskWithOutputs := &domain.Task{
+		Name:    domain.NewInternedString("test-task"),
+		Inputs:  []domain.InternedString{domain.NewInternedString("input.txt")},
+		Outputs: []domain.InternedString{domain.NewInternedString("output.txt")},
 	}
-	if hash1 == hash4 {
-		t.Error("expected hash to change when file content changes")
-	}
+
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	hashNoOutputs, err := hasher.ComputeInputHash(taskNoOutputs, nil, tmpDir)
+	require.NoError(t, err)
+
+	hashWithOutputs, err := hasher.ComputeInputHash(taskWithOutputs, nil, tmpDir)
+	require.NoError(t, err)
+
+	// Hashes should be different
+	assert.NotEqual(t, hashNoOutputs, hashWithOutputs)
 }

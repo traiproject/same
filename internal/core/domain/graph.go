@@ -150,3 +150,9 @@ func (g *Graph) Dependents(task InternedString) []InternedString {
 func (g *Graph) TaskCount() int {
 	return len(g.tasks)
 }
+
+// GetTask retrieves a task by its name.
+func (g *Graph) GetTask(name InternedString) (Task, bool) {
+	t, ok := g.tasks[name]
+	return t, ok
+}

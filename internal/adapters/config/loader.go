@@ -3,12 +3,24 @@ package config
 
 import (
 	"os"
-	"sort"
+	"path/filepath"
+	"slices"
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/zerr"
 	"gopkg.in/yaml.v3"
 )
+
+// FileConfigLoader implements ports.ConfigLoader using a YAML file.
+type FileConfigLoader struct {
+	Filename string
+}
+
+// Load reads the configuration from the given working directory.
+func (l *FileConfigLoader) Load(cwd string) (*domain.Graph, error) {
+	path := filepath.Join(cwd, l.Filename)
+	return Load(path)
+}
 
 // Bobfile represents the structure of the bob.yaml configuration file.
 type Bobfile struct {
@@ -46,6 +58,11 @@ func Load(path string) (*domain.Graph, error) {
 
 	// Second pass: Create tasks and add to graph
 	for name, dto := range bobfile.Tasks {
+		// Validate reserved task names
+		if name == "all" {
+			return nil, zerr.With(zerr.New("task name 'all' is reserved"), "task_name", name)
+		}
+
 		// Validate dependencies exist
 		for _, dep := range dto.DependsOn {
 			if !taskNames[dep] {
@@ -85,16 +102,13 @@ func canonicalizeStrings(strs []string) []domain.InternedString {
 	// Sort strings
 	sorted := make([]string, len(strs))
 	copy(sorted, strs)
-	sort.Strings(sorted)
+	slices.Sort(sorted)
 
 	// Deduplicate and intern
-	res := make([]domain.InternedString, 0, len(sorted))
-	var last string
-	for i, s := range sorted {
-		if i == 0 || s != last {
-			res = append(res, domain.NewInternedString(s))
-			last = s
-		}
+	unique := slices.Compact(sorted)
+	res := make([]domain.InternedString, len(unique))
+	for i, s := range unique {
+		res[i] = domain.NewInternedString(s)
 	}
 	return res
 }

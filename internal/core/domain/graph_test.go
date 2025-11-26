@@ -3,6 +3,8 @@ package domain_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/zerr"
 )
@@ -150,4 +152,21 @@ func TestGraph_Validate_DeterministicOrder(t *testing.T) {
 	if executionOrder[0] != "A" || executionOrder[1] != "B" {
 		t.Errorf("expected execution order [A, B], got %v", executionOrder)
 	}
+}
+
+func TestGraph_Validate_MissingDependency(t *testing.T) {
+	g := domain.NewGraph()
+	taskA := domain.Task{
+		Name:         domain.NewInternedString("A"),
+		Dependencies: []domain.InternedString{domain.NewInternedString("B")},
+	}
+
+	// Add task A, but NOT task B
+	err := g.AddTask(&taskA)
+	require.NoError(t, err)
+
+	// Validate should fail
+	err = g.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing dependency")
 }

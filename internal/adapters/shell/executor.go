@@ -79,7 +79,7 @@ func (w *logWriter) Write(p []byte) (n int, err error) {
 		if w.level == "info" {
 			w.logger.Info(line)
 		} else {
-			w.logger.Error(line)
+			w.logger.Error(zerr.New(line))
 		}
 	}
 	return len(p), nil

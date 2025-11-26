@@ -11,4 +11,7 @@ var (
 
 	// ErrCycleDetected is returned when a cycle is detected in the task dependency graph.
 	ErrCycleDetected = zerr.New("cycle detected")
+
+	// ErrTaskNotFound is returned when a requested task is not found in the graph.
+	ErrTaskNotFound = zerr.New("task not found")
 )

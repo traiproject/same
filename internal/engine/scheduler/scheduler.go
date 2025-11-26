@@ -4,6 +4,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 
 	"go.trai.ch/bob/internal/core/domain"
@@ -27,54 +28,28 @@ const (
 
 // Scheduler manages the execution of tasks in the dependency graph.
 type Scheduler struct {
-	graph    *domain.Graph
 	executor ports.Executor
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
 }
 
-// NewScheduler creates a new Scheduler with the given graph and executor.
-// It validates the graph before proceeding and returns an error if validation fails.
-func NewScheduler(graph *domain.Graph, executor ports.Executor) (*Scheduler, error) {
-	// Explicitly validate the graph to ensure executionOrder is populated
-	if err := graph.Validate(); err != nil {
-		return nil, err
-	}
-
+// NewScheduler creates a new Scheduler with the given executor.
+func NewScheduler(executor ports.Executor) *Scheduler {
 	s := &Scheduler{
-		graph:      graph,
 		executor:   executor,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
-	s.initTaskStatuses()
-	return s, nil
+	return s
 }
 
-// initTaskStatuses initializes all tasks in the graph to Pending.
-func (s *Scheduler) initTaskStatuses() {
+// initTaskStatuses initializes the status of tasks in the graph to Pending.
+func (s *Scheduler) initTaskStatuses(tasks []domain.InternedString) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// We iterate over the graph's tasks to initialize their status.
-	// Since Graph doesn't expose tasks directly, we might need to rely on Walk or similar.
-	// However, for initialization, we want to set everything to Pending.
-	// Let's assume we can iterate via Walk for now, or if Graph exposes keys.
-	// Wait, domain.Graph doesn't expose keys directly other than Walk.
-	// But Walk requires Validate() to be called first.
-	// If Validate hasn't been called, Walk might be empty or undefined.
-	// Let's assume the graph is passed in a valid state or we just initialize lazily?
-	// The requirement says "Scheduler initializes all tasks to 'Pending'".
-	// If I can't iterate keys, I might need to add a method to Graph or just use Walk if it's safe.
-	// Looking at graph.go, Walk uses executionOrder which is populated by Validate.
-	// So we should probably assume Validate has been called or call it?
-	// Or maybe we just initialize the map when we start?
-	// For now, let's try to use Walk, assuming the graph is ready.
-	// Actually, the user prompt says "Scheduler initializes all tasks to 'Pending'".
-	// I'll use Walk for now. If Walk is empty, nothing happens, which is fine for an empty graph.
-
-	for task := range s.graph.Walk() {
-		s.taskStatus[task.Name] = StatusPending
+	for _, task := range tasks {
+		s.taskStatus[task] = StatusPending
 	}
 }
 
@@ -86,8 +61,20 @@ func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) 
 }
 
 // Run executes the tasks in the graph with the specified parallelism.
-func (s *Scheduler) Run(ctx context.Context, parallelism int) error {
-	state := s.newRunState(ctx, parallelism)
+// If targetNames contains "all", all tasks in the graph are executed.
+// Otherwise, only the specified tasks are executed.
+func (s *Scheduler) Run(ctx context.Context, graph *domain.Graph, targetNames []string, parallelism int) error {
+	// Explicitly validate the graph to ensure executionOrder is populated
+	if err := graph.Validate(); err != nil {
+		return err
+	}
+
+	state, err := s.newRunState(ctx, graph, targetNames, parallelism)
+	if err != nil {
+		return err
+	}
+
+	s.initTaskStatuses(state.allTasks)
 
 	for !state.isDone() {
 		state.schedule()
@@ -120,6 +107,7 @@ type result struct {
 }
 
 type schedulerRunState struct {
+	graph       *domain.Graph
 	inDegree    map[domain.InternedString]int
 	tasks       map[domain.InternedString]domain.Task
 	ready       []domain.InternedString
@@ -129,16 +117,36 @@ type schedulerRunState struct {
 	ctx         context.Context
 	parallelism int
 	s           *Scheduler
+	allTasks    []domain.InternedString
 }
 
-func (s *Scheduler) newRunState(ctx context.Context, parallelism int) *schedulerRunState {
-	taskCount := s.graph.TaskCount()
+func (s *Scheduler) newRunState(
+	ctx context.Context,
+	graph *domain.Graph,
+	targetNames []string,
+	parallelism int,
+) (*schedulerRunState, error) {
+	tasksToRun, allTasks, err := s.resolveTasksToRun(graph, targetNames)
+	if err != nil {
+		return nil, err
+	}
+
+	taskCount := len(tasksToRun)
 	inDegree := make(map[domain.InternedString]int, taskCount)
 	tasks := make(map[domain.InternedString]domain.Task, taskCount)
 
-	for task := range s.graph.Walk() {
-		tasks[task.Name] = task
-		inDegree[task.Name] = len(task.Dependencies)
+	for name := range tasksToRun {
+		task, _ := graph.GetTask(name)
+		tasks[name] = task
+
+		// Calculate in-degree based only on dependencies that are also in tasksToRun
+		degree := 0
+		for _, dep := range task.Dependencies {
+			if tasksToRun[dep] {
+				degree++
+			}
+		}
+		inDegree[name] = degree
 	}
 
 	var ready []domain.InternedString
@@ -149,6 +157,7 @@ func (s *Scheduler) newRunState(ctx context.Context, parallelism int) *scheduler
 	}
 
 	return &schedulerRunState{
+		graph:       graph,
 		inDegree:    inDegree,
 		tasks:       tasks,
 		ready:       ready,
@@ -156,7 +165,54 @@ func (s *Scheduler) newRunState(ctx context.Context, parallelism int) *scheduler
 		ctx:         ctx,
 		parallelism: parallelism,
 		s:           s,
+		allTasks:    allTasks,
+	}, nil
+}
+
+func (s *Scheduler) resolveTasksToRun(
+	graph *domain.Graph,
+	targetNames []string,
+) (map[domain.InternedString]bool, []domain.InternedString, error) {
+	runAll := slices.Contains(targetNames, "all")
+
+	if runAll {
+		return s.resolveAllTasks(graph)
 	}
+	return s.resolveTargetTasks(graph, targetNames)
+}
+
+func (s *Scheduler) resolveAllTasks(
+	graph *domain.Graph,
+) (map[domain.InternedString]bool, []domain.InternedString, error) {
+	tasksToRun := make(map[domain.InternedString]bool)
+	allTasks := make([]domain.InternedString, 0, graph.TaskCount())
+	for task := range graph.Walk() {
+		tasksToRun[task.Name] = true
+		allTasks = append(allTasks, task.Name)
+	}
+	return tasksToRun, allTasks, nil
+}
+
+func (s *Scheduler) resolveTargetTasks(
+	graph *domain.Graph,
+	targetNames []string,
+) (map[domain.InternedString]bool, []domain.InternedString, error) {
+	tasksToRun := make(map[domain.InternedString]bool)
+	var allTasks []domain.InternedString
+
+	for _, nameStr := range targetNames {
+		name := domain.NewInternedString(nameStr)
+		if _, ok := graph.GetTask(name); !ok {
+			return nil, nil, zerr.With(domain.ErrTaskNotFound, "task", name.String())
+		}
+
+		if !tasksToRun[name] {
+			tasksToRun[name] = true
+			allTasks = append(allTasks, name)
+		}
+	}
+
+	return tasksToRun, allTasks, nil
 }
 
 func (state *schedulerRunState) isDone() bool {
@@ -185,10 +241,13 @@ func (state *schedulerRunState) handleResult(res result) {
 		state.s.updateStatus(res.task, StatusFailed)
 	} else {
 		state.s.updateStatus(res.task, StatusCompleted)
-		for _, dep := range state.s.graph.Dependents(res.task) {
-			state.inDegree[dep]--
-			if state.inDegree[dep] == 0 {
-				state.ready = append(state.ready, dep)
+		for _, dep := range state.graph.Dependents(res.task) {
+			// Only consider dependents that are part of the current execution
+			if _, ok := state.tasks[dep]; ok {
+				state.inDegree[dep]--
+				if state.inDegree[dep] == 0 {
+					state.ready = append(state.ready, dep)
+				}
 			}
 		}
 	}
