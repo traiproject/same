@@ -1,6 +1,10 @@
 package scheduler
 
-import "go.trai.ch/bob/internal/core/domain"
+import (
+	"context"
+
+	"go.trai.ch/bob/internal/core/domain"
+)
 
 // GetTaskStatusMap returns a copy of the internal task status map.
 // This is exported for testing purposes only.
@@ -13,4 +17,9 @@ func (s *Scheduler) GetTaskStatusMap() map[domain.InternedString]TaskStatus {
 		statusMap[k] = v
 	}
 	return statusMap
+}
+
+// CheckTaskCache exports checkTaskCache for testing purposes.
+func (s *Scheduler) CheckTaskCache(ctx context.Context, task *domain.Task) (skipped bool, hash string, err error) {
+	return s.checkTaskCache(ctx, task)
 }

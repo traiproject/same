@@ -33,6 +33,7 @@ func run() int {
 	executor := shell.NewExecutor(log)
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
+	verifier := fs.NewVerifier()
 	store, err := cas.NewStore(".bob/cache.json")
 	if err != nil {
 		log.Error(zerr.Wrap(err, "failed to initialize build info store"))
@@ -40,7 +41,7 @@ func run() int {
 	}
 
 	// 2. Engine
-	sched := scheduler.NewScheduler(executor, store, hasher)
+	sched := scheduler.NewScheduler(executor, store, hasher, verifier)
 
 	// 3. Application
 	application := app.New(configLoader, sched)

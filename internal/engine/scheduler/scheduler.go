@@ -31,17 +31,24 @@ type Scheduler struct {
 	executor ports.Executor
 	store    ports.BuildInfoStore
 	hasher   ports.Hasher
+	verifier ports.Verifier
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
 }
 
-// NewScheduler creates a new Scheduler with the given executor, store, and hasher.
-func NewScheduler(executor ports.Executor, store ports.BuildInfoStore, hasher ports.Hasher) *Scheduler {
+// NewScheduler creates a new Scheduler with the given executor, store, hasher, and verifier.
+func NewScheduler(
+	executor ports.Executor,
+	store ports.BuildInfoStore,
+	hasher ports.Hasher,
+	verifier ports.Verifier,
+) *Scheduler {
 	s := &Scheduler{
 		executor:   executor,
 		store:      store,
 		hasher:     hasher,
+		verifier:   verifier,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
 	return s
@@ -287,4 +294,41 @@ func (state *schedulerRunState) handleResult(res result) {
 			}
 		}
 	}
+}
+
+// checkTaskCache checks if the task can be skipped based on cached build info.
+// Returns skipped (bool), hash (string), and error.
+func (s *Scheduler) checkTaskCache(_ context.Context, task *domain.Task) (skipped bool, hash string, err error) {
+	// Step A: Compute Input Hash
+	// TODO: Pass environment variables and root directory correctly.
+	// For now, we assume empty env and current directory as root.
+	hash, err = s.hasher.ComputeInputHash(task, nil, ".")
+	if err != nil {
+		return false, "", zerr.Wrap(err, "failed to compute input hash")
+	}
+
+	// Step B: Get Build Info from Store
+	info, err := s.store.Get(task.Name.String())
+	if err != nil {
+		return false, hash, zerr.Wrap(err, "failed to get build info")
+	}
+
+	// Step C: Compare Hashes
+	if info == nil || info.InputHash != hash {
+		return false, hash, nil
+	}
+
+	// Step D: Verify Outputs
+	// Convert InternedString outputs to string slice
+	outputs := make([]string, len(task.Outputs))
+	for i, out := range task.Outputs {
+		outputs[i] = out.String()
+	}
+
+	exists, err := s.verifier.VerifyOutputs(".", outputs)
+	if err != nil {
+		return false, hash, zerr.Wrap(err, "failed to verify outputs")
+	}
+
+	return exists, hash, nil
 }

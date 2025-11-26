@@ -21,6 +21,7 @@ func TestApp_Build(t *testing.T) {
 		mockExecutor := mocks.NewMockExecutor(ctrl)
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
 
 		// Setup Graph
 		g := domain.NewGraph()
@@ -28,7 +29,7 @@ func TestApp_Build(t *testing.T) {
 		_ = g.AddTask(task)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier)
 		a := app.New(mockLoader, sched)
 
 		// Expectations
@@ -52,9 +53,10 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockExecutor := mocks.NewMockExecutor(ctrl)
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier)
 		a := app.New(mockLoader, sched)
 
 		// Expectations
