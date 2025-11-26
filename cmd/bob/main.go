@@ -8,11 +8,14 @@ import (
 	"syscall"
 
 	"go.trai.ch/bob/cmd/bob/commands"
+	"go.trai.ch/bob/internal/adapters/cas"
 	"go.trai.ch/bob/internal/adapters/config"
+	"go.trai.ch/bob/internal/adapters/fs"
 	"go.trai.ch/bob/internal/adapters/logger"
 	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/app"
 	"go.trai.ch/bob/internal/engine/scheduler"
+	"go.trai.ch/zerr"
 )
 
 func main() {
@@ -28,9 +31,16 @@ func run() int {
 	log := logger.New()
 	configLoader := &config.FileConfigLoader{Filename: "bob.yaml"} // default value
 	executor := shell.NewExecutor(log)
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+	store, err := cas.NewStore(".bob/cache.json")
+	if err != nil {
+		log.Error(zerr.Wrap(err, "failed to initialize build info store"))
+		return 1
+	}
 
 	// 2. Engine
-	sched := scheduler.NewScheduler(executor)
+	sched := scheduler.NewScheduler(executor, store, hasher)
 
 	// 3. Application
 	application := app.New(configLoader, sched)

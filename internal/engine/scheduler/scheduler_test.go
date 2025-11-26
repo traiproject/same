@@ -53,7 +53,9 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		_ = g.AddTask(taskD)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := scheduler.NewScheduler(mockExec)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher)
 
 		// Channels for synchronization
 		dStarted := make(chan struct{})
@@ -160,7 +162,9 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		_ = g.AddTask(taskD)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := scheduler.NewScheduler(mockExec)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher)
 
 		// Mock Expectations
 		executedTasks := make(map[string]bool)
@@ -204,7 +208,9 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		_ = g.AddTask(taskC)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := scheduler.NewScheduler(mockExec)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher)
 
 		// Expect all three tasks to execute
 		executedTasks := make(map[string]bool)
@@ -246,7 +252,9 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 		_ = g.AddTask(taskC)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := scheduler.NewScheduler(mockExec)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher)
 
 		// Expect all three tasks to execute
 		executedTasks := make(map[string]bool)
@@ -288,7 +296,9 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		_ = g.AddTask(taskC)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := scheduler.NewScheduler(mockExec)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher)
 
 		// Expect no tasks to execute
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
@@ -318,7 +328,9 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		_ = g.AddTask(taskC)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := scheduler.NewScheduler(mockExec)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher)
 
 		// Expect only A and B to execute
 		executedTasks := make(map[string]bool)
@@ -358,7 +370,9 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		_ = g.AddTask(taskA)
 
 		mockExec := mocks.NewMockExecutor(ctrl)
-		s := scheduler.NewScheduler(mockExec)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher)
 
 		// Expect no execution
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)

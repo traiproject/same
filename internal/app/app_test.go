@@ -19,6 +19,8 @@ func TestApp_Build(t *testing.T) {
 
 		mockLoader := mocks.NewMockConfigLoader(ctrl)
 		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
 
 		// Setup Graph
 		g := domain.NewGraph()
@@ -26,7 +28,7 @@ func TestApp_Build(t *testing.T) {
 		_ = g.AddTask(task)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher)
 		a := app.New(mockLoader, sched)
 
 		// Expectations
@@ -48,9 +50,11 @@ func TestApp_Run_NoTargets(t *testing.T) {
 
 		mockLoader := mocks.NewMockConfigLoader(ctrl)
 		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher)
 		a := app.New(mockLoader, sched)
 
 		// Expectations

@@ -29,15 +29,19 @@ const (
 // Scheduler manages the execution of tasks in the dependency graph.
 type Scheduler struct {
 	executor ports.Executor
+	store    ports.BuildInfoStore
+	hasher   ports.Hasher
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
 }
 
-// NewScheduler creates a new Scheduler with the given executor.
-func NewScheduler(executor ports.Executor) *Scheduler {
+// NewScheduler creates a new Scheduler with the given executor, store, and hasher.
+func NewScheduler(executor ports.Executor, store ports.BuildInfoStore, hasher ports.Hasher) *Scheduler {
 	s := &Scheduler{
 		executor:   executor,
+		store:      store,
+		hasher:     hasher,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
 	return s
