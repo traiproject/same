@@ -10,8 +10,11 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
 )
+
+var _ ports.Hasher = (*Hasher)(nil)
 
 // Hasher provides hashing functionality for tasks and files.
 type Hasher struct {
