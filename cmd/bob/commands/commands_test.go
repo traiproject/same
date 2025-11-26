@@ -55,9 +55,6 @@ func TestRun_NoTargets(t *testing.T) {
 	mockLoader := mocks.NewMockConfigLoader(ctrl)
 	mockExecutor := mocks.NewMockExecutor(ctrl)
 
-	// Create empty graph
-	g := domain.NewGraph()
-
 	// Setup scheduler and app
 	sched := scheduler.NewScheduler(mockExecutor)
 	a := app.New(mockLoader, sched)
@@ -65,18 +62,15 @@ func TestRun_NoTargets(t *testing.T) {
 	// Initialize CLI
 	cli := commands.New(a)
 
-	// Setup expectations
-	mockLoader.EXPECT().Load(".").Return(g, nil)
-
 	// Set command args (no targets)
 	cli.SetArgs([]string{"run"})
 
 	// Execute
 	err := cli.Execute(context.Background())
-
-	// Assert error is returned
-	if err == nil {
-		t.Error("Expected error for no targets, got nil")
+	// With the updated implementation, no error should be returned
+	// when no targets are provided (just displays help)
+	if err != nil {
+		t.Errorf("Expected no error for no targets, got: %v", err)
 	}
 }
 
