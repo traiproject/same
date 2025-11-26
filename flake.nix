@@ -31,7 +31,7 @@
           version = "${version}";
           env.CGO_ENABLED = 0;
           src = ./.;
-          vendorHash = "sha256-bnHZtHmdMBXqrs9Bb+x+OamXmubXcqMmPdi4atvVx8Q=";
+          vendorHash = "sha256-O7P6VnixJxs6WQyt8O4aLvKnxa7rN4pqANnbLRDJ5fA=";
           excludePackages = [ ];
           nativeBuildInputs = [ pkgs.mockgen ];
           preBuild = ''

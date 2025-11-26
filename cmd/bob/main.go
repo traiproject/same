@@ -17,8 +17,13 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	// 0. Context with signal handling
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	// 1. Infrastructure
 	log := logger.New()
@@ -37,8 +42,7 @@ func main() {
 	// 5. Execution
 	if err := cli.Execute(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %+v\n", err)
-		cancel()
-		os.Exit(1)
+		return 1
 	}
-	cancel()
+	return 0
 }
