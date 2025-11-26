@@ -3,6 +3,7 @@ package scheduler_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"testing/synctest"
 
@@ -196,7 +197,10 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 
 		// Expect all three tasks to execute
 		executedTasks := make(map[string]bool)
+		var mu sync.Mutex
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
+			mu.Lock()
+			defer mu.Unlock()
 			executedTasks[task.Name.String()] = true
 			return nil
 		}).Times(3)
@@ -235,7 +239,10 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 
 		// Expect all three tasks to execute
 		executedTasks := make(map[string]bool)
+		var mu sync.Mutex
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
+			mu.Lock()
+			defer mu.Unlock()
 			executedTasks[task.Name.String()] = true
 			return nil
 		}).Times(3)
@@ -304,10 +311,13 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 
 		// Expect only A and B to execute
 		executedTasks := make(map[string]bool)
+		var mu sync.Mutex
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
 			if task.Name.String() == "C" {
 				t.Errorf("Task C should not execute")
 			}
+			mu.Lock()
+			defer mu.Unlock()
 			executedTasks[task.Name.String()] = true
 			return nil
 		}).Times(2)
