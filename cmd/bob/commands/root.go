@@ -22,6 +22,9 @@ func New(a *app.App) *CLI {
 		SilenceUsage: true,
 	}
 
+	// Add persistent flags
+	rootCmd.PersistentFlags().StringP("config", "c", "bob.yaml", "Path to configuration file")
+
 	c := &CLI{
 		app:     a,
 		rootCmd: rootCmd,
@@ -37,6 +40,12 @@ func New(a *app.App) *CLI {
 func (c *CLI) Execute(ctx context.Context) error {
 	c.rootCmd.SetContext(ctx)
 	return c.rootCmd.Execute()
+}
+
+// GetConfigPath returns the value of the config flag.
+func (c *CLI) GetConfigPath() string {
+	config, _ := c.rootCmd.PersistentFlags().GetString("config")
+	return config
 }
 
 // SetArgs sets the arguments for the root command. Used for testing.

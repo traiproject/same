@@ -25,24 +25,49 @@ func run() int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// 1. Infrastructure
+	// 1. Parse config flag from command line before initializing everything
+	configPath := parseConfigFlag()
+
+	// 2. Infrastructure
 	log := logger.New()
-	configLoader := &config.FileConfigLoader{Filename: "bob.yaml"}
+	configLoader := &config.FileConfigLoader{Filename: configPath}
 	executor := shell.NewExecutor(log)
 
-	// 2. Engine
+	// 3. Engine
 	sched := scheduler.NewScheduler(executor)
 
-	// 3. Application
+	// 4. Application
 	application := app.New(configLoader, sched)
 
-	// 4. Interface
+	// 5. Interface
 	cli := commands.New(application)
 
-	// 5. Execution
+	// 6. Execution
 	if err := cli.Execute(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %+v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// parseConfigFlag extracts the --config/-c flag value from os.Args before cobra parses them.
+// This allows us to initialize the config loader before creating the CLI.
+func parseConfigFlag() string {
+	configPath := "bob.yaml" // default value
+
+	for i, arg := range os.Args {
+		if arg == "--config" || arg == "-c" {
+			if i+1 < len(os.Args) {
+				configPath = os.Args[i+1]
+			}
+			break
+		}
+		// Handle --config=value format
+		if len(arg) > 9 && arg[:9] == "--config=" {
+			configPath = arg[9:]
+			break
+		}
+	}
+
+	return configPath
 }
