@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -44,7 +43,7 @@ func run() int {
 
 	// 6. Execution
 	if err := cli.Execute(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %+v\n", err)
+		log.Error(err)
 		return 1
 	}
 	return 0

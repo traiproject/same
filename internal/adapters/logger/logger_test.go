@@ -83,15 +83,15 @@ func TestLogger_Error(t *testing.T) {
 	output, err := captureStderr(func() {
 		// Create the logger inside the capture function so it uses the redirected stderr
 		lg := logger.New()
-		lg.Error("some error")
+		lg.Error(os.ErrPermission)
 	})
 	if err != nil {
 		t.Fatalf("Failed to capture stderr: %v", err)
 	}
 
-	// Assert that the output contains "some error"
-	if !strings.Contains(output, "some error") {
-		t.Errorf("Expected output to contain 'some error', got: %s", output)
+	// Assert that the output contains the error message
+	if !strings.Contains(output, "permission denied") {
+		t.Errorf("Expected output to contain 'permission denied', got: %s", output)
 	}
 
 	// Assert that the output contains "ERROR"

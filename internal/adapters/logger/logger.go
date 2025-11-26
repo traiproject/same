@@ -30,6 +30,6 @@ func (l *Logger) Info(msg string) {
 }
 
 // Error logs an error message.
-func (l *Logger) Error(msg string) {
-	l.logger.Error(msg)
+func (l *Logger) Error(err error) {
+	l.logger.Error("operation failed", "error", err)
 }

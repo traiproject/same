@@ -17,9 +17,10 @@ type CLI struct {
 // New creates a new CLI instance with the given app.
 func New(a *app.App) *CLI {
 	rootCmd := &cobra.Command{
-		Use:          "bob",
-		Short:        "A modern build tool for monorepos",
-		SilenceUsage: true,
+		Use:           "bob",
+		Short:         "A modern build tool for monorepos",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	// Add persistent flags
