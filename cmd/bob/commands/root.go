@@ -37,3 +37,8 @@ func (c *CLI) Execute(ctx context.Context) error {
 	c.rootCmd.SetContext(ctx)
 	return c.rootCmd.Execute()
 }
+
+// SetArgs sets the arguments for the root command. Used for testing.
+func (c *CLI) SetArgs(args []string) {
+	c.rootCmd.SetArgs(args)
+}
