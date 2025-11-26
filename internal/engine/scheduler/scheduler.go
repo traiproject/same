@@ -197,18 +197,50 @@ func (s *Scheduler) resolveTargetTasks(
 	graph *domain.Graph,
 	targetNames []string,
 ) (map[domain.InternedString]bool, []domain.InternedString, error) {
-	tasksToRun := make(map[domain.InternedString]bool)
-	var allTasks []domain.InternedString
-
+	targets := make([]domain.InternedString, 0, len(targetNames))
 	for _, nameStr := range targetNames {
 		name := domain.NewInternedString(nameStr)
 		if _, ok := graph.GetTask(name); !ok {
 			return nil, nil, zerr.With(domain.ErrTaskNotFound, "task", name.String())
 		}
+		targets = append(targets, name)
+	}
 
-		if !tasksToRun[name] {
-			tasksToRun[name] = true
-			allTasks = append(allTasks, name)
+	return s.collectDependencies(graph, targets)
+}
+
+func (s *Scheduler) collectDependencies(
+	graph *domain.Graph,
+	targets []domain.InternedString,
+) (map[domain.InternedString]bool, []domain.InternedString, error) {
+	tasksToRun := make(map[domain.InternedString]bool)
+	var allTasks []domain.InternedString
+
+	// Use a queue for BFS to collect all dependencies
+	queue := make([]domain.InternedString, len(targets))
+	copy(queue, targets)
+
+	visited := make(map[domain.InternedString]bool)
+	for _, t := range targets {
+		visited[t] = true
+	}
+
+	for len(queue) > 0 {
+		currentName := queue[0]
+		queue = queue[1:]
+
+		// Add to tasks to run
+		if !tasksToRun[currentName] {
+			tasksToRun[currentName] = true
+			allTasks = append(allTasks, currentName)
+		}
+
+		task, _ := graph.GetTask(currentName)
+		for _, dep := range task.Dependencies {
+			if !visited[dep] {
+				visited[dep] = true
+				queue = append(queue, dep)
+			}
 		}
 	}
 

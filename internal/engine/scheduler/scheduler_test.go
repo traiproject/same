@@ -137,7 +137,7 @@ func TestScheduler_Run_Partial(t *testing.T) {
 
 		// Graph: A->B, B->C, D
 		// Target: A
-		// Expected: A runs. B, C, D do not run.
+		// Expected: A, B, C run. D does not run.
 		g := domain.NewGraph()
 		taskA := &domain.Task{
 			Name: domain.NewInternedString("A"),
@@ -163,16 +163,25 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec)
 
 		// Mock Expectations
+		executedTasks := make(map[string]bool)
+		var mu sync.Mutex
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
-			if task.Name.String() != "A" {
-				t.Errorf("Task %s should not be executed", task.Name)
+			mu.Lock()
+			defer mu.Unlock()
+			executedTasks[task.Name.String()] = true
+			if task.Name.String() == "D" {
+				t.Errorf("Task D should not be executed")
 			}
 			return nil
-		}).Times(1) // Only A
+		}).Times(3) // A, B, C
 
 		err := s.Run(context.Background(), g, []string{"A"}, 1)
 		if err != nil {
 			t.Errorf("Run failed: %v", err)
+		}
+
+		if !executedTasks["A"] || !executedTasks["B"] || !executedTasks["C"] {
+			t.Errorf("Expected A, B, and C to execute, got: %v", executedTasks)
 		}
 	})
 }
