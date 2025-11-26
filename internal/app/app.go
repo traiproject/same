@@ -3,11 +3,11 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/bob/internal/engine/scheduler"
+	"go.trai.ch/zerr"
 )
 
 // App represents the main application logic.
@@ -29,17 +29,17 @@ func (a *App) Run(ctx context.Context, targetNames []string) error {
 	// 1. Load the graph
 	graph, err := a.configLoader.Load(".")
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		return zerr.Wrap(err, "failed to load configuration")
 	}
 
 	// 2. Validate targets
 	if len(targetNames) == 0 {
-		return fmt.Errorf("no targets specified")
+		return zerr.New("no targets specified")
 	}
 
 	// 3. Run the scheduler
 	if err := a.scheduler.Run(ctx, graph, targetNames, runtime.NumCPU()); err != nil {
-		return fmt.Errorf("build execution failed: %w", err)
+		return zerr.Wrap(err, "build execution failed")
 	}
 
 	return nil
