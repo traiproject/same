@@ -22,21 +22,6 @@ func (l *FileConfigLoader) Load(cwd string) (*domain.Graph, error) {
 	return Load(path)
 }
 
-// Bobfile represents the structure of the bob.yaml configuration file.
-type Bobfile struct {
-	Version string             `yaml:"version"`
-	Tasks   map[string]TaskDTO `yaml:"tasks"`
-}
-
-// TaskDTO represents a task definition in the configuration.
-type TaskDTO struct {
-	Input       []string          `yaml:"input"`
-	Cmd         []string          `yaml:"cmd"`
-	Target      []string          `yaml:"target"`
-	DependsOn   []string          `yaml:"dependsOn"`
-	Environment map[string]string `yaml:"environment"`
-}
-
 // Load reads a configuration file from the given path and returns a domain.Graph.
 func Load(path string) (*domain.Graph, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path is provided by user
