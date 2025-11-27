@@ -20,6 +20,10 @@ func (s *Scheduler) GetTaskStatusMap() map[domain.InternedString]TaskStatus {
 }
 
 // CheckTaskCache exports checkTaskCache for testing purposes.
-func (s *Scheduler) CheckTaskCache(ctx context.Context, task *domain.Task) (skipped bool, hash string, err error) {
-	return s.checkTaskCache(ctx, task)
+func (s *Scheduler) CheckTaskCache(
+	ctx context.Context,
+	task *domain.Task,
+	root string,
+) (skipped bool, hash string, err error) {
+	return s.checkTaskCache(ctx, task, root)
 }

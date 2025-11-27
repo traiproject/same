@@ -293,7 +293,7 @@ func (state *schedulerRunState) schedule() {
 
 			if state.force {
 				// Force mode: compute hash but skip cache check
-				hash, err = state.s.hasher.ComputeInputHash(&t, t.Environment, ".")
+				hash, err = state.s.hasher.ComputeInputHash(&t, t.Environment, state.graph.Root())
 				if err != nil {
 					state.resultsCh <- result{task: t.Name, err: zerr.Wrap(err, "failed to compute input hash")}
 					return
@@ -301,7 +301,7 @@ func (state *schedulerRunState) schedule() {
 				// Bypass cache, always execute
 			} else {
 				// Normal mode: check cache
-				skipped, h, err := state.s.checkTaskCache(state.ctx, &t)
+				skipped, h, err := state.s.checkTaskCache(state.ctx, &t, state.graph.Root())
 				hash = h
 				if err != nil {
 					state.resultsCh <- result{task: t.Name, err: err}
@@ -358,9 +358,13 @@ func (state *schedulerRunState) handleResult(res result) {
 
 // checkTaskCache checks if the task can be skipped based on cached build info.
 // Returns skipped (bool), hash (string), and error.
-func (s *Scheduler) checkTaskCache(_ context.Context, task *domain.Task) (skipped bool, hash string, err error) {
+func (s *Scheduler) checkTaskCache(
+	_ context.Context,
+	task *domain.Task,
+	root string,
+) (skipped bool, hash string, err error) {
 	// Step A: Compute Input Hash
-	hash, err = s.hasher.ComputeInputHash(task, task.Environment, ".")
+	hash, err = s.hasher.ComputeInputHash(task, task.Environment, root)
 	if err != nil {
 		return false, "", zerr.Wrap(err, "failed to compute input hash")
 	}
@@ -383,7 +387,7 @@ func (s *Scheduler) checkTaskCache(_ context.Context, task *domain.Task) (skippe
 		outputs[i] = out.String()
 	}
 
-	exists, err := s.verifier.VerifyOutputs(".", outputs)
+	exists, err := s.verifier.VerifyOutputs(root, outputs)
 	if err != nil {
 		return false, hash, zerr.Wrap(err, "failed to verify outputs")
 	}

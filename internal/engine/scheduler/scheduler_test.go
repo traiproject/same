@@ -26,6 +26,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		// B depends on D
 		// C depends on D
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		taskA := &domain.Task{
 			Name: domain.NewInternedString("A"),
 			Dependencies: []domain.InternedString{
@@ -147,6 +148,7 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		// Target: A
 		// Expected: A, B, C run. D does not run.
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		taskA := &domain.Task{
 			Name: domain.NewInternedString("A"),
 			Dependencies: []domain.InternedString{
@@ -211,6 +213,7 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		// Target: "all"
 		// Expected: All tasks run
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		taskA := &domain.Task{Name: domain.NewInternedString("A")}
 		taskB := &domain.Task{Name: domain.NewInternedString("B")}
 		taskC := &domain.Task{Name: domain.NewInternedString("C")}
@@ -261,6 +264,7 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 		// Target: ["all", "A"]
 		// Expected: All tasks run ("all" takes precedence)
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		taskA := &domain.Task{Name: domain.NewInternedString("A")}
 		taskB := &domain.Task{Name: domain.NewInternedString("B")}
 		taskC := &domain.Task{Name: domain.NewInternedString("C")}
@@ -311,6 +315,7 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		// Target: [] (empty)
 		// Expected: No tasks run
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		taskA := &domain.Task{Name: domain.NewInternedString("A")}
 		taskB := &domain.Task{Name: domain.NewInternedString("B")}
 		taskC := &domain.Task{Name: domain.NewInternedString("C")}
@@ -345,6 +350,7 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		// Target: ["A", "B"]
 		// Expected: Only A and B run, not C
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		taskA := &domain.Task{Name: domain.NewInternedString("A")}
 		taskB := &domain.Task{Name: domain.NewInternedString("B")}
 		taskC := &domain.Task{Name: domain.NewInternedString("C")}
@@ -398,6 +404,7 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		defer ctrl.Finish()
 
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		taskA := &domain.Task{Name: domain.NewInternedString("A")}
 		_ = g.AddTask(taskA)
 
@@ -444,7 +451,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 		}, nil)
 		mockVerifier.EXPECT().VerifyOutputs(".", []string{"out.txt"}).Return(true, nil)
 
-		skipped, h, err := s.CheckTaskCache(ctx, task)
+		skipped, h, err := s.CheckTaskCache(ctx, task, ".")
 		require.NoError(t, err)
 		assert.True(t, skipped)
 		assert.Equal(t, testHash, h)
@@ -458,7 +465,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 			InputHash: "old-hash",
 		}, nil)
 
-		skipped, h, err := s.CheckTaskCache(ctx, task)
+		skipped, h, err := s.CheckTaskCache(ctx, task, ".")
 		require.NoError(t, err)
 		assert.False(t, skipped)
 		assert.Equal(t, testHash, h)
@@ -469,7 +476,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(testHash, nil)
 		mockStore.EXPECT().Get("test-task").Return(nil, nil)
 
-		skipped, h, err := s.CheckTaskCache(ctx, task)
+		skipped, h, err := s.CheckTaskCache(ctx, task, ".")
 		require.NoError(t, err)
 		assert.False(t, skipped)
 		assert.Equal(t, testHash, h)
@@ -484,7 +491,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 		}, nil)
 		mockVerifier.EXPECT().VerifyOutputs(".", []string{"out.txt"}).Return(false, nil)
 
-		skipped, h, err := s.CheckTaskCache(ctx, task)
+		skipped, h, err := s.CheckTaskCache(ctx, task, ".")
 		require.NoError(t, err)
 		assert.False(t, skipped)
 		assert.Equal(t, testHash, h)
@@ -494,7 +501,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 	t.Run("HasherError", func(t *testing.T) {
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return("", errors.New("hasher error"))
 
-		skipped, _, err := s.CheckTaskCache(ctx, task)
+		skipped, _, err := s.CheckTaskCache(ctx, task, ".")
 		require.Error(t, err)
 		assert.False(t, skipped)
 	})
@@ -504,7 +511,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(testHash, nil)
 		mockStore.EXPECT().Get("test-task").Return(nil, errors.New("store error"))
 
-		skipped, h, err := s.CheckTaskCache(ctx, task)
+		skipped, h, err := s.CheckTaskCache(ctx, task, ".")
 		require.Error(t, err)
 		assert.False(t, skipped)
 		assert.Equal(t, testHash, h)
@@ -519,7 +526,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 		}, nil)
 		mockVerifier.EXPECT().VerifyOutputs(".", []string{"out.txt"}).Return(false, errors.New("verifier error"))
 
-		skipped, h, err := s.CheckTaskCache(ctx, task)
+		skipped, h, err := s.CheckTaskCache(ctx, task, ".")
 		require.Error(t, err)
 		assert.False(t, skipped)
 		assert.Equal(t, testHash, h)
@@ -539,6 +546,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		task := &domain.Task{
 			Name:    domain.NewInternedString("build"),
 			Outputs: []domain.InternedString{domain.NewInternedString("out")},
@@ -621,6 +629,7 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		task := &domain.Task{
 			Name:    domain.NewInternedString("build"),
 			Outputs: []domain.InternedString{domain.NewInternedString("out")},
@@ -699,6 +708,7 @@ func TestScheduler_Run_ContextCancellation(t *testing.T) {
 
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		task := &domain.Task{
 			Name: domain.NewInternedString("build"),
 		}
@@ -763,6 +773,7 @@ func TestScheduler_Run_ForceModeHasherError(t *testing.T) {
 
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		task := &domain.Task{
 			Name: domain.NewInternedString("build"),
 		}
@@ -796,6 +807,7 @@ func TestScheduler_Run_StorePutError(t *testing.T) {
 
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 		g := domain.NewGraph()
+		g.SetRoot(".")
 		task := &domain.Task{
 			Name: domain.NewInternedString("build"),
 		}
@@ -837,6 +849,7 @@ func TestScheduler_Run_EnvironmentCacheInvalidation(t *testing.T) {
 
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
 		g := domain.NewGraph()
+		g.SetRoot(".")
 
 		// First task with environment
 		task1 := &domain.Task{
@@ -894,6 +907,7 @@ func TestScheduler_Run_EnvironmentCacheInvalidation(t *testing.T) {
 
 		// Clear and re-add task with new environment
 		g = domain.NewGraph()
+		g.SetRoot(".")
 		_ = g.AddTask(task2)
 
 		// Hasher should be called with task2.Environment (different from task1)
