@@ -685,3 +685,141 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestScheduler_Run_ContextCancellation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
+		g := domain.NewGraph()
+		task := &domain.Task{
+			Name: domain.NewInternedString("build"),
+		}
+		_ = g.AddTask(task)
+
+		// Create a cancellable context
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Channels for synchronization
+		taskStarted := make(chan struct{})
+		taskProceed := make(chan struct{})
+
+		// Mock expectations
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return("hash1", nil)
+		mockStore.EXPECT().Get("build").Return(nil, nil)
+
+		// Executor blocks until we signal
+		mockExec.EXPECT().Execute(gomock.Any(), task).DoAndReturn(func(_ context.Context, _ *domain.Task) error {
+			close(taskStarted)
+			<-taskProceed
+			return nil
+		})
+
+		// Store.Put will be called since task completes successfully
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+
+		// Run scheduler in goroutine
+		errCh := make(chan error)
+		go func() {
+			errCh <- s.Run(ctx, g, []string{"build"}, 1, false)
+		}()
+
+		// Wait for task to start
+		synctest.Wait()
+		<-taskStarted
+
+		// Cancel context while task is running
+		cancel()
+
+		// Let task complete
+		close(taskProceed)
+
+		// Wait for scheduler to finish
+		err := <-errCh
+
+		// Should return context.Canceled error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+}
+
+func TestScheduler_Run_ForceModeHasherError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
+		g := domain.NewGraph()
+		task := &domain.Task{
+			Name: domain.NewInternedString("build"),
+		}
+		_ = g.AddTask(task)
+
+		ctx := context.Background()
+
+		// In force mode, hasher is called but store.Get is not
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return("", errors.New("hasher error"))
+
+		// Run with force=true
+		err := s.Run(ctx, g, []string{"build"}, 1, true)
+
+		// Should return the hasher error wrapped
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to compute input hash")
+		assert.Contains(t, err.Error(), "hasher error")
+	})
+}
+
+func TestScheduler_Run_StorePutError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
+		g := domain.NewGraph()
+		task := &domain.Task{
+			Name: domain.NewInternedString("build"),
+		}
+		_ = g.AddTask(task)
+
+		ctx := context.Background()
+		const hash1 = "hash1"
+
+		// Mock expectations
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		mockStore.EXPECT().Get("build").Return(nil, nil)
+		mockExec.EXPECT().Execute(ctx, task).Return(nil)
+
+		// Store.Put fails but build should still succeed
+		mockStore.EXPECT().Put(gomock.Any()).Return(errors.New("store error"))
+
+		// Logger should log the error
+		mockLogger.EXPECT().Error(gomock.Any()).Do(func(err error) {
+			assert.Contains(t, err.Error(), "failed to update build info store")
+			assert.Contains(t, err.Error(), "store error")
+		})
+
+		// Run should succeed despite store error
+		err := s.Run(ctx, g, []string{"build"}, 1, false)
+		require.NoError(t, err)
+	})
+}

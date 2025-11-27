@@ -2,6 +2,8 @@ package app_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"testing/synctest"
 
@@ -75,6 +77,39 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		}
 		if err.Error() != "no targets specified" {
 			t.Errorf("Expected 'no targets specified', got '%v'", err)
+		}
+	})
+}
+
+func TestApp_Run_ConfigLoaderError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		// Setup App
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
+		a := app.New(mockLoader, sched)
+
+		// Expectations - loader fails
+		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))
+
+		// Execute
+		err := a.Run(context.Background(), []string{"task1"}, false)
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		if !errors.Is(err, errors.New("config load error")) {
+			// Check that error contains our message
+			if err.Error() == "" || !strings.Contains(err.Error(), "failed to load configuration") {
+				t.Errorf("Expected error to contain 'failed to load configuration', got '%v'", err)
+			}
 		}
 	})
 }

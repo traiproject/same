@@ -31,3 +31,28 @@ func TestVerifier_VerifyOutputs(t *testing.T) {
 	// This is hard to simulate reliably across OSes without root, but we can try making a directory unreadable
 	// or just skip this for now as IsNotExist is the main path.
 }
+
+func TestVerifier_VerifyOutputs_StatError(t *testing.T) {
+	tmpDir := t.TempDir()
+	verifier := fs.NewVerifier()
+
+	// Create a subdirectory
+	subDir := filepath.Join(tmpDir, "subdir")
+	require.NoError(t, os.Mkdir(subDir, 0o700))
+
+	// Create a file in the subdirectory
+	testFile := filepath.Join(subDir, "test.txt")
+	require.NoError(t, os.WriteFile(testFile, []byte("content"), 0o600))
+
+	// Make the subdirectory unreadable (this will cause stat to fail with permission denied)
+	require.NoError(t, os.Chmod(subDir, 0o000))
+	defer func() {
+		_ = os.Chmod(subDir, 0o700) //nolint:gosec // Restore permissions for cleanup
+	}()
+
+	// Try to verify the file - should return error (not just false)
+	exists, err := verifier.VerifyOutputs(tmpDir, []string{"subdir/test.txt"})
+	assert.False(t, exists)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to stat output")
+}
