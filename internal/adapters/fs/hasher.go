@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -179,4 +180,38 @@ func (h *Hasher) hashFile(path string, mainHasher io.Writer) error {
 		return zerr.Wrap(err, "failed to write hash to digest")
 	}
 	return nil
+}
+
+// ComputeOutputHash computes the hash of the output files.
+func (h *Hasher) ComputeOutputHash(outputs []string, root string) (string, error) {
+	sortedOutputs := make([]string, len(outputs))
+	copy(sortedOutputs, outputs)
+	sort.Strings(sortedOutputs)
+
+	hasher := xxhash.New()
+
+	for _, output := range sortedOutputs {
+		path := filepath.Join(root, output)
+
+		// Check if file exists
+		if _, err := os.Stat(path); err != nil {
+			if os.IsNotExist(err) {
+				return "", zerr.With(zerr.Wrap(iofs.ErrNotExist, "output file missing"), "path", path)
+			}
+			return "", zerr.With(zerr.Wrap(err, "failed to stat output file"), "path", path)
+		}
+
+		// Compute file hash
+		hash, err := h.ComputeFileHash(path)
+		if err != nil {
+			return "", err
+		}
+
+		// Write hash to main hasher
+		if err := binary.Write(hasher, binary.LittleEndian, hash); err != nil {
+			return "", zerr.Wrap(err, "failed to write hash to digest")
+		}
+	}
+
+	return fmt.Sprintf("%016x", hasher.Sum64()), nil
 }

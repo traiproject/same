@@ -199,3 +199,39 @@ func TestHasher_ComputeInputHash_WithOutputs(t *testing.T) {
 	// Hashes should be different
 	assert.NotEqual(t, hashNoOutputs, hashWithOutputs)
 }
+
+func TestHasher_ComputeOutputHash(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create files
+	files := []string{"out1.txt", "out2.txt"}
+	for _, f := range files {
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, f), []byte("content"), 0o600))
+	}
+
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	// Compute hash
+	hash, err := hasher.ComputeOutputHash(files, tmpDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, hash)
+
+	// Verify order independence (since we sort)
+	filesReversed := []string{"out2.txt", "out1.txt"}
+	hashReversed, err := hasher.ComputeOutputHash(filesReversed, tmpDir)
+	require.NoError(t, err)
+	assert.Equal(t, hash, hashReversed)
+
+	// Verify content change changes hash
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "out1.txt"), []byte("new content"), 0o600))
+	newHash, err := hasher.ComputeOutputHash(files, tmpDir)
+	require.NoError(t, err)
+	assert.NotEqual(t, hash, newHash)
+
+	// Verify missing file error
+	missingFiles := []string{"out1.txt", "missing.txt"}
+	_, err = hasher.ComputeOutputHash(missingFiles, tmpDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "output file missing")
+}
