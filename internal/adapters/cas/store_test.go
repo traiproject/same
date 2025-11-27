@@ -1,6 +1,8 @@
 package cas_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +15,7 @@ import (
 
 func TestStore_PutAndGet(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state.json")
+	storePath := filepath.Join(tmpDir, "bob_state")
 
 	store, err := cas.NewStore(storePath)
 	if err != nil {
@@ -47,7 +49,7 @@ func TestStore_PutAndGet(t *testing.T) {
 
 func TestStore_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state.json")
+	storePath := filepath.Join(tmpDir, "bob_state")
 
 	// 1. Create store and save data
 	store1, err := cas.NewStore(storePath)
@@ -63,7 +65,7 @@ func TestStore_Persistence(t *testing.T) {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	// 2. Create new store instance pointing to same file
+	// 2. Create new store instance pointing to same directory
 	store2, err2 := cas.NewStore(storePath)
 	if err2 != nil {
 		t.Fatalf("NewStore 2 failed: %v", err2)
@@ -83,7 +85,7 @@ func TestStore_Persistence(t *testing.T) {
 
 func TestStore_OmitZero(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state.json")
+	storePath := filepath.Join(tmpDir, "bob_state")
 
 	store, err := cas.NewStore(storePath)
 	if err != nil {
@@ -101,8 +103,12 @@ func TestStore_OmitZero(t *testing.T) {
 	}
 
 	// Read the file content directly
+	hash := sha256.Sum256([]byte("task_zero"))
+	hexHash := hex.EncodeToString(hash[:])
+	taskFile := filepath.Join(storePath, hexHash+".json")
+
 	//nolint:gosec // Test file with controlled path
-	content, err := os.ReadFile(storePath)
+	content, err := os.ReadFile(taskFile)
 	if err != nil {
 		t.Fatalf("ReadFile failed: %v", err)
 	}

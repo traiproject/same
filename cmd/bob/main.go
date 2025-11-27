@@ -33,7 +33,7 @@ func run() int {
 	executor := shell.NewExecutor(log)
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
-	store, err := cas.NewStore(".bob/cache.json")
+	store, err := cas.NewStore(".bob/state")
 	if err != nil {
 		log.Error(zerr.Wrap(err, "failed to initialize build info store"))
 		return 1
