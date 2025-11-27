@@ -204,3 +204,43 @@ tasks:
 	assert.Equal(t, "1", testEnv["GO_TEST_VERBOSE"])
 	assert.Len(t, testEnv, 1)
 }
+
+func TestLoad_WithRoot(t *testing.T) {
+	t.Run("Explicit Root", func(t *testing.T) {
+		content := `
+version: "1"
+root: "./src"
+tasks: {}
+`
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "bob.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		g, err := config.Load(configPath)
+		require.NoError(t, err)
+
+		expectedRoot := filepath.Join(tmpDir, "src")
+		assert.Equal(t, expectedRoot, g.Root())
+	})
+
+	t.Run("Implicit Root", func(t *testing.T) {
+		content := `
+version: "1"
+tasks: {}
+`
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "bob.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		g, err := config.Load(configPath)
+		require.NoError(t, err)
+
+		// On Mac, TempDir might be a symlink (e.g. /var/folders/...), so we need to evaluate symlinks
+		// because loader uses filepath.Clean which might behave differently or just be consistent.
+		// Actually, loader uses filepath.Dir(path) which comes from t.TempDir().
+		// Let's ensure we compare cleaned paths.
+		assert.Equal(t, tmpDir, g.Root())
+	})
+}

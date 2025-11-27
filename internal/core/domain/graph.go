@@ -13,6 +13,7 @@ type Graph struct {
 	tasks          map[InternedString]Task
 	executionOrder []InternedString
 	dependents     map[InternedString][]InternedString
+	root           string
 }
 
 // NewGraph creates a new empty Graph.
@@ -155,4 +156,14 @@ func (g *Graph) TaskCount() int {
 func (g *Graph) GetTask(name InternedString) (Task, bool) {
 	t, ok := g.tasks[name]
 	return t, ok
+}
+
+// Root returns the root directory of the build.
+func (g *Graph) Root() string {
+	return g.root
+}
+
+// SetRoot sets the root directory of the build.
+func (g *Graph) SetRoot(path string) {
+	g.root = path
 }

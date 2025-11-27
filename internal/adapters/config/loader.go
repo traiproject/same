@@ -35,6 +35,8 @@ func Load(path string) (*domain.Graph, error) {
 	}
 
 	g := domain.NewGraph()
+	g.SetRoot(resolveRoot(path, bobfile.Root))
+
 	taskNames := make(map[string]bool)
 
 	// First pass: Collect all task names to verify dependencies later
@@ -98,4 +100,15 @@ func canonicalizeStrings(strs []string) []domain.InternedString {
 		res[i] = domain.NewInternedString(s)
 	}
 	return res
+}
+
+func resolveRoot(configPath, configuredRoot string) string {
+	configDir := filepath.Dir(configPath)
+	if configuredRoot == "" {
+		return filepath.Clean(configDir)
+	}
+	if filepath.IsAbs(configuredRoot) {
+		return filepath.Clean(configuredRoot)
+	}
+	return filepath.Clean(filepath.Join(configDir, configuredRoot))
 }
