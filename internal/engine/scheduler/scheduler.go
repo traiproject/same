@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -288,45 +289,61 @@ func (state *schedulerRunState) schedule() {
 		state.active++
 		state.s.updateStatus(taskName, StatusRunning)
 
-		go func(t domain.Task) {
-			var hash string
-			var err error
+		t := state.tasks[taskName]
+		go state.executeTask(&t)
+	}
+}
 
-			if state.force {
-				hash, err = state.s.computeHashForce(&t, state.graph.Root())
-				if err != nil {
-					state.resultsCh <- result{task: t.Name, err: err}
-					return
-				}
-				// Bypass cache, always execute
-			} else {
-				// Normal mode: check cache
-				skipped, h, err := state.s.checkTaskCache(state.ctx, &t, state.graph.Root())
-				hash = h
-				if err != nil {
-					state.resultsCh <- result{task: t.Name, err: err}
-					return
-				}
+func (state *schedulerRunState) executeTask(t *domain.Task) {
+	var hash string
+	var err error
 
-				if skipped {
-					state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
-					return
-				}
-			}
+	if state.force {
+		hash, err = state.s.computeHashForce(t, state.graph.Root())
+		if err != nil {
+			state.resultsCh <- result{task: t.Name, err: err}
+			return
+		}
+		// Bypass cache, always execute
+	} else {
+		// Normal mode: check cache
+		skipped, h, err := state.s.checkTaskCache(state.ctx, t, state.graph.Root())
+		hash = h
+		if err != nil {
+			state.resultsCh <- result{task: t.Name, err: err}
+			return
+		}
 
-			// Convert outputs to string slice for result
-			outputs := make([]string, len(t.Outputs))
-			for i, out := range t.Outputs {
-				outputs[i] = out.String()
-			}
+		if skipped {
+			state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
+			return
+		}
+	}
 
-			state.resultsCh <- result{
-				task:        t.Name,
-				err:         state.s.executor.Execute(state.ctx, &t),
-				inputHash:   hash,
-				taskOutputs: outputs,
-			}
-		}(state.tasks[taskName])
+	// Clean outputs before building to prevent stale artifacts
+	for _, out := range t.Outputs {
+		if err := os.RemoveAll(out.String()); err != nil {
+			// Log error but continue - file might not exist yet
+			state.s.logger.Error(
+				zerr.With(
+					zerr.Wrap(err, "failed to clean output file"),
+					"file", out.String(),
+				),
+			)
+		}
+	}
+
+	// Convert outputs to string slice for result
+	outputs := make([]string, len(t.Outputs))
+	for i, out := range t.Outputs {
+		outputs[i] = out.String()
+	}
+
+	state.resultsCh <- result{
+		task:        t.Name,
+		err:         state.s.executor.Execute(state.ctx, t),
+		inputHash:   hash,
+		taskOutputs: outputs,
 	}
 }
 
