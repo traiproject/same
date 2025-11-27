@@ -23,7 +23,6 @@ func TestApp_Build(t *testing.T) {
 		mockExecutor := mocks.NewMockExecutor(ctrl)
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
-		mockVerifier := mocks.NewMockVerifier(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
 		// Setup Graph
@@ -33,7 +32,7 @@ func TestApp_Build(t *testing.T) {
 		_ = g.AddTask(task)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
 		a := app.New(mockLoader, sched)
 
 		// Expectations
@@ -61,11 +60,10 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockExecutor := mocks.NewMockExecutor(ctrl)
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
-		mockVerifier := mocks.NewMockVerifier(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
 		a := app.New(mockLoader, sched)
 
 		// Expectations
@@ -91,11 +89,10 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockExecutor := mocks.NewMockExecutor(ctrl)
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
-		mockVerifier := mocks.NewMockVerifier(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockVerifier, mockLogger)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
 		a := app.New(mockLoader, sched)
 
 		// Expectations - loader fails

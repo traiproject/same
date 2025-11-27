@@ -17,19 +17,25 @@ tasks:
     input: ["cmd", "internal"]
     cmd: ["golangci-lint", "run"]
     target: []
-    dependsOn: ["fmt"]
+    dependsOn: []
 
   # Generate mocks
   generate:
     input: ["internal/engine/scheduler/scheduler.go"]
     cmd: ["go", "generate", "./..."]
-    target: ["internal/engine/scheduler/mock_executor_test.go"]
+    target:
+      - "internal/core/ports/mocks/mock_logger.go"
+      - "internal/core/ports/mocks/mock_store.go"
+      - "internal/core/ports/mocks/mock_config_loader.go"
+      - "internal/core/ports/mocks/hasher_mock.go"
+      - "internal/core/ports/mocks/verifier_mock.go"
+      - "internal/core/ports/mocks/mock_executor.go"
     dependsOn: ["install"]
 
   # Run tests
   test:
     input: ["cmd", "internal"]
-    cmd: ["go", "test", "-v", "./..."]
+    cmd: ["go", "test", "-v", "-race", "./..."]
     target: []
     dependsOn: ["generate", "lint"]
 

@@ -33,26 +33,23 @@ type Scheduler struct {
 	executor ports.Executor
 	store    ports.BuildInfoStore
 	hasher   ports.Hasher
-	verifier ports.Verifier
 	logger   ports.Logger
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
 }
 
-// NewScheduler creates a new Scheduler with the given executor, store, hasher, verifier, and logger.
+// NewScheduler creates a new Scheduler with the given executor, store, hasher, and logger.
 func NewScheduler(
 	executor ports.Executor,
 	store ports.BuildInfoStore,
 	hasher ports.Hasher,
-	verifier ports.Verifier,
 	logger ports.Logger,
 ) *Scheduler {
 	s := &Scheduler{
 		executor:   executor,
 		store:      store,
 		hasher:     hasher,
-		verifier:   verifier,
 		logger:     logger,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
@@ -125,10 +122,11 @@ func (s *Scheduler) Run(
 }
 
 type result struct {
-	task      domain.InternedString
-	err       error
-	skipped   bool
-	inputHash string
+	task        domain.InternedString
+	err         error
+	skipped     bool
+	inputHash   string
+	taskOutputs []string
 }
 
 type schedulerRunState struct {
@@ -314,7 +312,18 @@ func (state *schedulerRunState) schedule() {
 				}
 			}
 
-			state.resultsCh <- result{task: t.Name, err: state.s.executor.Execute(state.ctx, &t), inputHash: hash}
+			// Convert outputs to string slice for result
+			outputs := make([]string, len(t.Outputs))
+			for i, out := range t.Outputs {
+				outputs[i] = out.String()
+			}
+
+			state.resultsCh <- result{
+				task:        t.Name,
+				err:         state.s.executor.Execute(state.ctx, &t),
+				inputHash:   hash,
+				taskOutputs: outputs,
+			}
 		}(state.tasks[taskName])
 	}
 }
@@ -328,32 +337,52 @@ func (state *schedulerRunState) handleResult(res result) {
 		state.errs = errors.Join(state.errs, enhancedErr)
 		state.s.updateStatus(res.task, StatusFailed)
 	} else {
-		state.s.updateStatus(res.task, StatusCompleted)
-		if res.skipped {
-			state.s.logger.Info(fmt.Sprintf("Skipping %s (cached)", res.task))
-		} else {
-			// Persist build info
+		state.handleSuccess(res)
+	}
+}
+
+func (state *schedulerRunState) handleSuccess(res result) {
+	state.s.updateStatus(res.task, StatusCompleted)
+	if res.skipped {
+		state.s.logger.Info(fmt.Sprintf("Skipping %s (cached)", res.task))
+	} else {
+		outputHash := state.computeOutputHash(res)
+		if outputHash != "" || len(res.taskOutputs) == 0 {
 			err := state.s.store.Put(domain.BuildInfo{
-				TaskName:  res.task.String(),
-				InputHash: res.inputHash,
-				Timestamp: time.Now(),
+				TaskName:   res.task.String(),
+				InputHash:  res.inputHash,
+				OutputHash: outputHash,
+				Timestamp:  time.Now(),
 			})
 			if err != nil {
 				// We log the error but don't fail the build if cache update fails
 				state.s.logger.Error(zerr.With(zerr.Wrap(err, "failed to update build info store"), "task", res.task.String()))
 			}
 		}
+	}
 
-		for _, dep := range state.graph.Dependents(res.task) {
-			// Only consider dependents that are part of the current execution
-			if _, ok := state.tasks[dep]; ok {
-				state.inDegree[dep]--
-				if state.inDegree[dep] == 0 {
-					state.ready = append(state.ready, dep)
-				}
+	for _, dep := range state.graph.Dependents(res.task) {
+		// Only consider dependents that are part of the current execution
+		if _, ok := state.tasks[dep]; ok {
+			state.inDegree[dep]--
+			if state.inDegree[dep] == 0 {
+				state.ready = append(state.ready, dep)
 			}
 		}
 	}
+}
+
+func (state *schedulerRunState) computeOutputHash(res result) string {
+	if len(res.taskOutputs) == 0 {
+		return ""
+	}
+
+	outputHash, err := state.s.hasher.ComputeOutputHash(res.taskOutputs, state.graph.Root())
+	if err != nil {
+		state.s.logger.Error(zerr.With(zerr.Wrap(err, "failed to compute output hash"), "task", res.task.String()))
+		return ""
+	}
+	return outputHash
 }
 
 // checkTaskCache checks if the task can be skipped based on cached build info.
@@ -387,10 +416,17 @@ func (s *Scheduler) checkTaskCache(
 		outputs[i] = out.String()
 	}
 
-	exists, err := s.verifier.VerifyOutputs(root, outputs)
-	if err != nil {
-		return false, hash, zerr.Wrap(err, "failed to verify outputs")
+	if len(outputs) > 0 {
+		outputHash, err := s.hasher.ComputeOutputHash(outputs, root)
+		if err != nil {
+			// If error (e.g. file missing), treat as cache miss, do not fail
+			return false, hash, nil //nolint:nilerr // Intentional cache miss on error
+		}
+
+		if info.OutputHash != outputHash {
+			return false, hash, nil
+		}
 	}
 
-	return exists, hash, nil
+	return true, hash, nil
 }
