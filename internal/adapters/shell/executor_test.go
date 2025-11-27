@@ -33,3 +33,26 @@ func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 	err := executor.Execute(context.Background(), task)
 	require.NoError(t, err)
 }
+
+func TestExecutor_Execute_EnvironmentVariables(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := mocks.NewMockLogger(ctrl)
+
+	// Expect the environment variable value to be logged
+	mockLogger.EXPECT().Info("test-value-123").Times(1)
+
+	executor := shell.NewExecutor(mockLogger)
+
+	task := &domain.Task{
+		Name:    domain.NewInternedString("test-env-task"),
+		Command: []string{"sh", "-c", "echo $MY_TEST_VAR"},
+		Environment: map[string]string{
+			"MY_TEST_VAR": "test-value-123",
+		},
+	}
+
+	err := executor.Execute(context.Background(), task)
+	require.NoError(t, err)
+}
