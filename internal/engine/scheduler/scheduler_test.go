@@ -437,7 +437,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 
 	// Case 1: Cache Hit (Hashes match, outputs exist)
 	t.Run("CacheHit", func(t *testing.T) {
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(testHash, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(testHash, nil)
 		mockStore.EXPECT().Get("test-task").Return(&domain.BuildInfo{
 			TaskName:  "test-task",
 			InputHash: testHash,
@@ -452,7 +452,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 
 	// Case 2: Cache Miss (Hashes mismatch)
 	t.Run("CacheMiss", func(t *testing.T) {
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(testHash, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(testHash, nil)
 		mockStore.EXPECT().Get("test-task").Return(&domain.BuildInfo{
 			TaskName:  "test-task",
 			InputHash: "old-hash",
@@ -466,7 +466,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 
 	// Case 3: Cache Miss (No build info)
 	t.Run("CacheMiss_NoInfo", func(t *testing.T) {
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(testHash, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(testHash, nil)
 		mockStore.EXPECT().Get("test-task").Return(nil, nil)
 
 		skipped, h, err := s.CheckTaskCache(ctx, task)
@@ -477,7 +477,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 
 	// Case 4: Dirty Cache (Hashes match, outputs missing)
 	t.Run("DirtyCache", func(t *testing.T) {
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(testHash, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(testHash, nil)
 		mockStore.EXPECT().Get("test-task").Return(&domain.BuildInfo{
 			TaskName:  "test-task",
 			InputHash: testHash,
@@ -492,7 +492,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 
 	// Case 5: Error in Hasher
 	t.Run("HasherError", func(t *testing.T) {
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return("", errors.New("hasher error"))
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return("", errors.New("hasher error"))
 
 		skipped, _, err := s.CheckTaskCache(ctx, task)
 		require.Error(t, err)
@@ -501,7 +501,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 
 	// Case 6: Error in Store
 	t.Run("StoreError", func(t *testing.T) {
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(testHash, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(testHash, nil)
 		mockStore.EXPECT().Get("test-task").Return(nil, errors.New("store error"))
 
 		skipped, h, err := s.CheckTaskCache(ctx, task)
@@ -512,7 +512,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 
 	// Case 7: Error in Verifier
 	t.Run("VerifierError", func(t *testing.T) {
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(testHash, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(testHash, nil)
 		mockStore.EXPECT().Get("test-task").Return(&domain.BuildInfo{
 			TaskName:  "test-task",
 			InputHash: testHash,
@@ -551,7 +551,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 
 		// 1. First Run: Cache Miss (Execution)
 		// Hasher returns hash1
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(hash1, nil)
 		// Store returns nil (no info)
 		mockStore.EXPECT().Get("build").Return(nil, nil)
 		// Executor runs
@@ -568,7 +568,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 
 		// 2. Second Run: Cache Hit (Skip)
 		// Hasher returns hash1
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(hash1, nil)
 		// Store returns info with hash1
 		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
 			TaskName:  "build",
@@ -588,7 +588,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 
 		// 3. Third Run: Input Modified (Execution)
 		// Hasher returns hash2
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash2, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(hash2, nil)
 		// Store returns info with hash1
 		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
 			TaskName:  "build",
@@ -632,7 +632,7 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 
 		// 1. First Run: Cache Miss (Execution)
 		// Hasher returns hash1
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(hash1, nil)
 		// Store returns nil (no info)
 		mockStore.EXPECT().Get("build").Return(nil, nil)
 		// Executor runs
@@ -649,7 +649,7 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 
 		// 2. Second Run: Cache Hit (Skip) - force=false
 		// Hasher returns hash1
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(hash1, nil)
 		// Store returns info with hash1
 		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
 			TaskName:  "build",
@@ -669,7 +669,7 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 
 		// 3. Third Run: Force Bypass Cache (Execution) - force=true
 		// Hasher returns hash1 (still same hash, but we force execution)
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(hash1, nil)
 		// Store.Get is NOT called (cache check bypassed)
 		// Verifier is NOT called (cache check bypassed)
 		// Executor runs despite cache being valid
@@ -712,7 +712,7 @@ func TestScheduler_Run_ContextCancellation(t *testing.T) {
 		taskProceed := make(chan struct{})
 
 		// Mock expectations
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return("hash1", nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return("hash1", nil)
 		mockStore.EXPECT().Get("build").Return(nil, nil)
 
 		// Executor blocks until we signal
@@ -771,7 +771,7 @@ func TestScheduler_Run_ForceModeHasherError(t *testing.T) {
 		ctx := context.Background()
 
 		// In force mode, hasher is called but store.Get is not
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return("", errors.New("hasher error"))
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return("", errors.New("hasher error"))
 
 		// Run with force=true
 		err := s.Run(ctx, g, []string{"build"}, 1, true)
@@ -805,7 +805,7 @@ func TestScheduler_Run_StorePutError(t *testing.T) {
 		const hash1 = "hash1"
 
 		// Mock expectations
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, ".").Return(hash1, nil)
 		mockStore.EXPECT().Get("build").Return(nil, nil)
 		mockExec.EXPECT().Execute(ctx, task).Return(nil)
 
@@ -820,6 +820,99 @@ func TestScheduler_Run_StorePutError(t *testing.T) {
 
 		// Run should succeed despite store error
 		err := s.Run(ctx, g, []string{"build"}, 1, false)
+		require.NoError(t, err)
+	})
+}
+
+func TestScheduler_Run_EnvironmentCacheInvalidation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
+		g := domain.NewGraph()
+
+		// First task with environment
+		task1 := &domain.Task{
+			Name:    domain.NewInternedString("build"),
+			Outputs: []domain.InternedString{domain.NewInternedString("out")},
+			Environment: map[string]string{
+				"CGO_ENABLED": "0",
+				"GOOS":        "linux",
+			},
+		}
+		_ = g.AddTask(task1)
+
+		ctx := context.Background()
+		const hash1 = "hash_with_env1"
+		const hash2 = "hash_with_env2"
+
+		// 1. First Run: Cache Miss (Execution) with environment
+		// Hasher should be called with task1.Environment
+		mockHasher.EXPECT().ComputeInputHash(task1, task1.Environment, ".").Return(hash1, nil)
+		mockStore.EXPECT().Get("build").Return(nil, nil)
+		mockExec.EXPECT().Execute(ctx, task1).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any()).DoAndReturn(func(info domain.BuildInfo) error {
+			assert.Equal(t, "build", info.TaskName)
+			assert.Equal(t, hash1, info.InputHash)
+			return nil
+		})
+
+		err := s.Run(ctx, g, []string{"build"}, 1, false)
+		require.NoError(t, err)
+
+		// 2. Second Run: Cache Hit (Skip) with same environment
+		mockHasher.EXPECT().ComputeInputHash(task1, task1.Environment, ".").Return(hash1, nil)
+		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
+			TaskName:  "build",
+			InputHash: hash1,
+		}, nil)
+		mockVerifier.EXPECT().VerifyOutputs(".", []string{"out"}).Return(true, nil)
+		mockLogger.EXPECT().Info(gomock.Any()).Do(func(msg string) {
+			assert.Contains(t, msg, "Skipping build (cached)")
+		})
+
+		err = s.Run(ctx, g, []string{"build"}, 1, false)
+		require.NoError(t, err)
+
+		// 3. Third Run: Environment Changed (Cache Miss -> Execution)
+		// Update task with different environment
+		task2 := &domain.Task{
+			Name:    domain.NewInternedString("build"),
+			Outputs: []domain.InternedString{domain.NewInternedString("out")},
+			Environment: map[string]string{
+				"CGO_ENABLED": "1", // Changed from "0"
+				"GOOS":        "linux",
+			},
+		}
+
+		// Clear and re-add task with new environment
+		g = domain.NewGraph()
+		_ = g.AddTask(task2)
+
+		// Hasher should be called with task2.Environment (different from task1)
+		mockHasher.EXPECT().ComputeInputHash(task2, task2.Environment, ".").Return(hash2, nil)
+		// Store returns old hash (from run 1)
+		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
+			TaskName:  "build",
+			InputHash: hash1,
+		}, nil)
+		// Hash mismatch -> Executor runs
+		mockExec.EXPECT().Execute(ctx, task2).Return(nil)
+		// Store updates with new hash
+		mockStore.EXPECT().Put(gomock.Any()).DoAndReturn(func(info domain.BuildInfo) error {
+			assert.Equal(t, "build", info.TaskName)
+			assert.Equal(t, hash2, info.InputHash)
+			return nil
+		})
+
+		err = s.Run(ctx, g, []string{"build"}, 1, false)
 		require.NoError(t, err)
 	})
 }

@@ -293,7 +293,7 @@ func (state *schedulerRunState) schedule() {
 
 			if state.force {
 				// Force mode: compute hash but skip cache check
-				hash, err = state.s.hasher.ComputeInputHash(&t, nil, ".")
+				hash, err = state.s.hasher.ComputeInputHash(&t, t.Environment, ".")
 				if err != nil {
 					state.resultsCh <- result{task: t.Name, err: zerr.Wrap(err, "failed to compute input hash")}
 					return
@@ -360,9 +360,7 @@ func (state *schedulerRunState) handleResult(res result) {
 // Returns skipped (bool), hash (string), and error.
 func (s *Scheduler) checkTaskCache(_ context.Context, task *domain.Task) (skipped bool, hash string, err error) {
 	// Step A: Compute Input Hash
-	// TODO: Pass environment variables and root directory correctly.
-	// For now, we assume empty env and current directory as root.
-	hash, err = s.hasher.ComputeInputHash(task, nil, ".")
+	hash, err = s.hasher.ComputeInputHash(task, task.Environment, ".")
 	if err != nil {
 		return false, "", zerr.Wrap(err, "failed to compute input hash")
 	}
