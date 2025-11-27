@@ -154,3 +154,53 @@ tasks:
 		assert.Contains(t, err.Error(), "failed to parse config file")
 	})
 }
+
+func TestLoad_WithEnvironment(t *testing.T) {
+	// Create a config file with environment variables
+	content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    environment:
+      CGO_ENABLED: "0"
+      GOOS: "linux"
+      GOARCH: "amd64"
+  test:
+    cmd: ["go", "test"]
+    environment:
+      GO_TEST_VERBOSE: "1"
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	// Load the config
+	g, err := config.Load(configPath)
+	require.NoError(t, err)
+
+	// Verify graph is valid
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Collect tasks and verify environment
+	tasks := make(map[string]map[string]string)
+	for task := range g.Walk() {
+		tasks[task.Name.String()] = task.Environment
+	}
+
+	// Verify build task environment
+	require.Contains(t, tasks, "build")
+	buildEnv := tasks["build"]
+	assert.Equal(t, "0", buildEnv["CGO_ENABLED"])
+	assert.Equal(t, "linux", buildEnv["GOOS"])
+	assert.Equal(t, "amd64", buildEnv["GOARCH"])
+	assert.Len(t, buildEnv, 3)
+
+	// Verify test task environment
+	require.Contains(t, tasks, "test")
+	testEnv := tasks["test"]
+	assert.Equal(t, "1", testEnv["GO_TEST_VERBOSE"])
+	assert.Len(t, testEnv, 1)
+}

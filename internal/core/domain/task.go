@@ -8,4 +8,5 @@ type Task struct {
 	Inputs       []InternedString
 	Outputs      []InternedString
 	Dependencies []InternedString
+	Environment  map[string]string
 }

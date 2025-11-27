@@ -30,10 +30,11 @@ type Bobfile struct {
 
 // TaskDTO represents a task definition in the configuration.
 type TaskDTO struct {
-	Input     []string `yaml:"input"`
-	Cmd       []string `yaml:"cmd"`
-	Target    []string `yaml:"target"`
-	DependsOn []string `yaml:"dependsOn"`
+	Input       []string          `yaml:"input"`
+	Cmd         []string          `yaml:"cmd"`
+	Target      []string          `yaml:"target"`
+	DependsOn   []string          `yaml:"dependsOn"`
+	Environment map[string]string `yaml:"environment"`
 }
 
 // Load reads a configuration file from the given path and returns a domain.Graph.
@@ -76,6 +77,7 @@ func Load(path string) (*domain.Graph, error) {
 			Inputs:       canonicalizeStrings(dto.Input),
 			Outputs:      canonicalizeStrings(dto.Target),
 			Dependencies: internStrings(dto.DependsOn),
+			Environment:  dto.Environment,
 		}
 
 		if err := g.AddTask(task); err != nil {
