@@ -69,9 +69,9 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 
 		// Mock Expectations
 		// D runs first
-		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
-		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).Times(3)
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
 
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, task *domain.Task) error {
 			switch task.Name.String() {
@@ -94,7 +94,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 				t.Errorf("Unexpected task: %s", task.Name)
 				return nil
 			}
-		}).AnyTimes()
+		}).Times(3)
 
 		// Run Scheduler in a goroutine
 		errCh := make(chan error)
@@ -175,9 +175,9 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockLogger)
 
 		// Mock Expectations
-		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
-		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).Times(3)
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(3)
 
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
@@ -227,9 +227,9 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockLogger)
 
 		// Expect all three tasks to execute
-		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
-		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).Times(3)
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(3)
 
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
@@ -277,9 +277,9 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockLogger)
 
 		// Expect all three tasks to execute
-		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
-		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).Times(3)
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(3)
 
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
@@ -361,9 +361,9 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockLogger)
 
 		// Expect only A and B to execute
-		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).AnyTimes()
-		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).AnyTimes()
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, ".").Return("hash", nil).Times(2)
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(2)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
 
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
@@ -743,7 +743,7 @@ func TestScheduler_Run_ContextCancellation(t *testing.T) {
 		})
 
 		// Store.Put will be called since task completes successfully
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).AnyTimes()
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
 
 		// Run scheduler in goroutine
 		errCh := make(chan error)
