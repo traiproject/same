@@ -32,12 +32,14 @@ func TestApp_Build(t *testing.T) {
 		_ = g.AddTask(task)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
 		a := app.New(mockLoader, sched)
 
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
-		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return("hash", nil)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get("task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task).Return(nil)
 		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
@@ -63,7 +65,8 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockLogger := mocks.NewMockLogger(ctrl)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
 		a := app.New(mockLoader, sched)
 
 		// Expectations
@@ -92,7 +95,8 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockLogger := mocks.NewMockLogger(ctrl)
 
 		// Setup App
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
 		a := app.New(mockLoader, sched)
 
 		// Expectations - loader fails

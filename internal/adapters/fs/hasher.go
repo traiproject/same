@@ -45,14 +45,16 @@ func (h *Hasher) ComputeFileHash(path string) (uint64, error) {
 
 // ComputeInputHash computes a single hash representing the task configuration,
 // environment, and input files.
-func (h *Hasher) ComputeInputHash(task *domain.Task, env map[string]string, root string) (string, error) {
+func (h *Hasher) ComputeInputHash(task *domain.Task, env map[string]string, inputs []string) (string, error) {
 	hasher := xxhash.New()
 
 	h.hashTaskDefinition(task, hasher)
 	h.hashEnvironment(env, hasher)
 
-	if err := h.hashInputFiles(task, root, hasher); err != nil {
-		return "", err
+	for _, path := range inputs {
+		if err := h.hashPath(path, hasher); err != nil {
+			return "", err
+		}
 	}
 
 	return fmt.Sprintf("%016x", hasher.Sum64()), nil
@@ -111,42 +113,6 @@ func (h *Hasher) hashEnvironment(env map[string]string, hasher *xxhash.Digest) {
 		_, _ = hasher.Write([]byte{0})
 	}
 	_, _ = hasher.Write([]byte{0})
-}
-
-// hashInputFiles hashes the actual input files, handling globs and directories.
-func (h *Hasher) hashInputFiles(task *domain.Task, root string, hasher *xxhash.Digest) error {
-	for _, input := range task.Inputs {
-		path := filepath.Join(root, input.String())
-
-		if err := h.hashInputPath(path, hasher); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// hashInputPath hashes a single input path, attempting glob resolution if path doesn't exist.
-func (h *Hasher) hashInputPath(path string, hasher *xxhash.Digest) error {
-	_, err := os.Stat(path)
-	if err != nil {
-		return h.tryGlobAndHash(path, hasher)
-	}
-	return h.hashPath(path, hasher)
-}
-
-// tryGlobAndHash attempts to resolve a path as a glob pattern and hash all matches.
-func (h *Hasher) tryGlobAndHash(path string, hasher *xxhash.Digest) error {
-	matches, globErr := filepath.Glob(path)
-	if globErr == nil && len(matches) > 0 {
-		for _, match := range matches {
-			if err := h.hashPath(match, hasher); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	// If not a glob or no matches, return error as the input is missing
-	return zerr.With(zerr.New("input not found"), "path", path)
 }
 
 func (h *Hasher) hashPath(path string, mainHasher io.Writer) error {

@@ -29,7 +29,8 @@ func TestRun_Success(t *testing.T) {
 	_ = g.AddTask(buildTask)
 
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -39,6 +40,7 @@ func TestRun_Success(t *testing.T) {
 	// 1. Loader.Load is called first
 	mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
 
+	mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
 	// 2. Hasher.ComputeInputHash is called once to compute input hash
 	mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
 
@@ -72,9 +74,10 @@ func TestRun_NoTargets(t *testing.T) {
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
 
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -103,8 +106,9 @@ func TestRoot_Help(t *testing.T) {
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
 
+	mockResolver := mocks.NewMockInputResolver(ctrl)
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockLogger)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
