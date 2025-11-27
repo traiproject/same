@@ -237,10 +237,12 @@ tasks: {}
 		g, err := config.Load(configPath)
 		require.NoError(t, err)
 
-		// On Mac, TempDir might be a symlink (e.g. /var/folders/...), so we need to evaluate symlinks
-		// because loader uses filepath.Clean which might behave differently or just be consistent.
-		// Actually, loader uses filepath.Dir(path) which comes from t.TempDir().
-		// Let's ensure we compare cleaned paths.
-		assert.Equal(t, tmpDir, g.Root())
+		// On some platforms (e.g., macOS), t.TempDir() may return a symlinked path.
+		// To ensure the comparison is robust, resolve symlinks in both paths before comparing.
+		expectedRoot, err := filepath.EvalSymlinks(tmpDir)
+		require.NoError(t, err)
+		actualRoot, err := filepath.EvalSymlinks(g.Root())
+		require.NoError(t, err)
+		assert.Equal(t, expectedRoot, actualRoot)
 	})
 }
