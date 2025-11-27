@@ -200,6 +200,39 @@ func TestHasher_ComputeInputHash_WithOutputs(t *testing.T) {
 	assert.NotEqual(t, hashNoOutputs, hashWithOutputs)
 }
 
+func TestHasher_ComputeInputHash_CommandChanges(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test file
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "input.txt"), []byte("content"), 0o600))
+
+	// Task with command v1
+	taskV1 := &domain.Task{
+		Name:    domain.NewInternedString("test-task"),
+		Command: []string{"echo", "v1"},
+		Inputs:  []domain.InternedString{domain.NewInternedString("input.txt")},
+	}
+
+	// Task with command v2
+	taskV2 := &domain.Task{
+		Name:    domain.NewInternedString("test-task"),
+		Command: []string{"echo", "v2"},
+		Inputs:  []domain.InternedString{domain.NewInternedString("input.txt")},
+	}
+
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	hashV1, err := hasher.ComputeInputHash(taskV1, nil, tmpDir)
+	require.NoError(t, err)
+
+	hashV2, err := hasher.ComputeInputHash(taskV2, nil, tmpDir)
+	require.NoError(t, err)
+
+	// Hashes should be different when command changes
+	assert.NotEqual(t, hashV1, hashV2)
+}
+
 func TestHasher_ComputeOutputHash(t *testing.T) {
 	tmpDir := t.TempDir()
 

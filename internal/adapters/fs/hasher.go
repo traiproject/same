@@ -58,11 +58,18 @@ func (h *Hasher) ComputeInputHash(task *domain.Task, env map[string]string, root
 	return fmt.Sprintf("%016x", hasher.Sum64()), nil
 }
 
-// hashTaskDefinition hashes the task's name, inputs, outputs, and dependencies.
+// hashTaskDefinition hashes the task's name, command, inputs, outputs, and dependencies.
 func (h *Hasher) hashTaskDefinition(task *domain.Task, hasher *xxhash.Digest) {
 	// Name
 	_, _ = hasher.WriteString(task.Name.String())
 	_, _ = hasher.Write([]byte{0}) // Separator
+
+	// Command
+	for _, segment := range task.Command {
+		_, _ = hasher.WriteString(segment)
+		_, _ = hasher.Write([]byte{0})
+	}
+	_, _ = hasher.Write([]byte{0}) // Section separator
 
 	// Inputs
 	for _, input := range task.Inputs {
