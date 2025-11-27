@@ -22,20 +22,6 @@ func (l *FileConfigLoader) Load(cwd string) (*domain.Graph, error) {
 	return Load(path)
 }
 
-// Bobfile represents the structure of the bob.yaml configuration file.
-type Bobfile struct {
-	Version string             `yaml:"version"`
-	Tasks   map[string]TaskDTO `yaml:"tasks"`
-}
-
-// TaskDTO represents a task definition in the configuration.
-type TaskDTO struct {
-	Input     []string `yaml:"input"`
-	Cmd       []string `yaml:"cmd"`
-	Target    []string `yaml:"target"`
-	DependsOn []string `yaml:"dependsOn"`
-}
-
 // Load reads a configuration file from the given path and returns a domain.Graph.
 func Load(path string) (*domain.Graph, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path is provided by user
@@ -49,6 +35,8 @@ func Load(path string) (*domain.Graph, error) {
 	}
 
 	g := domain.NewGraph()
+	g.SetRoot(resolveRoot(path, bobfile.Root))
+
 	taskNames := make(map[string]bool)
 
 	// First pass: Collect all task names to verify dependencies later
@@ -76,6 +64,7 @@ func Load(path string) (*domain.Graph, error) {
 			Inputs:       canonicalizeStrings(dto.Input),
 			Outputs:      canonicalizeStrings(dto.Target),
 			Dependencies: internStrings(dto.DependsOn),
+			Environment:  dto.Environment,
 		}
 
 		if err := g.AddTask(task); err != nil {
@@ -111,4 +100,15 @@ func canonicalizeStrings(strs []string) []domain.InternedString {
 		res[i] = domain.NewInternedString(s)
 	}
 	return res
+}
+
+func resolveRoot(configPath, configuredRoot string) string {
+	configDir := filepath.Dir(configPath)
+	if configuredRoot == "" {
+		return filepath.Clean(configDir)
+	}
+	if filepath.IsAbs(configuredRoot) {
+		return filepath.Clean(configuredRoot)
+	}
+	return filepath.Clean(filepath.Join(configDir, configuredRoot))
 }

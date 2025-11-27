@@ -4,14 +4,18 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/cespare/xxhash/v2"
 	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
 )
+
+var _ ports.Hasher = (*Hasher)(nil)
 
 // Hasher provides hashing functionality for tasks and files.
 type Hasher struct {
@@ -54,11 +58,18 @@ func (h *Hasher) ComputeInputHash(task *domain.Task, env map[string]string, root
 	return fmt.Sprintf("%016x", hasher.Sum64()), nil
 }
 
-// hashTaskDefinition hashes the task's name, inputs, outputs, and dependencies.
+// hashTaskDefinition hashes the task's name, command, inputs, outputs, and dependencies.
 func (h *Hasher) hashTaskDefinition(task *domain.Task, hasher *xxhash.Digest) {
 	// Name
 	_, _ = hasher.WriteString(task.Name.String())
 	_, _ = hasher.Write([]byte{0}) // Separator
+
+	// Command
+	for _, segment := range task.Command {
+		_, _ = hasher.WriteString(segment)
+		_, _ = hasher.Write([]byte{0})
+	}
+	_, _ = hasher.Write([]byte{0}) // Section separator
 
 	// Inputs
 	for _, input := range task.Inputs {
@@ -176,4 +187,38 @@ func (h *Hasher) hashFile(path string, mainHasher io.Writer) error {
 		return zerr.Wrap(err, "failed to write hash to digest")
 	}
 	return nil
+}
+
+// ComputeOutputHash computes the hash of the output files.
+func (h *Hasher) ComputeOutputHash(outputs []string, root string) (string, error) {
+	sortedOutputs := make([]string, len(outputs))
+	copy(sortedOutputs, outputs)
+	sort.Strings(sortedOutputs)
+
+	hasher := xxhash.New()
+
+	for _, output := range sortedOutputs {
+		path := filepath.Join(root, output)
+
+		// Check if file exists
+		if _, err := os.Stat(path); err != nil {
+			if os.IsNotExist(err) {
+				return "", zerr.With(zerr.Wrap(iofs.ErrNotExist, "output file missing"), "path", path)
+			}
+			return "", zerr.With(zerr.Wrap(err, "failed to stat output file"), "path", path)
+		}
+
+		// Compute file hash
+		hash, err := h.ComputeFileHash(path)
+		if err != nil {
+			return "", err
+		}
+
+		// Write hash to main hasher
+		if err := binary.Write(hasher, binary.LittleEndian, hash); err != nil {
+			return "", zerr.Wrap(err, "failed to write hash to digest")
+		}
+	}
+
+	return fmt.Sprintf("%016x", hasher.Sum64()), nil
 }

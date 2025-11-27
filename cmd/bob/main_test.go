@@ -77,3 +77,49 @@ tasks:
 		})
 	}
 }
+
+func TestRun_StoreInitError(t *testing.T) {
+	// Save original args
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+
+	tmpDir := t.TempDir()
+
+	// Create a valid config
+	configPath := tmpDir + "/bob.yaml"
+	configContent := `version: "1"
+tasks:
+  test:
+    cmd: ["echo", "hello"]
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0o600)
+	if err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Create .bob directory as a file (not a directory) to cause store init to fail
+	bobPath := tmpDir + "/.bob"
+	err = os.WriteFile(bobPath, []byte("not a directory"), 0o600)
+	if err != nil {
+		t.Fatalf("failed to create .bob file: %v", err)
+	}
+
+	// Change to tmpDir
+	originalWd, _ := os.Getwd()
+	err = os.Chdir(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalWd)
+	}()
+
+	// Set args
+	os.Args = []string{"bob", "run", "test"}
+
+	// Run and expect error exit code
+	exitCode := run()
+	assert.Equal(t, 1, exitCode)
+}

@@ -5,7 +5,7 @@ import (
 )
 
 func (c *CLI) newRunCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "run [targets...]",
 		Short: "Run specified tasks",
 		Args:  cobra.ArbitraryArgs,
@@ -15,7 +15,10 @@ func (c *CLI) newRunCmd() *cobra.Command {
 				_ = cmd.Help()
 				return nil
 			}
-			return c.app.Run(cmd.Context(), args)
+			force, _ := cmd.Flags().GetBool("force")
+			return c.app.Run(cmd.Context(), args, force)
 		},
 	}
+	cmd.Flags().BoolP("force", "f", false, "Force rebuild, bypassing cache")
+	return cmd
 }

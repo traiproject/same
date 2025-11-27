@@ -3,6 +3,7 @@ package shell
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -33,6 +34,10 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task) error {
 	args := task.Command[1:]
 
 	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // user provided command
+
+	// Merge environment: start with os.Environ() (preserves Nix shell context),
+	// then override with task-specific environment variables
+	cmd.Env = mergeEnvironment(os.Environ(), task.Environment)
 
 	// Wire Stdout/Stderr to logger
 	cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
@@ -83,4 +88,36 @@ func (w *logWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 	return len(p), nil
+}
+
+// mergeEnvironment merges os.Environ() with task-specific environment variables.
+// Task environment variables override system environment variables.
+func mergeEnvironment(osEnv []string, taskEnv map[string]string) []string {
+	if len(taskEnv) == 0 {
+		return osEnv
+	}
+
+	// Create a map to track which keys we've overridden
+	envMap := make(map[string]string, len(osEnv)+len(taskEnv))
+
+	// Parse os.Environ() into the map
+	for _, entry := range osEnv {
+		key, value, found := strings.Cut(entry, "=")
+		if found {
+			envMap[key] = value
+		}
+	}
+
+	// Override with task environment
+	for key, value := range taskEnv {
+		envMap[key] = value
+	}
+
+	// Convert back to []string format
+	result := make([]string, 0, len(envMap))
+	for key, value := range envMap {
+		result = append(result, key+"="+value)
+	}
+
+	return result
 }

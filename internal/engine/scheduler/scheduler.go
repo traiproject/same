@@ -4,8 +4,10 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
@@ -29,15 +31,26 @@ const (
 // Scheduler manages the execution of tasks in the dependency graph.
 type Scheduler struct {
 	executor ports.Executor
+	store    ports.BuildInfoStore
+	hasher   ports.Hasher
+	logger   ports.Logger
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
 }
 
-// NewScheduler creates a new Scheduler with the given executor.
-func NewScheduler(executor ports.Executor) *Scheduler {
+// NewScheduler creates a new Scheduler with the given executor, store, hasher, and logger.
+func NewScheduler(
+	executor ports.Executor,
+	store ports.BuildInfoStore,
+	hasher ports.Hasher,
+	logger ports.Logger,
+) *Scheduler {
 	s := &Scheduler{
 		executor:   executor,
+		store:      store,
+		hasher:     hasher,
+		logger:     logger,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
 	return s
@@ -63,13 +76,20 @@ func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) 
 // Run executes the tasks in the graph with the specified parallelism.
 // If targetNames contains "all", all tasks in the graph are executed.
 // Otherwise, only the specified tasks are executed.
-func (s *Scheduler) Run(ctx context.Context, graph *domain.Graph, targetNames []string, parallelism int) error {
+// If force is true, cache is bypassed and all tasks are executed.
+func (s *Scheduler) Run(
+	ctx context.Context,
+	graph *domain.Graph,
+	targetNames []string,
+	parallelism int,
+	force bool,
+) error {
 	// Explicitly validate the graph to ensure executionOrder is populated
 	if err := graph.Validate(); err != nil {
 		return err
 	}
 
-	state, err := s.newRunState(ctx, graph, targetNames, parallelism)
+	state, err := s.newRunState(ctx, graph, targetNames, parallelism, force)
 	if err != nil {
 		return err
 	}
@@ -102,8 +122,11 @@ func (s *Scheduler) Run(ctx context.Context, graph *domain.Graph, targetNames []
 }
 
 type result struct {
-	task domain.InternedString
-	err  error
+	task        domain.InternedString
+	err         error
+	skipped     bool
+	inputHash   string
+	taskOutputs []string
 }
 
 type schedulerRunState struct {
@@ -118,6 +141,7 @@ type schedulerRunState struct {
 	parallelism int
 	s           *Scheduler
 	allTasks    []domain.InternedString
+	force       bool
 }
 
 func (s *Scheduler) newRunState(
@@ -125,6 +149,7 @@ func (s *Scheduler) newRunState(
 	graph *domain.Graph,
 	targetNames []string,
 	parallelism int,
+	force bool,
 ) (*schedulerRunState, error) {
 	tasksToRun, allTasks, err := s.resolveTasksToRun(graph, targetNames)
 	if err != nil {
@@ -166,6 +191,7 @@ func (s *Scheduler) newRunState(
 		parallelism: parallelism,
 		s:           s,
 		allTasks:    allTasks,
+		force:       force,
 	}, nil
 }
 
@@ -260,27 +286,147 @@ func (state *schedulerRunState) schedule() {
 		state.s.updateStatus(taskName, StatusRunning)
 
 		go func(t domain.Task) {
-			state.resultsCh <- result{task: t.Name, err: state.s.executor.Execute(state.ctx, &t)}
+			var hash string
+			var err error
+
+			if state.force {
+				// Force mode: compute hash but skip cache check
+				hash, err = state.s.hasher.ComputeInputHash(&t, t.Environment, state.graph.Root())
+				if err != nil {
+					state.resultsCh <- result{task: t.Name, err: zerr.Wrap(err, "failed to compute input hash")}
+					return
+				}
+				// Bypass cache, always execute
+			} else {
+				// Normal mode: check cache
+				skipped, h, err := state.s.checkTaskCache(state.ctx, &t, state.graph.Root())
+				hash = h
+				if err != nil {
+					state.resultsCh <- result{task: t.Name, err: err}
+					return
+				}
+
+				if skipped {
+					state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
+					return
+				}
+			}
+
+			// Convert outputs to string slice for result
+			outputs := make([]string, len(t.Outputs))
+			for i, out := range t.Outputs {
+				outputs[i] = out.String()
+			}
+
+			state.resultsCh <- result{
+				task:        t.Name,
+				err:         state.s.executor.Execute(state.ctx, &t),
+				inputHash:   hash,
+				taskOutputs: outputs,
+			}
 		}(state.tasks[taskName])
 	}
 }
 
 func (state *schedulerRunState) handleResult(res result) {
 	state.active--
+
 	if res.err != nil {
-		wrappedErr := zerr.With(zerr.Wrap(res.err, "task execution failed"), "task", res.task.String())
-		state.errs = errors.Join(state.errs, wrappedErr)
+		// Enhance error with task name
+		enhancedErr := zerr.With(zerr.Wrap(res.err, "task execution failed"), "task", res.task.String())
+		state.errs = errors.Join(state.errs, enhancedErr)
 		state.s.updateStatus(res.task, StatusFailed)
 	} else {
-		state.s.updateStatus(res.task, StatusCompleted)
-		for _, dep := range state.graph.Dependents(res.task) {
-			// Only consider dependents that are part of the current execution
-			if _, ok := state.tasks[dep]; ok {
-				state.inDegree[dep]--
-				if state.inDegree[dep] == 0 {
-					state.ready = append(state.ready, dep)
-				}
+		state.handleSuccess(res)
+	}
+}
+
+func (state *schedulerRunState) handleSuccess(res result) {
+	state.s.updateStatus(res.task, StatusCompleted)
+	if res.skipped {
+		state.s.logger.Info(fmt.Sprintf("Skipping %s (cached)", res.task))
+	} else {
+		outputHash := state.computeOutputHash(res)
+		if outputHash != "" || len(res.taskOutputs) == 0 {
+			err := state.s.store.Put(domain.BuildInfo{
+				TaskName:   res.task.String(),
+				InputHash:  res.inputHash,
+				OutputHash: outputHash,
+				Timestamp:  time.Now(),
+			})
+			if err != nil {
+				// We log the error but don't fail the build if cache update fails
+				state.s.logger.Error(zerr.With(zerr.Wrap(err, "failed to update build info store"), "task", res.task.String()))
 			}
 		}
 	}
+
+	for _, dep := range state.graph.Dependents(res.task) {
+		// Only consider dependents that are part of the current execution
+		if _, ok := state.tasks[dep]; ok {
+			state.inDegree[dep]--
+			if state.inDegree[dep] == 0 {
+				state.ready = append(state.ready, dep)
+			}
+		}
+	}
+}
+
+func (state *schedulerRunState) computeOutputHash(res result) string {
+	if len(res.taskOutputs) == 0 {
+		return ""
+	}
+
+	outputHash, err := state.s.hasher.ComputeOutputHash(res.taskOutputs, state.graph.Root())
+	if err != nil {
+		state.s.logger.Error(zerr.With(zerr.Wrap(err, "failed to compute output hash"), "task", res.task.String()))
+		return ""
+	}
+	return outputHash
+}
+
+// checkTaskCache checks if the task can be skipped based on cached build info.
+// Returns skipped (bool), hash (string), and error.
+func (s *Scheduler) checkTaskCache(
+	_ context.Context,
+	task *domain.Task,
+	root string,
+) (skipped bool, hash string, err error) {
+	// Step A: Compute Input Hash
+	hash, err = s.hasher.ComputeInputHash(task, task.Environment, root)
+	if err != nil {
+		return false, "", zerr.Wrap(err, "failed to compute input hash")
+	}
+
+	// Step B: Get Build Info from Store
+	info, err := s.store.Get(task.Name.String())
+	if err != nil {
+		return false, hash, zerr.Wrap(err, "failed to get build info")
+	}
+
+	// Step C: Compare Hashes
+	if info == nil || info.InputHash != hash {
+		return false, hash, nil
+	}
+
+	// Step D: Verify Outputs
+	// Convert InternedString outputs to string slice
+	outputs := make([]string, len(task.Outputs))
+	for i, out := range task.Outputs {
+		outputs[i] = out.String()
+	}
+
+	if len(outputs) > 0 {
+		outputHash, err := s.hasher.ComputeOutputHash(outputs, root)
+		if err != nil {
+			// If error (e.g. file missing), treat as cache miss, do not fail
+			return false, hash, nil //nolint:nilerr // Intentional cache miss on error
+		}
+
+		if info.OutputHash != outputHash {
+			return false, hash, nil
+		}
+	}
+
+	return true, hash, nil
 }

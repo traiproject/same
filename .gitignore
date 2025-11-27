@@ -33,6 +33,9 @@ go.work.sum
 # Nix
 result*
 
+# Bob
+.bob
+
 # Editor/IDE
 .idea/
 .vscode/
