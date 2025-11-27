@@ -59,6 +59,8 @@ func (h *Hasher) ComputeInputHash(task *domain.Task, env map[string]string, root
 }
 
 // hashTaskDefinition hashes the task's name, command, inputs, outputs, and dependencies.
+// Note: task.Inputs and task.Outputs are already canonicalized (sorted and deduplicated)
+// by the configuration loader, so no additional sorting is needed here.
 func (h *Hasher) hashTaskDefinition(task *domain.Task, hasher *xxhash.Digest) {
 	// Name
 	_, _ = hasher.WriteString(task.Name.String())
@@ -190,6 +192,9 @@ func (h *Hasher) hashFile(path string, mainHasher io.Writer) error {
 }
 
 // ComputeOutputHash computes the hash of the output files.
+// Note: Unlike task inputs/outputs, the output file list comes from filesystem traversal
+// or executor results, which are not guaranteed to be in a deterministic order.
+// Therefore, we must explicitly sort the list before hashing to ensure consistency.
 func (h *Hasher) ComputeOutputHash(outputs []string, root string) (string, error) {
 	sortedOutputs := make([]string, len(outputs))
 	copy(sortedOutputs, outputs)
