@@ -79,13 +79,20 @@ func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) 
 // Run executes the tasks in the graph with the specified parallelism.
 // If targetNames contains "all", all tasks in the graph are executed.
 // Otherwise, only the specified tasks are executed.
-func (s *Scheduler) Run(ctx context.Context, graph *domain.Graph, targetNames []string, parallelism int) error {
+// If force is true, cache is bypassed and all tasks are executed.
+func (s *Scheduler) Run(
+	ctx context.Context,
+	graph *domain.Graph,
+	targetNames []string,
+	parallelism int,
+	force bool,
+) error {
 	// Explicitly validate the graph to ensure executionOrder is populated
 	if err := graph.Validate(); err != nil {
 		return err
 	}
 
-	state, err := s.newRunState(ctx, graph, targetNames, parallelism)
+	state, err := s.newRunState(ctx, graph, targetNames, parallelism, force)
 	if err != nil {
 		return err
 	}
@@ -136,6 +143,7 @@ type schedulerRunState struct {
 	parallelism int
 	s           *Scheduler
 	allTasks    []domain.InternedString
+	force       bool
 }
 
 func (s *Scheduler) newRunState(
@@ -143,6 +151,7 @@ func (s *Scheduler) newRunState(
 	graph *domain.Graph,
 	targetNames []string,
 	parallelism int,
+	force bool,
 ) (*schedulerRunState, error) {
 	tasksToRun, allTasks, err := s.resolveTasksToRun(graph, targetNames)
 	if err != nil {
@@ -184,6 +193,7 @@ func (s *Scheduler) newRunState(
 		parallelism: parallelism,
 		s:           s,
 		allTasks:    allTasks,
+		force:       force,
 	}, nil
 }
 
@@ -278,16 +288,30 @@ func (state *schedulerRunState) schedule() {
 		state.s.updateStatus(taskName, StatusRunning)
 
 		go func(t domain.Task) {
-			// Check cache
-			skipped, hash, err := state.s.checkTaskCache(state.ctx, &t)
-			if err != nil {
-				state.resultsCh <- result{task: t.Name, err: err}
-				return
-			}
+			var hash string
+			var err error
 
-			if skipped {
-				state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
-				return
+			if state.force {
+				// Force mode: compute hash but skip cache check
+				hash, err = state.s.hasher.ComputeInputHash(&t, nil, ".")
+				if err != nil {
+					state.resultsCh <- result{task: t.Name, err: zerr.Wrap(err, "failed to compute input hash")}
+					return
+				}
+				// Bypass cache, always execute
+			} else {
+				// Normal mode: check cache
+				skipped, h, err := state.s.checkTaskCache(state.ctx, &t)
+				hash = h
+				if err != nil {
+					state.resultsCh <- result{task: t.Name, err: err}
+					return
+				}
+
+				if skipped {
+					state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
+					return
+				}
 			}
 
 			state.resultsCh <- result{task: t.Name, err: state.s.executor.Execute(state.ctx, &t), inputHash: hash}

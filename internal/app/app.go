@@ -25,7 +25,7 @@ func New(loader ports.ConfigLoader, sched *scheduler.Scheduler) *App {
 }
 
 // Run executes the build process for the specified targets.
-func (a *App) Run(ctx context.Context, targetNames []string) error {
+func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
 	// 1. Load the graph
 	graph, err := a.configLoader.Load(".")
 	if err != nil {
@@ -38,7 +38,7 @@ func (a *App) Run(ctx context.Context, targetNames []string) error {
 	}
 
 	// 3. Run the scheduler
-	if err := a.scheduler.Run(ctx, graph, targetNames, runtime.NumCPU()); err != nil {
+	if err := a.scheduler.Run(ctx, graph, targetNames, runtime.NumCPU(), force); err != nil {
 		return zerr.Wrap(err, "build execution failed")
 	}
 

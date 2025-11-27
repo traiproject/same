@@ -41,7 +41,7 @@ func TestApp_Build(t *testing.T) {
 		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
 
 		// Run
-		err := a.Run(context.Background(), []string{"task1"})
+		err := a.Run(context.Background(), []string{"task1"}, false)
 		// Assert
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
@@ -69,7 +69,7 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
 
 		// Execute
-		err := a.Run(context.Background(), nil)
+		err := a.Run(context.Background(), nil, false)
 		if err == nil {
 			t.Error("Expected error, got nil")
 		}

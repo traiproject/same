@@ -99,7 +99,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		// Run Scheduler in a goroutine
 		errCh := make(chan error)
 		go func() {
-			errCh <- s.Run(context.Background(), g, []string{"all"}, 2)
+			errCh <- s.Run(context.Background(), g, []string{"all"}, 2, false)
 		}()
 
 		// Assert D is running
@@ -191,7 +191,7 @@ func TestScheduler_Run_Partial(t *testing.T) {
 			return nil
 		}).Times(3) // A, B, C
 
-		err := s.Run(context.Background(), g, []string{"A"}, 1)
+		err := s.Run(context.Background(), g, []string{"A"}, 1, false)
 		if err != nil {
 			t.Errorf("Run failed: %v", err)
 		}
@@ -240,7 +240,7 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 			return nil
 		}).Times(3)
 
-		err := s.Run(context.Background(), g, []string{"all"}, 2)
+		err := s.Run(context.Background(), g, []string{"all"}, 2, false)
 		if err != nil {
 			t.Errorf("Run failed: %v", err)
 		}
@@ -290,7 +290,7 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 			return nil
 		}).Times(3)
 
-		err := s.Run(context.Background(), g, []string{"all", "A"}, 2)
+		err := s.Run(context.Background(), g, []string{"all", "A"}, 2, false)
 		if err != nil {
 			t.Errorf("Run failed: %v", err)
 		}
@@ -329,7 +329,7 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		// Expect no tasks to execute
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
 
-		err := s.Run(context.Background(), g, []string{}, 2)
+		err := s.Run(context.Background(), g, []string{}, 2, false)
 		if err != nil {
 			t.Errorf("Run failed: %v", err)
 		}
@@ -377,7 +377,7 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 			return nil
 		}).Times(2)
 
-		err := s.Run(context.Background(), g, []string{"A", "B"}, 2)
+		err := s.Run(context.Background(), g, []string{"A", "B"}, 2, false)
 		if err != nil {
 			t.Errorf("Run failed: %v", err)
 		}
@@ -411,7 +411,7 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		// Expect no execution
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
 
-		err := s.Run(context.Background(), g, []string{"B"}, 1)
+		err := s.Run(context.Background(), g, []string{"B"}, 1, false)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "task not found")
 	})
@@ -563,7 +563,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 			return nil
 		})
 
-		err := s.Run(ctx, g, []string{"build"}, 1)
+		err := s.Run(ctx, g, []string{"build"}, 1, false)
 		require.NoError(t, err)
 
 		// 2. Second Run: Cache Hit (Skip)
@@ -583,7 +583,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		// Executor DOES NOT run
 		// Store DOES NOT update
 
-		err = s.Run(ctx, g, []string{"build"}, 1)
+		err = s.Run(ctx, g, []string{"build"}, 1, false)
 		require.NoError(t, err)
 
 		// 3. Third Run: Input Modified (Execution)
@@ -603,7 +603,85 @@ func TestScheduler_Run_Caching(t *testing.T) {
 			return nil
 		})
 
-		err = s.Run(ctx, g, []string{"build"}, 1)
+		err = s.Run(ctx, g, []string{"build"}, 1, false)
+		require.NoError(t, err)
+	})
+}
+
+func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockVerifier := mocks.NewMockVerifier(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockVerifier, mockLogger)
+		g := domain.NewGraph()
+		task := &domain.Task{
+			Name:    domain.NewInternedString("build"),
+			Outputs: []domain.InternedString{domain.NewInternedString("out")},
+		}
+		_ = g.AddTask(task)
+
+		ctx := context.Background()
+		const hash1 = "hash1"
+
+		// 1. First Run: Cache Miss (Execution)
+		// Hasher returns hash1
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		// Store returns nil (no info)
+		mockStore.EXPECT().Get("build").Return(nil, nil)
+		// Executor runs
+		mockExec.EXPECT().Execute(ctx, task).Return(nil)
+		// Store updates with hash1
+		mockStore.EXPECT().Put(gomock.Any()).DoAndReturn(func(info domain.BuildInfo) error {
+			assert.Equal(t, "build", info.TaskName)
+			assert.Equal(t, hash1, info.InputHash)
+			return nil
+		})
+
+		err := s.Run(ctx, g, []string{"build"}, 1, false)
+		require.NoError(t, err)
+
+		// 2. Second Run: Cache Hit (Skip) - force=false
+		// Hasher returns hash1
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		// Store returns info with hash1
+		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
+			TaskName:  "build",
+			InputHash: hash1,
+		}, nil)
+		// Verifier checks outputs
+		mockVerifier.EXPECT().VerifyOutputs(".", []string{"out"}).Return(true, nil)
+		// Logger logs skip
+		mockLogger.EXPECT().Info(gomock.Any()).Do(func(msg string) {
+			assert.Contains(t, msg, "Skipping build (cached)")
+		})
+		// Executor DOES NOT run
+		// Store DOES NOT update
+
+		err = s.Run(ctx, g, []string{"build"}, 1, false)
+		require.NoError(t, err)
+
+		// 3. Third Run: Force Bypass Cache (Execution) - force=true
+		// Hasher returns hash1 (still same hash, but we force execution)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, ".").Return(hash1, nil)
+		// Store.Get is NOT called (cache check bypassed)
+		// Verifier is NOT called (cache check bypassed)
+		// Executor runs despite cache being valid
+		mockExec.EXPECT().Execute(ctx, task).Return(nil)
+		// Store updates with hash1
+		mockStore.EXPECT().Put(gomock.Any()).DoAndReturn(func(info domain.BuildInfo) error {
+			assert.Equal(t, "build", info.TaskName)
+			assert.Equal(t, hash1, info.InputHash)
+			return nil
+		})
+
+		err = s.Run(ctx, g, []string{"build"}, 1, true)
 		require.NoError(t, err)
 	})
 }
