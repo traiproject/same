@@ -67,6 +67,13 @@ func Load(path string) (*domain.Graph, error) {
 			Environment:  dto.Environment,
 		}
 
+		// Set WorkingDir to Root if not specified
+		if dto.WorkingDir == "" {
+			task.WorkingDir = domain.NewInternedString(g.Root())
+		} else {
+			task.WorkingDir = domain.NewInternedString(dto.WorkingDir)
+		}
+
 		if err := g.AddTask(task); err != nil {
 			return nil, err
 		}

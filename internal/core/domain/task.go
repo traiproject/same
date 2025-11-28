@@ -9,4 +9,5 @@ type Task struct {
 	Outputs      []InternedString
 	Dependencies []InternedString
 	Environment  map[string]string
+	WorkingDir   InternedString
 }
