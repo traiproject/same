@@ -245,4 +245,97 @@ tasks: {}
 		require.NoError(t, err)
 		assert.Equal(t, expectedRoot, actualRoot)
 	})
+
+	t.Run("Absolute Root", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		absoluteRoot := filepath.Join(tmpDir, "absolute-root")
+
+		content := `
+version: "1"
+root: "` + absoluteRoot + `"
+tasks: {}
+`
+		configPath := filepath.Join(tmpDir, "bob.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		g, err := config.Load(configPath)
+		require.NoError(t, err)
+
+		assert.Equal(t, absoluteRoot, g.Root())
+	})
+}
+
+func TestFileConfigLoader_Load(t *testing.T) {
+	content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    input: ["*.go"]
+  test:
+    cmd: ["go", "test"]
+    dependsOn: ["build"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	loader := &config.FileConfigLoader{Filename: "bob.yaml"}
+	g, err := loader.Load(tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, g)
+
+	// Verify the graph is valid
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Verify tasks were loaded
+	taskCount := 0
+	for range g.Walk() {
+		taskCount++
+	}
+	assert.Equal(t, 2, taskCount)
+}
+
+func TestLoad_WithWorkingDir(t *testing.T) {
+	content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    workingDir: "/custom/path"
+  test:
+    cmd: ["go", "test"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	g, err := config.Load(configPath)
+	require.NoError(t, err)
+
+	// Verify graph is valid
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Collect tasks and verify workingDir
+	tasks := make(map[string]string)
+	for task := range g.Walk() {
+		tasks[task.Name.String()] = task.WorkingDir.String()
+	}
+
+	// Verify build task has custom workingDir
+	require.Contains(t, tasks, "build")
+	assert.Equal(t, "/custom/path", tasks["build"])
+
+	// Verify test task uses default workingDir (tmpDir)
+	require.Contains(t, tasks, "test")
+	expectedRoot, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+	actualRoot, err := filepath.EvalSymlinks(tasks["test"])
+	require.NoError(t, err)
+	assert.Equal(t, expectedRoot, actualRoot)
 }
