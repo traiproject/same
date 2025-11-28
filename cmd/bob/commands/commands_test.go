@@ -25,7 +25,7 @@ func TestRun_Success(t *testing.T) {
 
 	// Create a graph with one task named "build"
 	g := domain.NewGraph()
-	buildTask := &domain.Task{Name: domain.NewInternedString("build")}
+	buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
 	_ = g.AddTask(buildTask)
 
 	// Setup scheduler and app

@@ -14,4 +14,5 @@ type TaskDTO struct {
 	Target      []string          `yaml:"target"`
 	DependsOn   []string          `yaml:"dependsOn"`
 	Environment map[string]string `yaml:"environment"`
+	WorkingDir  string            `yaml:"workingDir"`
 }
