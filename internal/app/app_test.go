@@ -28,7 +28,7 @@ func TestApp_Build(t *testing.T) {
 		// Setup Graph
 		g := domain.NewGraph()
 		g.SetRoot(".")
-		task := &domain.Task{Name: domain.NewInternedString("task1")}
+		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
 		// Setup App

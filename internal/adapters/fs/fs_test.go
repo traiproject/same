@@ -24,8 +24,9 @@ func TestHasher_ComputeInputHash_Glob(t *testing.T) {
 
 	// Define task with glob input
 	task := &domain.Task{
-		Name:   domain.NewInternedString("test-task"),
-		Inputs: []domain.InternedString{domain.NewInternedString("*.txt")},
+		Name:       domain.NewInternedString("test-task"),
+		Inputs:     []domain.InternedString{domain.NewInternedString("*.txt")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	// Initialize Hasher
@@ -60,8 +61,9 @@ func TestHasher_ComputeInputHash_MissingFile(t *testing.T) {
 
 	// Define task with missing input
 	task := &domain.Task{
-		Name:   domain.NewInternedString("test-task"),
-		Inputs: []domain.InternedString{domain.NewInternedString("missing.txt")},
+		Name:       domain.NewInternedString("test-task"),
+		Inputs:     []domain.InternedString{domain.NewInternedString("missing.txt")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	// Initialize Hasher
@@ -81,8 +83,9 @@ func TestHasher_ComputeInputHash_WithEnvironment(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "input.txt"), []byte("content"), 0o600))
 
 	task := &domain.Task{
-		Name:   domain.NewInternedString("test-task"),
-		Inputs: []domain.InternedString{domain.NewInternedString("input.txt")},
+		Name:       domain.NewInternedString("test-task"),
+		Inputs:     []domain.InternedString{domain.NewInternedString("input.txt")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	walker := fs.NewWalker()
@@ -116,14 +119,16 @@ func TestHasher_ComputeInputHash_WithDependencies(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "input.txt"), []byte("content"), 0o600))
 
 	taskNoDeps := &domain.Task{
-		Name:   domain.NewInternedString("test-task"),
-		Inputs: []domain.InternedString{domain.NewInternedString("input.txt")},
+		Name:       domain.NewInternedString("test-task"),
+		Inputs:     []domain.InternedString{domain.NewInternedString("input.txt")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	taskWithDeps := &domain.Task{
 		Name:         domain.NewInternedString("test-task"),
 		Inputs:       []domain.InternedString{domain.NewInternedString("input.txt")},
 		Dependencies: []domain.InternedString{domain.NewInternedString("dep1"), domain.NewInternedString("dep2")},
+		WorkingDir:   domain.NewInternedString("Root"),
 	}
 
 	walker := fs.NewWalker()
@@ -149,8 +154,9 @@ func TestHasher_ComputeInputHash_WithDirectoryInput(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file2.go"), []byte("func main()"), 0o600))
 
 	task := &domain.Task{
-		Name:   domain.NewInternedString("test-task"),
-		Inputs: []domain.InternedString{domain.NewInternedString("src")},
+		Name:       domain.NewInternedString("test-task"),
+		Inputs:     []domain.InternedString{domain.NewInternedString("src")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	walker := fs.NewWalker()
@@ -177,14 +183,16 @@ func TestHasher_ComputeInputHash_WithOutputs(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "input.txt"), []byte("content"), 0o600))
 
 	taskNoOutputs := &domain.Task{
-		Name:   domain.NewInternedString("test-task"),
-		Inputs: []domain.InternedString{domain.NewInternedString("input.txt")},
+		Name:       domain.NewInternedString("test-task"),
+		Inputs:     []domain.InternedString{domain.NewInternedString("input.txt")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	taskWithOutputs := &domain.Task{
-		Name:    domain.NewInternedString("test-task"),
-		Inputs:  []domain.InternedString{domain.NewInternedString("input.txt")},
-		Outputs: []domain.InternedString{domain.NewInternedString("output.txt")},
+		Name:       domain.NewInternedString("test-task"),
+		Inputs:     []domain.InternedString{domain.NewInternedString("input.txt")},
+		Outputs:    []domain.InternedString{domain.NewInternedString("output.txt")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	walker := fs.NewWalker()
@@ -208,16 +216,18 @@ func TestHasher_ComputeInputHash_CommandChanges(t *testing.T) {
 
 	// Task with command v1
 	taskV1 := &domain.Task{
-		Name:    domain.NewInternedString("test-task"),
-		Command: []string{"echo", "v1"},
-		Inputs:  []domain.InternedString{domain.NewInternedString("input.txt")},
+		Name:       domain.NewInternedString("test-task"),
+		Command:    []string{"echo", "v1"},
+		Inputs:     []domain.InternedString{domain.NewInternedString("input.txt")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	// Task with command v2
 	taskV2 := &domain.Task{
-		Name:    domain.NewInternedString("test-task"),
-		Command: []string{"echo", "v2"},
-		Inputs:  []domain.InternedString{domain.NewInternedString("input.txt")},
+		Name:       domain.NewInternedString("test-task"),
+		Command:    []string{"echo", "v2"},
+		Inputs:     []domain.InternedString{domain.NewInternedString("input.txt")},
+		WorkingDir: domain.NewInternedString("Root"),
 	}
 
 	walker := fs.NewWalker()
