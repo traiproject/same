@@ -327,3 +327,24 @@ func TestHasher_ComputeOutputHash(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "output file missing")
 }
+
+func TestHasher_ComputeInputHash_StatError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a task with an input that doesn't exist
+	task := &domain.Task{
+		Name:   domain.NewInternedString("test-task"),
+		Inputs: []domain.InternedString{domain.NewInternedString("nonexistent.txt")},
+	}
+
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	// Pass a path that doesn't exist directly (bypassing resolver)
+	inputs := []string{filepath.Join(tmpDir, "nonexistent.txt")}
+
+	// Compute hash should fail with stat error
+	_, err := hasher.ComputeInputHash(task, nil, inputs)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to stat path")
+}

@@ -32,11 +32,14 @@ func (r *Resolver) ResolveInputs(inputs []string, root string) ([]string, error)
 		}
 
 		if len(matches) == 0 {
-			// If no matches, it might be a direct file path that doesn't exist or just no matches for glob
-			// We treat it as "input not found" if it was meant to be a specific file.
-			// However, for globs, 0 matches is valid (but maybe we want to warn?).
-			// The original implementation returned "input not found" if glob returned no matches.
-			// Let's stick to that behavior for now.
+			// If no matches are found, we return "input not found" to indicate that
+			// the input pattern did not resolve to any files. This behavior is
+			// consistent with the original implementation and ensures users are
+			// notified when their input does not match any files. For both direct
+			// file paths and glob patterns, zero matches are treated as
+			// "input not found" to provide clear feedback.
+			//
+			// Rationale: This approach avoids silent failures and helps users identify issues with their input patterns.
 			return nil, zerr.With(zerr.New("input not found"), "path", path)
 		}
 

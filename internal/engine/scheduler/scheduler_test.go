@@ -983,3 +983,227 @@ func TestScheduler_Run_EnvironmentCacheInvalidation(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestScheduler_Run_ResolverError(t *testing.T) {
+	tests := []struct {
+		name  string
+		force bool
+	}{
+		{name: "ForceMode", force: true},
+		{name: "NormalMode", force: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctrl := gomock.NewController(t)
+				defer ctrl.Finish()
+
+				mockExec := mocks.NewMockExecutor(ctrl)
+				mockStore := mocks.NewMockBuildInfoStore(ctrl)
+				mockHasher := mocks.NewMockHasher(ctrl)
+				mockResolver := mocks.NewMockInputResolver(ctrl)
+				mockLogger := mocks.NewMockLogger(ctrl)
+
+				s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+				g := domain.NewGraph()
+				g.SetRoot(".")
+				task := &domain.Task{
+					Name: domain.NewInternedString("build"),
+				}
+				_ = g.AddTask(task)
+
+				ctx := context.Background()
+
+				// Resolver returns error
+				mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return(nil, errors.New("resolver error"))
+
+				// Run with specified force mode
+				err := s.Run(ctx, g, []string{"build"}, 1, tt.force)
+
+				// Should return the resolver error wrapped
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to resolve inputs")
+				assert.Contains(t, err.Error(), "resolver error")
+			})
+		})
+	}
+}
+
+func TestScheduler_Run_OutputHashComputationError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{
+			Name:    domain.NewInternedString("build"),
+			Outputs: []domain.InternedString{domain.NewInternedString("out.txt")},
+		}
+		_ = g.AddTask(task)
+
+		ctx := context.Background()
+		const hash1 = "hash1"
+
+		// Mock expectations
+		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(hash1, nil)
+		mockStore.EXPECT().Get("build").Return(nil, nil)
+		mockExec.EXPECT().Execute(ctx, task).Return(nil)
+
+		// Output hasher fails
+		mockHasher.EXPECT().ComputeOutputHash([]string{"out.txt"}, ".").Return("", errors.New("hash computation failed"))
+
+		// Logger should log the error
+		mockLogger.EXPECT().Error(gomock.Any()).Do(func(err error) {
+			assert.Contains(t, err.Error(), "failed to compute output hash")
+			assert.Contains(t, err.Error(), "hash computation failed")
+		})
+
+		// Run should succeed despite output hash error (it's logged but not fatal)
+		err := s.Run(ctx, g, []string{"build"}, 1, false)
+		require.NoError(t, err)
+	})
+}
+
+func TestScheduler_Run_ContextCancelledDuringScheduling(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		g := domain.NewGraph()
+		g.SetRoot(".")
+
+		// Create two tasks: A depends on B
+		taskB := &domain.Task{Name: domain.NewInternedString("B")}
+		taskA := &domain.Task{
+			Name:         domain.NewInternedString("A"),
+			Dependencies: []domain.InternedString{domain.NewInternedString("B")},
+		}
+		_ = g.AddTask(taskB)
+		_ = g.AddTask(taskA)
+
+		// Create a cancellable context
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Channels for synchronization
+		taskStarted := make(chan struct{})
+		taskProceed := make(chan struct{})
+
+		// Mock expectations for task B
+		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
+		mockHasher.EXPECT().ComputeInputHash(taskB, taskB.Environment, []string{}).Return("hash1", nil)
+		mockStore.EXPECT().Get("B").Return(nil, nil)
+
+		// Task B starts, then we cancel context
+		mockExec.EXPECT().Execute(gomock.Any(), taskB).DoAndReturn(func(_ context.Context, _ *domain.Task) error {
+			close(taskStarted)
+			<-taskProceed
+			return errors.New("task failed")
+		})
+
+		// Run scheduler in goroutine
+		errCh := make(chan error)
+		go func() {
+			errCh <- s.Run(ctx, g, []string{"all"}, 1, false)
+		}()
+
+		// Wait for task B to start
+		synctest.Wait()
+		<-taskStarted
+
+		// Cancel context while task B is running
+		cancel()
+
+		// Let task B complete with error
+		close(taskProceed)
+
+		// Wait for scheduler to finish
+		err := <-errCh
+
+		// Should return both task error and context.Canceled error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+}
+
+func TestScheduler_Run_ContextCancelledAfterCompletion(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{Name: domain.NewInternedString("build")}
+		_ = g.AddTask(task)
+
+		// Create a context that's already canceled
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		// Mock expectations - task won't execute because context is canceled
+		// No mock expectations needed as scheduler should exit early
+
+		// Run should return context.Canceled error
+		err := s.Run(ctx, g, []string{"build"}, 1, false)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+}
+
+func TestScheduler_Run_UnsafeOutputPath(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		g := domain.NewGraph()
+		g.SetRoot(".")
+
+		task := &domain.Task{
+			Name:    domain.NewInternedString("unsafe-task"),
+			Outputs: []domain.InternedString{domain.NewInternedString("../outside")},
+		}
+		_ = g.AddTask(task)
+
+		// Mock expectations
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return("hash1", nil)
+		mockStore.EXPECT().Get("unsafe-task").Return(nil, nil)
+
+		// Executor should NOT be called
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
+
+		err := s.Run(context.Background(), g, []string{"unsafe-task"}, 1, false)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "output path is outside project root")
+	})
+}

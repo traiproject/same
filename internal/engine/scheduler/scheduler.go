@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -295,42 +297,21 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
-	var hash string
-	var err error
+	hash, err := state.computeInputHash(t)
+	if err != nil {
+		state.resultsCh <- result{task: t.Name, err: err}
+		return
+	}
 
-	if state.force {
-		hash, err = state.s.computeHashForce(t, state.graph.Root())
-		if err != nil {
-			state.resultsCh <- result{task: t.Name, err: err}
-			return
-		}
-		// Bypass cache, always execute
-	} else {
-		// Normal mode: check cache
-		skipped, h, err := state.s.checkTaskCache(state.ctx, t, state.graph.Root())
-		hash = h
-		if err != nil {
-			state.resultsCh <- result{task: t.Name, err: err}
-			return
-		}
-
-		if skipped {
-			state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
-			return
-		}
+	// If hash is empty, task was skipped (cached)
+	if hash == "" {
+		return
 	}
 
 	// Clean outputs before building to prevent stale artifacts
-	for _, out := range t.Outputs {
-		if err := os.RemoveAll(out.String()); err != nil {
-			// Log error but continue - file might not exist yet
-			state.s.logger.Error(
-				zerr.With(
-					zerr.Wrap(err, "failed to clean output file"),
-					"file", out.String(),
-				),
-			)
-		}
+	if err := state.validateAndCleanOutputs(t); err != nil {
+		state.resultsCh <- result{task: t.Name, err: err}
+		return
 	}
 
 	// Convert outputs to string slice for result
@@ -345,6 +326,69 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		inputHash:   hash,
 		taskOutputs: outputs,
 	}
+}
+
+func (state *schedulerRunState) computeInputHash(t *domain.Task) (string, error) {
+	if state.force {
+		return state.s.computeHashForce(t, state.graph.Root())
+	}
+
+	// Normal mode: check cache
+	skipped, hash, err := state.s.checkTaskCache(state.ctx, t, state.graph.Root())
+	if err != nil {
+		return "", err
+	}
+
+	if skipped {
+		state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
+		return "", nil
+	}
+
+	return hash, nil
+}
+
+func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {
+	rootAbs, err := filepath.Abs(state.graph.Root())
+	if err != nil {
+		return zerr.Wrap(err, "failed to get absolute path of project root")
+	}
+
+	for _, out := range t.Outputs {
+		outPath := out.String()
+		outAbs, err := filepath.Abs(outPath)
+		if err != nil {
+			return zerr.With(
+				zerr.Wrap(err, "failed to get absolute path of output"),
+				"file", outPath,
+			)
+		}
+
+		rel, err := filepath.Rel(rootAbs, outAbs)
+		if err != nil {
+			return zerr.With(
+				zerr.Wrap(err, "failed to resolve relative path"),
+				"file", outPath,
+			)
+		}
+
+		if strings.HasPrefix(rel, "..") {
+			return zerr.With(
+				errors.New("output path is outside project root"),
+				"file", outPath,
+			)
+		}
+
+		// Use the validated absolute path for removal to ensure we delete
+		// exactly what was validated, preventing potential symlink attacks
+		if err := os.RemoveAll(outAbs); err != nil {
+			return zerr.With(
+				zerr.Wrap(err, "failed to clean output file"),
+				"file", outPath,
+			)
+		}
+	}
+
+	return nil
 }
 
 func (state *schedulerRunState) handleResult(res result) {
