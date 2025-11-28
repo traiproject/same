@@ -131,3 +131,97 @@ func TestStore_OmitZero(t *testing.T) {
 		t.Error("JSON should contain 'task_name'")
 	}
 }
+
+func TestNewStore_Error(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Create a file where the directory should be
+	filePath := filepath.Join(tmpDir, "file_blocking_dir")
+	if err := os.WriteFile(filePath, []byte("block"), 0o600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	_, err := cas.NewStore(filePath)
+	if err == nil {
+		t.Fatal("NewStore should have failed when path is a file")
+	}
+}
+
+func TestGet_ReadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	storePath := filepath.Join(tmpDir, "bob_state")
+	store, err := cas.NewStore(storePath)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+
+	// Manually create a task file with no read permissions
+	taskName := "task_read_error"
+	hash := sha256.Sum256([]byte(taskName))
+	hexHash := hex.EncodeToString(hash[:])
+	taskFile := filepath.Join(storePath, hexHash+".json")
+
+	// Write only
+	//nolint:gosec // Intentionally creating a file with weird permissions for testing
+	if err = os.WriteFile(taskFile, []byte("{}"), 0o200); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	_, err = store.Get(taskName)
+	if err == nil {
+		t.Fatal("Get should have failed due to read permissions")
+	}
+}
+
+func TestGet_UnmarshalError(t *testing.T) {
+	tmpDir := t.TempDir()
+	storePath := filepath.Join(tmpDir, "bob_state")
+	store, err := cas.NewStore(storePath)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+
+	// Manually create a task file with invalid JSON
+	taskName := "task_invalid_json"
+	hash := sha256.Sum256([]byte(taskName))
+	hexHash := hex.EncodeToString(hash[:])
+	taskFile := filepath.Join(storePath, hexHash+".json")
+
+	if err = os.WriteFile(taskFile, []byte("{ invalid json"), 0o600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	_, err = store.Get(taskName)
+	if err == nil {
+		t.Fatal("Get should have failed due to invalid JSON")
+	}
+}
+
+func TestPut_WriteError(t *testing.T) {
+	tmpDir := t.TempDir()
+	storePath := filepath.Join(tmpDir, "bob_state")
+	store, err := cas.NewStore(storePath)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+
+	// Remove write permissions from the directory
+	//nolint:gosec // Intentionally restricting permissions for testing
+	if err = os.Chmod(storePath, 0o500); err != nil { // Read/Execute only
+		t.Fatalf("Chmod failed: %v", err)
+	}
+	defer func() {
+		//nolint:gosec // Restoring permissions to standard value
+		if chmodErr := os.Chmod(storePath, 0o750); chmodErr != nil {
+			t.Errorf("Failed to restore permissions: %v", chmodErr)
+		}
+	}() // Restore permissions for cleanup
+
+	info := domain.BuildInfo{
+		TaskName: "task_write_error",
+	}
+
+	err = store.Put(info)
+	if err == nil {
+		t.Fatal("Put should have failed due to directory permissions")
+	}
+}
