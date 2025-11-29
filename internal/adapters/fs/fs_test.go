@@ -29,12 +29,21 @@ func TestHasher_ComputeInputHash_Glob(t *testing.T) {
 		WorkingDir: domain.NewInternedString("Root"),
 	}
 
-	// Initialize Hasher
+	// Initialize Hasher and Resolver
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
+	resolver := fs.NewResolver()
+
+	// Resolve inputs
+	inputs := make([]string, len(task.Inputs))
+	for i, input := range task.Inputs {
+		inputs[i] = input.String()
+	}
+	resolvedInputs, err := resolver.ResolveInputs(inputs, tmpDir)
+	require.NoError(t, err)
 
 	// Compute hash
-	hash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	hash, err := hasher.ComputeInputHash(task, nil, resolvedInputs)
 	require.NoError(t, err)
 	assert.NotEmpty(t, hash)
 
@@ -42,7 +51,11 @@ func TestHasher_ComputeInputHash_Glob(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tmpDir, "a.txt"), []byte("new content"), 0o600)
 	require.NoError(t, err)
 
-	newHash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	// Resolve inputs again (files changed, but list of files might be same if glob matches same files)
+	resolvedInputs, err = resolver.ResolveInputs(inputs, tmpDir)
+	require.NoError(t, err)
+
+	newHash, err := hasher.ComputeInputHash(task, nil, resolvedInputs)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash, newHash)
 
@@ -50,7 +63,11 @@ func TestHasher_ComputeInputHash_Glob(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tmpDir, "c.log"), []byte("new content"), 0o600)
 	require.NoError(t, err)
 
-	finalHash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	// Resolve inputs again
+	resolvedInputs, err = resolver.ResolveInputs(inputs, tmpDir)
+	require.NoError(t, err)
+
+	finalHash, err := hasher.ComputeInputHash(task, nil, resolvedInputs)
 	require.NoError(t, err)
 	assert.Equal(t, newHash, finalHash)
 }
@@ -66,12 +83,15 @@ func TestHasher_ComputeInputHash_MissingFile(t *testing.T) {
 		WorkingDir: domain.NewInternedString("Root"),
 	}
 
-	// Initialize Hasher
-	walker := fs.NewWalker()
-	hasher := fs.NewHasher(walker)
+	// Initialize Resolver
+	resolver := fs.NewResolver()
 
-	// Compute hash should fail
-	_, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	// Resolve inputs should fail or return empty depending on implementation
+	inputs := make([]string, len(task.Inputs))
+	for i, input := range task.Inputs {
+		inputs[i] = input.String()
+	}
+	_, err := resolver.ResolveInputs(inputs, tmpDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input not found")
 }
@@ -90,9 +110,14 @@ func TestHasher_ComputeInputHash_WithEnvironment(t *testing.T) {
 
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
+	resolver := fs.NewResolver()
+
+	inputs := []string{"input.txt"}
+	resolvedInputs, err := resolver.ResolveInputs(inputs, tmpDir)
+	require.NoError(t, err)
 
 	// Compute hash with no env
-	hashNoEnv, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	hashNoEnv, err := hasher.ComputeInputHash(task, nil, resolvedInputs)
 	require.NoError(t, err)
 
 	// Compute hash with env vars
@@ -100,14 +125,14 @@ func TestHasher_ComputeInputHash_WithEnvironment(t *testing.T) {
 		"FOO": "bar",
 		"BAZ": "qux",
 	}
-	hashWithEnv, err := hasher.ComputeInputHash(task, env, tmpDir)
+	hashWithEnv, err := hasher.ComputeInputHash(task, env, resolvedInputs)
 	require.NoError(t, err)
 
 	// Hashes should be different
 	assert.NotEqual(t, hashNoEnv, hashWithEnv)
 
 	// Same env should produce same hash
-	hashWithEnv2, err := hasher.ComputeInputHash(task, env, tmpDir)
+	hashWithEnv2, err := hasher.ComputeInputHash(task, env, resolvedInputs)
 	require.NoError(t, err)
 	assert.Equal(t, hashWithEnv, hashWithEnv2)
 }
@@ -133,11 +158,16 @@ func TestHasher_ComputeInputHash_WithDependencies(t *testing.T) {
 
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
+	resolver := fs.NewResolver()
 
-	hashNoDeps, err := hasher.ComputeInputHash(taskNoDeps, nil, tmpDir)
+	inputs := []string{"input.txt"}
+	resolvedInputs, err := resolver.ResolveInputs(inputs, tmpDir)
 	require.NoError(t, err)
 
-	hashWithDeps, err := hasher.ComputeInputHash(taskWithDeps, nil, tmpDir)
+	hashNoDeps, err := hasher.ComputeInputHash(taskNoDeps, nil, resolvedInputs)
+	require.NoError(t, err)
+
+	hashWithDeps, err := hasher.ComputeInputHash(taskWithDeps, nil, resolvedInputs)
 	require.NoError(t, err)
 
 	// Hashes should be different
@@ -161,15 +191,24 @@ func TestHasher_ComputeInputHash_WithDirectoryInput(t *testing.T) {
 
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
+	resolver := fs.NewResolver()
 
-	hash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	inputs := []string{"src"}
+	resolvedInputs, err := resolver.ResolveInputs(inputs, tmpDir)
+	require.NoError(t, err)
+
+	hash, err := hasher.ComputeInputHash(task, nil, resolvedInputs)
 	require.NoError(t, err)
 	assert.NotEmpty(t, hash)
 
 	// Modify a file in the directory
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file1.go"), []byte("package main\n// modified"), 0o600))
 
-	newHash, err := hasher.ComputeInputHash(task, nil, tmpDir)
+	// Resolve again just in case (though directory path is same)
+	resolvedInputs, err = resolver.ResolveInputs(inputs, tmpDir)
+	require.NoError(t, err)
+
+	newHash, err := hasher.ComputeInputHash(task, nil, resolvedInputs)
 	require.NoError(t, err)
 
 	// Hash should change
@@ -197,11 +236,16 @@ func TestHasher_ComputeInputHash_WithOutputs(t *testing.T) {
 
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
+	resolver := fs.NewResolver()
 
-	hashNoOutputs, err := hasher.ComputeInputHash(taskNoOutputs, nil, tmpDir)
+	inputs := []string{"input.txt"}
+	resolvedInputs, err := resolver.ResolveInputs(inputs, tmpDir)
 	require.NoError(t, err)
 
-	hashWithOutputs, err := hasher.ComputeInputHash(taskWithOutputs, nil, tmpDir)
+	hashNoOutputs, err := hasher.ComputeInputHash(taskNoOutputs, nil, resolvedInputs)
+	require.NoError(t, err)
+
+	hashWithOutputs, err := hasher.ComputeInputHash(taskWithOutputs, nil, resolvedInputs)
 	require.NoError(t, err)
 
 	// Hashes should be different
@@ -232,11 +276,16 @@ func TestHasher_ComputeInputHash_CommandChanges(t *testing.T) {
 
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
+	resolver := fs.NewResolver()
 
-	hashV1, err := hasher.ComputeInputHash(taskV1, nil, tmpDir)
+	inputs := []string{"input.txt"}
+	resolvedInputs, err := resolver.ResolveInputs(inputs, tmpDir)
 	require.NoError(t, err)
 
-	hashV2, err := hasher.ComputeInputHash(taskV2, nil, tmpDir)
+	hashV1, err := hasher.ComputeInputHash(taskV1, nil, resolvedInputs)
+	require.NoError(t, err)
+
+	hashV2, err := hasher.ComputeInputHash(taskV2, nil, resolvedInputs)
 	require.NoError(t, err)
 
 	// Hashes should be different when command changes
@@ -277,4 +326,25 @@ func TestHasher_ComputeOutputHash(t *testing.T) {
 	_, err = hasher.ComputeOutputHash(missingFiles, tmpDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "output file missing")
+}
+
+func TestHasher_ComputeInputHash_StatError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a task with an input that doesn't exist
+	task := &domain.Task{
+		Name:   domain.NewInternedString("test-task"),
+		Inputs: []domain.InternedString{domain.NewInternedString("nonexistent.txt")},
+	}
+
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	// Pass a path that doesn't exist directly (bypassing resolver)
+	inputs := []string{filepath.Join(tmpDir, "nonexistent.txt")}
+
+	// Compute hash should fail with stat error
+	_, err := hasher.ComputeInputHash(task, nil, inputs)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to stat path")
 }

@@ -5,7 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +36,7 @@ type Scheduler struct {
 	executor ports.Executor
 	store    ports.BuildInfoStore
 	hasher   ports.Hasher
+	resolver ports.InputResolver
 	logger   ports.Logger
 
 	mu         sync.RWMutex
@@ -44,12 +48,14 @@ func NewScheduler(
 	executor ports.Executor,
 	store ports.BuildInfoStore,
 	hasher ports.Hasher,
+	resolver ports.InputResolver,
 	logger ports.Logger,
 ) *Scheduler {
 	s := &Scheduler{
 		executor:   executor,
 		store:      store,
 		hasher:     hasher,
+		resolver:   resolver,
 		logger:     logger,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 	}
@@ -285,47 +291,104 @@ func (state *schedulerRunState) schedule() {
 		state.active++
 		state.s.updateStatus(taskName, StatusRunning)
 
-		go func(t domain.Task) {
-			var hash string
-			var err error
-
-			if state.force {
-				// Force mode: compute hash but skip cache check
-				hash, err = state.s.hasher.ComputeInputHash(&t, t.Environment, state.graph.Root())
-				if err != nil {
-					state.resultsCh <- result{task: t.Name, err: zerr.Wrap(err, "failed to compute input hash")}
-					return
-				}
-				// Bypass cache, always execute
-			} else {
-				// Normal mode: check cache
-				skipped, h, err := state.s.checkTaskCache(state.ctx, &t, state.graph.Root())
-				hash = h
-				if err != nil {
-					state.resultsCh <- result{task: t.Name, err: err}
-					return
-				}
-
-				if skipped {
-					state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
-					return
-				}
-			}
-
-			// Convert outputs to string slice for result
-			outputs := make([]string, len(t.Outputs))
-			for i, out := range t.Outputs {
-				outputs[i] = out.String()
-			}
-
-			state.resultsCh <- result{
-				task:        t.Name,
-				err:         state.s.executor.Execute(state.ctx, &t),
-				inputHash:   hash,
-				taskOutputs: outputs,
-			}
-		}(state.tasks[taskName])
+		t := state.tasks[taskName]
+		go state.executeTask(&t)
 	}
+}
+
+func (state *schedulerRunState) executeTask(t *domain.Task) {
+	hash, err := state.computeInputHash(t)
+	if err != nil {
+		state.resultsCh <- result{task: t.Name, err: err}
+		return
+	}
+
+	// If hash is empty, task was skipped (cached)
+	if hash == "" {
+		return
+	}
+
+	// Clean outputs before building to prevent stale artifacts
+	if err := state.validateAndCleanOutputs(t); err != nil {
+		state.resultsCh <- result{task: t.Name, err: err}
+		return
+	}
+
+	// Convert outputs to string slice for result
+	outputs := make([]string, len(t.Outputs))
+	for i, out := range t.Outputs {
+		outputs[i] = out.String()
+	}
+
+	state.resultsCh <- result{
+		task:        t.Name,
+		err:         state.s.executor.Execute(state.ctx, t),
+		inputHash:   hash,
+		taskOutputs: outputs,
+	}
+}
+
+func (state *schedulerRunState) computeInputHash(t *domain.Task) (string, error) {
+	if state.force {
+		return state.s.computeHashForce(t, state.graph.Root())
+	}
+
+	// Normal mode: check cache
+	skipped, hash, err := state.s.checkTaskCache(state.ctx, t, state.graph.Root())
+	if err != nil {
+		return "", err
+	}
+
+	if skipped {
+		state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
+		return "", nil
+	}
+
+	return hash, nil
+}
+
+func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {
+	rootAbs, err := filepath.Abs(state.graph.Root())
+	if err != nil {
+		return zerr.Wrap(err, "failed to get absolute path of project root")
+	}
+
+	for _, out := range t.Outputs {
+		outPath := out.String()
+		outAbs, err := filepath.Abs(outPath)
+		if err != nil {
+			return zerr.With(
+				zerr.Wrap(err, "failed to get absolute path of output"),
+				"file", outPath,
+			)
+		}
+
+		rel, err := filepath.Rel(rootAbs, outAbs)
+		if err != nil {
+			return zerr.With(
+				zerr.Wrap(err, "failed to resolve relative path"),
+				"file", outPath,
+			)
+		}
+
+		if strings.HasPrefix(rel, "..") {
+			return zerr.With(
+				errors.New("output path is outside project root"),
+				"file", outPath,
+			)
+		}
+
+		// Use the validated absolute path for removal to ensure we delete
+		// exactly what was validated, preventing potential symlink attacks
+		if err := os.RemoveAll(outAbs); err != nil {
+			return zerr.With(
+				zerr.Wrap(err, "failed to clean output file"),
+				"file", outPath,
+			)
+		}
+	}
+
+	return nil
 }
 
 func (state *schedulerRunState) handleResult(res result) {
@@ -385,6 +448,27 @@ func (state *schedulerRunState) computeOutputHash(res result) string {
 	return outputHash
 }
 
+// computeHashForce computes input hash in force mode (bypassing cache).
+func (s *Scheduler) computeHashForce(task *domain.Task, root string) (string, error) {
+	// Step A: Resolve Inputs
+	inputs := make([]string, len(task.Inputs))
+	for i, input := range task.Inputs {
+		inputs[i] = input.String()
+	}
+	resolvedInputs, err := s.resolver.ResolveInputs(inputs, root)
+	if err != nil {
+		return "", zerr.Wrap(err, "failed to resolve inputs")
+	}
+
+	// Step B: Compute Input Hash
+	hash, err := s.hasher.ComputeInputHash(task, task.Environment, resolvedInputs)
+	if err != nil {
+		return "", zerr.Wrap(err, "failed to compute input hash")
+	}
+
+	return hash, nil
+}
+
 // checkTaskCache checks if the task can be skipped based on cached build info.
 // Returns skipped (bool), hash (string), and error.
 func (s *Scheduler) checkTaskCache(
@@ -392,8 +476,18 @@ func (s *Scheduler) checkTaskCache(
 	task *domain.Task,
 	root string,
 ) (skipped bool, hash string, err error) {
-	// Step A: Compute Input Hash
-	hash, err = s.hasher.ComputeInputHash(task, task.Environment, root)
+	// Step A: Resolve Inputs
+	inputs := make([]string, len(task.Inputs))
+	for i, input := range task.Inputs {
+		inputs[i] = input.String()
+	}
+	resolvedInputs, err := s.resolver.ResolveInputs(inputs, root)
+	if err != nil {
+		return false, "", zerr.Wrap(err, "failed to resolve inputs")
+	}
+
+	// Step B: Compute Input Hash
+	hash, err = s.hasher.ComputeInputHash(task, task.Environment, resolvedInputs)
 	if err != nil {
 		return false, "", zerr.Wrap(err, "failed to compute input hash")
 	}
@@ -410,23 +504,30 @@ func (s *Scheduler) checkTaskCache(
 	}
 
 	// Step D: Verify Outputs
+	if !s.verifyOutputsMatch(task, info, root) {
+		return false, hash, nil
+	}
+
+	return true, hash, nil
+}
+
+// verifyOutputsMatch checks if cached outputs match current outputs.
+func (s *Scheduler) verifyOutputsMatch(task *domain.Task, info *domain.BuildInfo, root string) bool {
 	// Convert InternedString outputs to string slice
 	outputs := make([]string, len(task.Outputs))
 	for i, out := range task.Outputs {
 		outputs[i] = out.String()
 	}
 
-	if len(outputs) > 0 {
-		outputHash, err := s.hasher.ComputeOutputHash(outputs, root)
-		if err != nil {
-			// If error (e.g. file missing), treat as cache miss, do not fail
-			return false, hash, nil //nolint:nilerr // Intentional cache miss on error
-		}
-
-		if info.OutputHash != outputHash {
-			return false, hash, nil
-		}
+	if len(outputs) == 0 {
+		return true
 	}
 
-	return true, hash, nil
+	outputHash, err := s.hasher.ComputeOutputHash(outputs, root)
+	if err != nil {
+		// If error (e.g. file missing), treat as cache miss
+		return false
+	}
+
+	return info.OutputHash == outputHash
 }

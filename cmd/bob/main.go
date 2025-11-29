@@ -32,6 +32,7 @@ func run() int {
 	configLoader := &config.FileConfigLoader{Filename: "bob.yaml"} // default value
 	executor := shell.NewExecutor(log)
 	walker := fs.NewWalker()
+	resolver := fs.NewResolver()
 	hasher := fs.NewHasher(walker)
 	store, err := cas.NewStore(".bob/state")
 	if err != nil {
@@ -40,7 +41,7 @@ func run() int {
 	}
 
 	// 2. Engine
-	sched := scheduler.NewScheduler(executor, store, hasher, log)
+	sched := scheduler.NewScheduler(executor, store, hasher, resolver, log)
 
 	// 3. Application
 	application := app.New(configLoader, sched)
