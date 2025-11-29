@@ -20,12 +20,7 @@ tasks:
   generate:
     input: ["internal/engine/scheduler/scheduler.go"]
     cmd: ["go", "generate", "./..."]
-    target:
-      - "internal/core/ports/mocks/mock_logger.go"
-      - "internal/core/ports/mocks/mock_store.go"
-      - "internal/core/ports/mocks/mock_config_loader.go"
-      - "internal/core/ports/mocks/hasher_mock.go"
-      - "internal/core/ports/mocks/mock_executor.go"
+    target: ["internal/core/ports/mocks/"]
     dependsOn: ["install"]
 
   # Run tests
