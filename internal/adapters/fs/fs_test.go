@@ -325,7 +325,7 @@ func TestHasher_ComputeOutputHash(t *testing.T) {
 	missingFiles := []string{"out1.txt", "missing.txt"}
 	_, err = hasher.ComputeOutputHash(missingFiles, tmpDir)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "output file missing")
+	assert.Contains(t, err.Error(), "failed to stat path")
 }
 
 func TestHasher_ComputeInputHash_StatError(t *testing.T) {
@@ -347,4 +347,51 @@ func TestHasher_ComputeInputHash_StatError(t *testing.T) {
 	_, err := hasher.ComputeInputHash(task, nil, inputs)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to stat path")
+}
+
+func TestHasher_ComputeOutputHash_Directory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a directory with nested files
+	distDir := filepath.Join(tmpDir, "dist")
+	binDir := filepath.Join(distDir, "bin")
+	require.NoError(t, os.MkdirAll(binDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.js"), []byte("console.log('app')"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "server"), []byte("#!/bin/bash"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "client"), []byte("#!/bin/bash"), 0o600))
+
+	walker := fs.NewWalker()
+	hasher := fs.NewHasher(walker)
+
+	// Test 1: Verify hash is valid for directory
+	outputs := []string{"dist"}
+	hash, err := hasher.ComputeOutputHash(outputs, tmpDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, hash)
+
+	// Test 2: Verify hash is deterministic (running twice produces same hash)
+	hash2, err := hasher.ComputeOutputHash(outputs, tmpDir)
+	require.NoError(t, err)
+	assert.Equal(t, hash, hash2, "hash should be deterministic")
+
+	// Test 3: Verify modifying a file inside directory changes hash
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "server"), []byte("#!/bin/bash\n# modified"), 0o600))
+	hashAfterModify, err := hasher.ComputeOutputHash(outputs, tmpDir)
+	require.NoError(t, err)
+	assert.NotEqual(t, hash, hashAfterModify, "hash should change when file modified")
+
+	// Test 4: Verify adding a new file changes hash
+	require.NoError(t, os.WriteFile(filepath.Join(distDir, "config.json"), []byte("{}"), 0o600))
+	hashAfterAdd, err := hasher.ComputeOutputHash(outputs, tmpDir)
+	require.NoError(t, err)
+	assert.NotEqual(t, hashAfterModify, hashAfterAdd, "hash should change when file added")
+
+	// Test 5: Verify mixed files and directories
+	singleFile := filepath.Join(tmpDir, "readme.txt")
+	require.NoError(t, os.WriteFile(singleFile, []byte("readme content"), 0o600))
+	mixedOutputs := []string{"dist", "readme.txt"}
+	hashMixed, err := hasher.ComputeOutputHash(mixedOutputs, tmpDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, hashMixed)
+	assert.NotEqual(t, hash, hashMixed, "hash should differ when outputs list changes")
 }
