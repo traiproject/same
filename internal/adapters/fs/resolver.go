@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
 )
@@ -40,7 +41,7 @@ func (r *Resolver) ResolveInputs(inputs []string, root string) ([]string, error)
 			// "input not found" to provide clear feedback.
 			//
 			// Rationale: This approach avoids silent failures and helps users identify issues with their input patterns.
-			return nil, zerr.With(zerr.New("input not found"), "path", path)
+			return nil, zerr.With(domain.ErrInputNotFound, "path", path)
 		}
 
 		for _, match := range matches {

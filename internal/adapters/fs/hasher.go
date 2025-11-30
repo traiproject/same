@@ -30,13 +30,13 @@ func NewHasher(walker *Walker) *Hasher {
 func (h *Hasher) ComputeFileHash(path string) (uint64, error) {
 	f, err := os.Open(path) //nolint:gosec // Path is controlled by caller
 	if err != nil {
-		return 0, zerr.With(zerr.Wrap(err, "failed to open file"), "path", path)
+		return 0, zerr.With(zerr.Wrap(err, domain.ErrFileOpenFailed.Error()), "path", path)
 	}
 	defer f.Close() //nolint:errcheck // Best effort close in defer
 
 	hasher := xxhash.New()
 	if _, err := io.Copy(hasher, f); err != nil {
-		return 0, zerr.With(zerr.Wrap(err, "failed to hash file content"), "path", path)
+		return 0, zerr.With(zerr.Wrap(err, domain.ErrFileHashFailed.Error()), "path", path)
 	}
 
 	return hasher.Sum64(), nil
@@ -117,7 +117,7 @@ func (h *Hasher) hashEnvironment(env map[string]string, hasher *xxhash.Digest) {
 func (h *Hasher) hashPath(path string, mainHasher io.Writer) error {
 	info, err := os.Stat(path)
 	if err != nil {
-		return zerr.With(zerr.Wrap(err, "failed to stat path"), "path", path)
+		return zerr.With(zerr.Wrap(err, domain.ErrPathStatFailed.Error()), "path", path)
 	}
 
 	if info.IsDir() {
@@ -151,7 +151,7 @@ func (h *Hasher) hashFile(path string, mainHasher io.Writer) error {
 
 	// Write hash to main hasher
 	if err := binary.Write(mainHasher, binary.LittleEndian, hash); err != nil {
-		return zerr.Wrap(err, "failed to write hash to digest")
+		return zerr.Wrap(err, domain.ErrWriteHashFailed.Error())
 	}
 	return nil
 }

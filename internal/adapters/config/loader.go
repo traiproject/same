@@ -26,12 +26,12 @@ func (l *FileConfigLoader) Load(cwd string) (*domain.Graph, error) {
 func Load(path string) (*domain.Graph, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path is provided by user
 	if err != nil {
-		return nil, zerr.Wrap(err, "failed to read config file")
+		return nil, zerr.Wrap(err, domain.ErrConfigReadFailed.Error())
 	}
 
 	var bobfile Bobfile
 	if err := yaml.Unmarshal(data, &bobfile); err != nil {
-		return nil, zerr.Wrap(err, "failed to parse config file")
+		return nil, zerr.Wrap(err, domain.ErrConfigParseFailed.Error())
 	}
 
 	g := domain.NewGraph()
@@ -48,13 +48,13 @@ func Load(path string) (*domain.Graph, error) {
 	for name, dto := range bobfile.Tasks {
 		// Validate reserved task names
 		if name == "all" {
-			return nil, zerr.With(zerr.New("task name 'all' is reserved"), "task_name", name)
+			return nil, zerr.With(domain.ErrReservedTaskName, "task_name", name)
 		}
 
 		// Validate dependencies exist
 		for _, dep := range dto.DependsOn {
 			if !taskNames[dep] {
-				return nil, zerr.With(zerr.New("missing dependency"), "missing_dependency", dep)
+				return nil, zerr.With(domain.ErrMissingDependency, "missing_dependency", dep)
 			}
 		}
 

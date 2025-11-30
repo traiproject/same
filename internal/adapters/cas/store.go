@@ -28,7 +28,7 @@ type Store struct {
 func NewStore(path string) (*Store, error) {
 	cleanPath := filepath.Clean(path)
 	if err := os.MkdirAll(cleanPath, dirPerm); err != nil {
-		return nil, zerr.Wrap(err, "failed to create build info store directory")
+		return nil, zerr.Wrap(err, domain.ErrStoreCreateFailed.Error())
 	}
 
 	return &Store{
@@ -45,12 +45,12 @@ func (s *Store) Get(taskName string) (*domain.BuildInfo, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, zerr.Wrap(err, "failed to read build info")
+		return nil, zerr.Wrap(err, domain.ErrStoreReadFailed.Error())
 	}
 
 	var info domain.BuildInfo
 	if err := json.Unmarshal(data, &info); err != nil {
-		return nil, zerr.Wrap(err, "failed to unmarshal build info")
+		return nil, zerr.Wrap(err, domain.ErrStoreUnmarshalFailed.Error())
 	}
 
 	return &info, nil
@@ -60,13 +60,13 @@ func (s *Store) Get(taskName string) (*domain.BuildInfo, error) {
 func (s *Store) Put(info domain.BuildInfo) error {
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
-		return zerr.Wrap(err, "failed to marshal build info")
+		return zerr.Wrap(err, domain.ErrStoreMarshalFailed.Error())
 	}
 
 	filename := s.getFilename(info.TaskName)
 	//nolint:gosec // Path is constructed from trusted directory and hashed filename
 	if err := os.WriteFile(filename, data, filePerm); err != nil {
-		return zerr.Wrap(err, "failed to write build info")
+		return zerr.Wrap(err, domain.ErrStoreWriteFailed.Error())
 	}
 
 	return nil

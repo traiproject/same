@@ -350,7 +350,7 @@ func (state *schedulerRunState) computeInputHash(t *domain.Task) (string, error)
 func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {
 	rootAbs, err := filepath.Abs(state.graph.Root())
 	if err != nil {
-		return zerr.Wrap(err, "failed to get absolute path of project root")
+		return zerr.Wrap(err, domain.ErrFailedToGetRoot.Error())
 	}
 
 	for _, out := range t.Outputs {
@@ -358,7 +358,7 @@ func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {
 		outAbs, err := filepath.Abs(outPath)
 		if err != nil {
 			return zerr.With(
-				zerr.Wrap(err, "failed to get absolute path of output"),
+				zerr.Wrap(err, domain.ErrFailedToGetOutputPath.Error()),
 				"file", outPath,
 			)
 		}
@@ -366,14 +366,14 @@ func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {
 		rel, err := filepath.Rel(rootAbs, outAbs)
 		if err != nil {
 			return zerr.With(
-				zerr.Wrap(err, "failed to resolve relative path"),
+				zerr.Wrap(err, domain.ErrFailedToResolveRelativePath.Error()),
 				"file", outPath,
 			)
 		}
 
 		if strings.HasPrefix(rel, "..") {
 			return zerr.With(
-				errors.New("output path is outside project root"),
+				domain.ErrOutputPathOutsideRoot,
 				"file", outPath,
 			)
 		}
@@ -382,7 +382,7 @@ func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {
 		// exactly what was validated, preventing potential symlink attacks
 		if err := os.RemoveAll(outAbs); err != nil {
 			return zerr.With(
-				zerr.Wrap(err, "failed to clean output file"),
+				zerr.Wrap(err, domain.ErrFailedToCleanOutput.Error()),
 				"file", outPath,
 			)
 		}
@@ -396,7 +396,7 @@ func (state *schedulerRunState) handleResult(res result) {
 
 	if res.err != nil {
 		// Enhance error with task name
-		enhancedErr := zerr.With(zerr.Wrap(res.err, "task execution failed"), "task", res.task.String())
+		enhancedErr := zerr.With(zerr.Wrap(res.err, domain.ErrTaskExecutionFailed.Error()), "task", res.task.String())
 		state.errs = errors.Join(state.errs, enhancedErr)
 		state.s.updateStatus(res.task, StatusFailed)
 	} else {
@@ -419,7 +419,7 @@ func (state *schedulerRunState) handleSuccess(res result) {
 			})
 			if err != nil {
 				// We log the error but don't fail the build if cache update fails
-				state.s.logger.Error(zerr.With(zerr.Wrap(err, "failed to update build info store"), "task", res.task.String()))
+				state.s.logger.Error(zerr.With(zerr.Wrap(err, domain.ErrBuildInfoUpdateFailed.Error()), "task", res.task.String()))
 			}
 		}
 	}
@@ -442,7 +442,10 @@ func (state *schedulerRunState) computeOutputHash(res result) string {
 
 	outputHash, err := state.s.hasher.ComputeOutputHash(res.taskOutputs, state.graph.Root())
 	if err != nil {
-		state.s.logger.Error(zerr.With(zerr.Wrap(err, "failed to compute output hash"), "task", res.task.String()))
+		state.s.logger.Error(zerr.With(
+			zerr.Wrap(err, domain.ErrOutputHashComputationFailed.Error()),
+			"task", res.task.String(),
+		))
 		return ""
 	}
 	return outputHash
@@ -457,13 +460,13 @@ func (s *Scheduler) computeHashForce(task *domain.Task, root string) (string, er
 	}
 	resolvedInputs, err := s.resolver.ResolveInputs(inputs, root)
 	if err != nil {
-		return "", zerr.Wrap(err, "failed to resolve inputs")
+		return "", zerr.Wrap(err, domain.ErrInputResolutionFailed.Error())
 	}
 
 	// Step B: Compute Input Hash
 	hash, err := s.hasher.ComputeInputHash(task, task.Environment, resolvedInputs)
 	if err != nil {
-		return "", zerr.Wrap(err, "failed to compute input hash")
+		return "", zerr.Wrap(err, domain.ErrInputHashComputationFailed.Error())
 	}
 
 	return hash, nil
@@ -483,19 +486,19 @@ func (s *Scheduler) checkTaskCache(
 	}
 	resolvedInputs, err := s.resolver.ResolveInputs(inputs, root)
 	if err != nil {
-		return false, "", zerr.Wrap(err, "failed to resolve inputs")
+		return false, "", zerr.Wrap(err, domain.ErrInputResolutionFailed.Error())
 	}
 
 	// Step B: Compute Input Hash
 	hash, err = s.hasher.ComputeInputHash(task, task.Environment, resolvedInputs)
 	if err != nil {
-		return false, "", zerr.Wrap(err, "failed to compute input hash")
+		return false, "", zerr.Wrap(err, domain.ErrInputHashComputationFailed.Error())
 	}
 
 	// Step B: Get Build Info from Store
 	info, err := s.store.Get(task.Name.String())
 	if err != nil {
-		return false, hash, zerr.Wrap(err, "failed to get build info")
+		return false, hash, zerr.Wrap(err, domain.ErrStoreReadFailed.Error())
 	}
 
 	// Step C: Compare Hashes

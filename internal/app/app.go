@@ -5,6 +5,7 @@ import (
 	"context"
 	"runtime"
 
+	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/bob/internal/engine/scheduler"
 	"go.trai.ch/zerr"
@@ -34,7 +35,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
 
 	// 2. Validate targets
 	if len(targetNames) == 0 {
-		return zerr.New("no targets specified")
+		return domain.ErrNoTargetsSpecified
 	}
 
 	// 3. Run the scheduler

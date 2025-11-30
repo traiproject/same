@@ -14,4 +14,79 @@ var (
 
 	// ErrTaskNotFound is returned when a requested task is not found in the graph.
 	ErrTaskNotFound = zerr.New("task not found")
+
+	// ErrNoTargetsSpecified is returned when no targets are specified for the run command.
+	ErrNoTargetsSpecified = zerr.New("no targets specified")
+
+	// ErrOutputPathOutsideRoot is returned when an output path is outside the project root.
+	ErrOutputPathOutsideRoot = zerr.New("output path is outside project root")
+
+	// ErrInputNotFound is returned when a declared input file or directory is not found.
+	ErrInputNotFound = zerr.New("input not found")
+
+	// ErrReservedTaskName is returned when a task uses a reserved name (e.g., "all").
+	ErrReservedTaskName = zerr.New("task name 'all' is reserved")
+
+	// ErrStoreCreateFailed is returned when the build info store directory cannot be created.
+	ErrStoreCreateFailed = zerr.New("failed to create build info store directory")
+
+	// ErrStoreReadFailed is returned when the build info cannot be read.
+	ErrStoreReadFailed = zerr.New("failed to read build info")
+
+	// ErrStoreUnmarshalFailed is returned when the build info cannot be unmarshaled.
+	ErrStoreUnmarshalFailed = zerr.New("failed to unmarshal build info")
+
+	// ErrStoreMarshalFailed is returned when the build info cannot be marshaled.
+	ErrStoreMarshalFailed = zerr.New("failed to marshal build info")
+
+	// ErrStoreWriteFailed is returned when the build info cannot be written.
+	ErrStoreWriteFailed = zerr.New("failed to write build info")
+
+	// ErrConfigReadFailed is returned when the config file cannot be read.
+	ErrConfigReadFailed = zerr.New("failed to read config file")
+
+	// ErrConfigParseFailed is returned when the config file cannot be parsed.
+	ErrConfigParseFailed = zerr.New("failed to parse config file")
+
+	// ErrBuildExecutionFailed is returned when the build execution fails.
+	ErrBuildExecutionFailed = zerr.New("build execution failed")
+
+	// ErrTaskExecutionFailed is returned when a task execution fails.
+	ErrTaskExecutionFailed = zerr.New("task execution failed")
+
+	// ErrInputResolutionFailed is returned when input resolution fails.
+	ErrInputResolutionFailed = zerr.New("failed to resolve inputs")
+
+	// ErrInputHashComputationFailed is returned when input hash computation fails.
+	ErrInputHashComputationFailed = zerr.New("failed to compute input hash")
+
+	// ErrOutputHashComputationFailed is returned when output hash computation fails.
+	ErrOutputHashComputationFailed = zerr.New("failed to compute output hash")
+
+	// ErrBuildInfoUpdateFailed is returned when updating the build info store fails.
+	ErrBuildInfoUpdateFailed = zerr.New("failed to update build info store")
+
+	// ErrFailedToGetRoot is returned when the project root path cannot be determined.
+	ErrFailedToGetRoot = zerr.New("failed to get absolute path of project root")
+
+	// ErrFailedToGetOutputPath is returned when an output path cannot be determined.
+	ErrFailedToGetOutputPath = zerr.New("failed to get absolute path of output")
+
+	// ErrFailedToResolveRelativePath is returned when a relative path cannot be resolved.
+	ErrFailedToResolveRelativePath = zerr.New("failed to resolve relative path")
+
+	// ErrFailedToCleanOutput is returned when cleaning an output file fails.
+	ErrFailedToCleanOutput = zerr.New("failed to clean output file")
+
+	// ErrFileOpenFailed is returned when a file cannot be opened.
+	ErrFileOpenFailed = zerr.New("failed to open file")
+
+	// ErrFileHashFailed is returned when hashing a file fails.
+	ErrFileHashFailed = zerr.New("failed to hash file content")
+
+	// ErrPathStatFailed is returned when stating a path fails.
+	ErrPathStatFailed = zerr.New("failed to stat path")
+
+	// ErrWriteHashFailed is returned when writing the hash to the digest fails.
+	ErrWriteHashFailed = zerr.New("failed to write hash to digest")
 )
