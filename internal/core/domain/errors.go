@@ -89,4 +89,7 @@ var (
 
 	// ErrWriteHashFailed is returned when writing the hash to the digest fails.
 	ErrWriteHashFailed = zerr.New("failed to write hash to digest")
+
+	// ErrEnvironmentResolutionFailed is returned when system environment dependencies cannot be resolved.
+	ErrEnvironmentResolutionFailed = zerr.New("failed to resolve system environment dependencies")
 )
