@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,11 +34,12 @@ const (
 
 // Scheduler manages the execution of tasks in the dependency graph.
 type Scheduler struct {
-	executor ports.Executor
-	store    ports.BuildInfoStore
-	hasher   ports.Hasher
-	resolver ports.InputResolver
-	logger   ports.Logger
+	executor    ports.Executor
+	store       ports.BuildInfoStore
+	hasher      ports.Hasher
+	resolver    ports.InputResolver
+	environment ports.Environment
+	logger      ports.Logger
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
@@ -49,15 +51,17 @@ func NewScheduler(
 	store ports.BuildInfoStore,
 	hasher ports.Hasher,
 	resolver ports.InputResolver,
+	environment ports.Environment,
 	logger ports.Logger,
 ) *Scheduler {
 	s := &Scheduler{
-		executor:   executor,
-		store:      store,
-		hasher:     hasher,
-		resolver:   resolver,
-		logger:     logger,
-		taskStatus: make(map[domain.InternedString]TaskStatus),
+		executor:    executor,
+		store:       store,
+		hasher:      hasher,
+		resolver:    resolver,
+		environment: environment,
+		logger:      logger,
+		taskStatus:  make(map[domain.InternedString]TaskStatus),
 	}
 	return s
 }
@@ -308,8 +312,34 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		return
 	}
 
+	runtimeTask := *t // Shallow copy
+	if len(t.SystemDependencies) > 0 {
+		// Convert InternedString to string
+		deps := make([]string, len(t.SystemDependencies))
+		for i, d := range t.SystemDependencies {
+			deps[i] = d.String()
+		}
+
+		envVars, err := state.s.environment.Resolve(state.ctx, deps)
+		if err != nil {
+			state.resultsCh <- result{
+				task: t.Name,
+				err:  zerr.Wrap(err, domain.ErrEnvironmentResolutionFailed.Error()),
+			}
+			return
+		}
+
+		// Merge environment variables
+		// Create a new map to avoid modifying the original task's environment
+		mergedEnv := make(map[string]string, len(t.Environment)+len(envVars))
+		maps.Copy(mergedEnv, t.Environment)
+		// Nix vars override task vars
+		maps.Copy(mergedEnv, envVars)
+		runtimeTask.Environment = mergedEnv
+	}
+
 	// Clean outputs before building to prevent stale artifacts
-	if err := state.validateAndCleanOutputs(t); err != nil {
+	if err := state.validateAndCleanOutputs(&runtimeTask); err != nil {
 		state.resultsCh <- result{task: t.Name, err: err}
 		return
 	}
@@ -322,7 +352,7 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 
 	state.resultsCh <- result{
 		task:        t.Name,
-		err:         state.s.executor.Execute(state.ctx, t),
+		err:         state.s.executor.Execute(state.ctx, &runtimeTask),
 		inputHash:   hash,
 		taskOutputs: outputs,
 	}

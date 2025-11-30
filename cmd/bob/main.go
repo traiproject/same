@@ -12,6 +12,7 @@ import (
 	"go.trai.ch/bob/internal/adapters/config"
 	"go.trai.ch/bob/internal/adapters/fs"
 	"go.trai.ch/bob/internal/adapters/logger"
+	"go.trai.ch/bob/internal/adapters/nix"
 	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/app"
 	"go.trai.ch/bob/internal/engine/scheduler"
@@ -41,7 +42,8 @@ func run() int {
 	}
 
 	// 2. Engine
-	sched := scheduler.NewScheduler(executor, store, hasher, resolver, log)
+	envAdapter := nix.New(".bob/nix_cache.json")
+	sched := scheduler.NewScheduler(executor, store, hasher, resolver, envAdapter, log)
 
 	// 3. Application
 	application := app.New(configLoader, sched)
