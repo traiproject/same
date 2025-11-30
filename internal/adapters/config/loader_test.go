@@ -205,6 +205,46 @@ tasks:
 	assert.Len(t, testEnv, 1)
 }
 
+func TestLoad_WithSystemDependencies(t *testing.T) {
+	// Create a config file with system dependencies
+	content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    dependencies: ["curl", "jq"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	// Load the config
+	g, err := config.Load(configPath)
+	require.NoError(t, err)
+
+	// Verify graph is valid
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Collect tasks and verify system dependencies
+	tasks := make(map[string][]string)
+	for task := range g.Walk() {
+		deps := make([]string, len(task.SystemDependencies))
+		for i, d := range task.SystemDependencies {
+			deps[i] = d.String()
+		}
+		tasks[task.Name.String()] = deps
+	}
+
+	// Verify build task system dependencies
+	require.Contains(t, tasks, "build")
+	buildDeps := tasks["build"]
+	assert.Len(t, buildDeps, 2)
+	assert.Contains(t, buildDeps, "curl")
+	assert.Contains(t, buildDeps, "jq")
+}
+
 func TestLoad_WithRoot(t *testing.T) {
 	t.Run("Explicit Root", func(t *testing.T) {
 		content := `

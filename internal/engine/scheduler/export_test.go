@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"maps"
 
 	"go.trai.ch/bob/internal/core/domain"
 )
@@ -13,9 +14,7 @@ func (s *Scheduler) GetTaskStatusMap() map[domain.InternedString]TaskStatus {
 	defer s.mu.RUnlock()
 
 	statusMap := make(map[domain.InternedString]TaskStatus, len(s.taskStatus))
-	for k, v := range s.taskStatus {
-		statusMap[k] = v
-	}
+	maps.Copy(statusMap, s.taskStatus)
 	return statusMap
 }
 

@@ -46,6 +46,7 @@ func Load(path string) (*domain.Graph, error) {
 
 	// Second pass: Create tasks and add to graph
 	for name, dto := range bobfile.Tasks {
+
 		// Validate reserved task names
 		if name == "all" {
 			return nil, zerr.With(domain.ErrReservedTaskName, "task_name", name)
@@ -59,12 +60,13 @@ func Load(path string) (*domain.Graph, error) {
 		}
 
 		task := &domain.Task{
-			Name:         domain.NewInternedString(name),
-			Command:      dto.Cmd,
-			Inputs:       canonicalizeStrings(dto.Input),
-			Outputs:      canonicalizeStrings(dto.Target),
-			Dependencies: internStrings(dto.DependsOn),
-			Environment:  dto.Environment,
+			Name:               domain.NewInternedString(name),
+			Command:            dto.Cmd,
+			Inputs:             canonicalizeStrings(dto.Input),
+			Outputs:            canonicalizeStrings(dto.Target),
+			Dependencies:       internStrings(dto.DependsOn),
+			SystemDependencies: canonicalizeStrings(dto.Dependencies),
+			Environment:        dto.Environment,
 		}
 
 		// Set WorkingDir to Root if not specified
