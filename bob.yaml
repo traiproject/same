@@ -4,17 +4,20 @@ tasks:
   install:
     input: ["go.mod", "go.sum"]
     cmd: ["go", "mod", "download"]
+    dependencies: ["go"]
 
   # Format code
   fmt:
     input: ["cmd", "internal"]
     cmd: ["go", "fmt", "./..."]
+    dependencies: ["go"]
 
   # Run linter
   lint:
     input: ["cmd", "internal"]
     cmd: ["golangci-lint", "run"]
     dependsOn: ["generate"]
+    dependencies: ["golangci-lint"]
 
   # Generate mocks
   generate:
@@ -22,12 +25,14 @@ tasks:
     cmd: ["go", "generate", "./..."]
     target: ["internal/core/ports/mocks/"]
     dependsOn: ["install"]
+    dependencies: ["go"]
 
   # Run tests
   test:
     input: ["cmd", "internal"]
     cmd: ["go", "test", "-v", "-race", "./..."]
     dependsOn: ["generate", "lint"]
+    dependencies: ["go"]
 
   # Build the binary
   build:
@@ -35,3 +40,4 @@ tasks:
     cmd: ["go", "build", "-o", "bin/bob", "./cmd/bob"]
     target: ["bin/bob"]
     dependsOn: ["test"]
+    dependencies: ["go"]
