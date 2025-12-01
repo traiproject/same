@@ -92,4 +92,7 @@ var (
 
 	// ErrEnvironmentResolutionFailed is returned when system environment dependencies cannot be resolved.
 	ErrEnvironmentResolutionFailed = zerr.New("failed to resolve system environment dependencies")
+
+	// ErrUnsupportedArchitecture is returned when a package does not support the requested architecture.
+	ErrUnsupportedArchitecture = zerr.New("package does not support requested architecture")
 )
