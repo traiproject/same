@@ -70,6 +70,10 @@ func validateProjectNames(configs []loadedConfig) error {
 			err := zerr.With(domain.ErrInvalidConfig, "error", "missing project name")
 			return zerr.With(err, "file", lc.ProjectPath)
 		}
+		if lc.Config.Project == "all" {
+			err := zerr.With(domain.ErrReservedTaskName, "project", lc.Config.Project)
+			return zerr.With(err, "file", lc.ProjectPath)
+		}
 		if projectNames[lc.Config.Project] {
 			err := zerr.With(domain.ErrInvalidConfig, "error", "duplicate project name")
 			return zerr.With(err, "project", lc.Config.Project)
