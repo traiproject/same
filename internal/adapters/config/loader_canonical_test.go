@@ -12,6 +12,7 @@ import (
 func TestLoad_Canonicalization(t *testing.T) {
 	content := `
 version: "1"
+project: "root"
 tasks:
   build:
     input: ["b", "a", "a", "c"]
@@ -36,7 +37,7 @@ tasks:
 	var taskName string
 	for task := range g.Walk() {
 		taskName = task.Name.String()
-		if taskName == "build" {
+		if taskName == "root:build" {
 			// Check Inputs
 			expectedInputs := []string{"a", "b", "c"}
 			checkSlice(t, "Inputs", expectedInputs, task.Inputs)

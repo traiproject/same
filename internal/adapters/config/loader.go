@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/zerr"
@@ -28,6 +29,12 @@ type loadedConfig struct {
 	Config      Bobfile
 }
 
+type mergedTask struct {
+	Task    TaskDTO
+	Project string
+	Path    string
+}
+
 // Load reads a configuration file from the given path and returns a domain.Graph.
 func Load(path string) (*domain.Graph, error) {
 	absPath, err := filepath.Abs(path)
@@ -40,73 +47,121 @@ func Load(path string) (*domain.Graph, error) {
 		return nil, err
 	}
 
-	g := domain.NewGraph()
-
-	// The first config is the root config
-	rootConfig := configs[0]
-	g.SetRoot(resolveRoot(rootConfig.ProjectPath, rootConfig.Config.Root))
-
-	taskNames := make(map[string]bool)
-
-	// First pass: Collect all task names to verify dependencies later
-	for _, lc := range configs {
-		for name := range lc.Config.Tasks {
-			if taskNames[name] {
-				return nil, zerr.With(domain.ErrTaskAlreadyExists, "task_name", name)
-			}
-			taskNames[name] = true
-		}
+	if err := validateProjectNames(configs); err != nil {
+		return nil, err
 	}
 
-	// Second pass: Create tasks and add to graph
-	for _, lc := range configs {
-		if err := createTasks(g, &lc, taskNames); err != nil {
-			return nil, err
-		}
+	mergedTasks := mergeTasks(configs)
+
+	g := domain.NewGraph()
+	g.SetRoot(resolveRoot(configs[0].ProjectPath, configs[0].Config.Root))
+
+	if err := createTasksFromMerged(g, mergedTasks); err != nil {
+		return nil, err
 	}
 
 	return g, nil
 }
 
-func createTasks(g *domain.Graph, lc *loadedConfig, taskNames map[string]bool) error {
-	for name, dto := range lc.Config.Tasks {
-		// Validate reserved task names
-		if name == "all" {
-			return zerr.With(domain.ErrReservedTaskName, "task_name", name)
+func validateProjectNames(configs []loadedConfig) error {
+	projectNames := make(map[string]bool)
+	for _, lc := range configs {
+		if lc.Config.Project == "" {
+			err := zerr.With(domain.ErrInvalidConfig, "error", "missing project name")
+			return zerr.With(err, "file", lc.ProjectPath)
 		}
+		if projectNames[lc.Config.Project] {
+			err := zerr.With(domain.ErrInvalidConfig, "error", "duplicate project name")
+			return zerr.With(err, "project", lc.Config.Project)
+		}
+		projectNames[lc.Config.Project] = true
+	}
+	return nil
+}
 
-		// Validate dependencies exist
-		for _, dep := range dto.DependsOn {
-			if !taskNames[dep] {
-				return zerr.With(domain.ErrMissingDependency, "missing_dependency", dep)
+func mergeTasks(configs []loadedConfig) map[string]mergedTask {
+	mergedTasks := make(map[string]mergedTask)
+	for _, lc := range configs {
+		for name, task := range lc.Config.Tasks {
+			fullName := lc.Config.Project + ":" + name
+			mergedTasks[fullName] = mergedTask{
+				Task:    task,
+				Project: lc.Config.Project,
+				Path:    lc.ProjectPath,
 			}
 		}
+	}
+	return mergedTasks
+}
 
-		task := &domain.Task{
-			Name:         domain.NewInternedString(name),
-			Command:      dto.Cmd,
-			Inputs:       canonicalizeStrings(dto.Input),
-			Outputs:      canonicalizeStrings(dto.Target),
-			Dependencies: internStrings(dto.DependsOn),
-			Environment:  dto.Environment,
+func createTasksFromMerged(g *domain.Graph, mergedTasks map[string]mergedTask) error {
+	for fullName := range mergedTasks {
+		info := mergedTasks[fullName]
+		// Extract task name from fullName (after ":")
+		parts := strings.SplitN(fullName, ":", 2)
+		taskName := parts[1]
+
+		if err := validateReservedTaskName(taskName, info.Project); err != nil {
+			return err
 		}
 
-		// Set WorkingDir to ProjectPath if not specified
-		if dto.WorkingDir == "" {
-			task.WorkingDir = domain.NewInternedString(lc.ProjectPath)
-		} else {
-			if filepath.IsAbs(dto.WorkingDir) {
-				task.WorkingDir = domain.NewInternedString(dto.WorkingDir)
-			} else {
-				task.WorkingDir = domain.NewInternedString(filepath.Join(lc.ProjectPath, dto.WorkingDir))
-			}
+		rewrittenDeps, err := rewriteDependencies(&info, mergedTasks)
+		if err != nil {
+			return zerr.With(err, "task", fullName)
 		}
 
-		if err := g.AddTask(task); err != nil {
+		domainTask := buildDomainTask(fullName, &info, rewrittenDeps)
+		if err := g.AddTask(domainTask); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func validateReservedTaskName(taskName, project string) error {
+	if taskName == "all" {
+		err := zerr.With(domain.ErrReservedTaskName, "task_name", taskName)
+		return zerr.With(err, "project", project)
+	}
+	return nil
+}
+
+func rewriteDependencies(info *mergedTask, mergedTasks map[string]mergedTask) ([]string, error) {
+	rewrittenDeps := make([]string, len(info.Task.DependsOn))
+	for i, dep := range info.Task.DependsOn {
+		resolvedDep := dep
+		if !strings.Contains(dep, ":") {
+			resolvedDep = info.Project + ":" + dep
+		}
+
+		if _, exists := mergedTasks[resolvedDep]; !exists {
+			return nil, zerr.With(domain.ErrMissingDependency, "missing_dependency", resolvedDep)
+		}
+		rewrittenDeps[i] = resolvedDep
+	}
+	return rewrittenDeps, nil
+}
+
+func buildDomainTask(fullName string, info *mergedTask, rewrittenDeps []string) *domain.Task {
+	task := &domain.Task{
+		Name:         domain.NewInternedString(fullName),
+		Command:      info.Task.Cmd,
+		Inputs:       canonicalizeStrings(info.Task.Input),
+		Outputs:      canonicalizeStrings(info.Task.Target),
+		Dependencies: internStrings(rewrittenDeps),
+		Environment:  info.Task.Environment,
+	}
+
+	switch {
+	case info.Task.WorkingDir == "":
+		task.WorkingDir = domain.NewInternedString(info.Path)
+	case filepath.IsAbs(info.Task.WorkingDir):
+		task.WorkingDir = domain.NewInternedString(info.Task.WorkingDir)
+	default:
+		task.WorkingDir = domain.NewInternedString(filepath.Join(info.Path, info.Task.WorkingDir))
+	}
+
+	return task
 }
 
 func loadRecursively(configPath string, visited map[string]bool) ([]loadedConfig, error) {

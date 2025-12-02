@@ -16,6 +16,7 @@ func TestLoad_Success(t *testing.T) {
 	// Create a temporary config file
 	content := `
 version: "1"
+project: "root"
 tasks:
   build:
     input: ["src/**/*"]
@@ -54,17 +55,18 @@ tasks:
 	if len(order) != 2 {
 		t.Fatalf("expected 2 tasks, got %d", len(order))
 	}
-	if order[0] != "lint" {
-		t.Errorf("expected first task to be lint, got %s", order[0])
+	if order[0] != "root:lint" {
+		t.Errorf("expected first task to be root:lint, got %s", order[0])
 	}
-	if order[1] != "build" {
-		t.Errorf("expected second task to be build, got %s", order[1])
+	if order[1] != "root:build" {
+		t.Errorf("expected second task to be root:build, got %s", order[1])
 	}
 }
 
 func TestLoad_MissingDependency(t *testing.T) {
 	content := `
 version: "1"
+project: "root"
 tasks:
   build:
     dependsOn: ["missing"]
@@ -88,14 +90,15 @@ tasks:
 	}
 
 	meta := zErr.Metadata()
-	if dep, ok := meta["missing_dependency"].(string); !ok || dep != "missing" {
-		t.Errorf("expected metadata missing_dependency=missing, got %v", meta["missing_dependency"])
+	if dep, ok := meta["missing_dependency"].(string); !ok || dep != "root:missing" {
+		t.Errorf("expected metadata missing_dependency=root:missing, got %v", meta["missing_dependency"])
 	}
 }
 
 func TestLoad_ReservedTaskName(t *testing.T) {
 	content := `
 version: "1"
+project: "root"
 tasks:
   all:
     cmd: ["echo hello"]
@@ -139,6 +142,7 @@ func TestLoad_Errors(t *testing.T) {
 	t.Run("Invalid YAML", func(t *testing.T) {
 		content := `
 version: "1"
+project: "root"
 tasks:
   build:
     cmd: ["echo hello"]
@@ -159,6 +163,7 @@ func TestLoad_WithEnvironment(t *testing.T) {
 	// Create a config file with environment variables
 	content := `
 version: "1"
+project: "root"
 tasks:
   build:
     cmd: ["go", "build"]
@@ -191,16 +196,16 @@ tasks:
 	}
 
 	// Verify build task environment
-	require.Contains(t, tasks, "build")
-	buildEnv := tasks["build"]
+	require.Contains(t, tasks, "root:build")
+	buildEnv := tasks["root:build"]
 	assert.Equal(t, "0", buildEnv["CGO_ENABLED"])
 	assert.Equal(t, "linux", buildEnv["GOOS"])
 	assert.Equal(t, "amd64", buildEnv["GOARCH"])
 	assert.Len(t, buildEnv, 3)
 
 	// Verify test task environment
-	require.Contains(t, tasks, "test")
-	testEnv := tasks["test"]
+	require.Contains(t, tasks, "root:test")
+	testEnv := tasks["root:test"]
 	assert.Equal(t, "1", testEnv["GO_TEST_VERBOSE"])
 	assert.Len(t, testEnv, 1)
 }
@@ -209,6 +214,7 @@ func TestLoad_WithRoot(t *testing.T) {
 	t.Run("Explicit Root", func(t *testing.T) {
 		content := `
 version: "1"
+project: "root"
 root: "./src"
 tasks: {}
 `
@@ -227,6 +233,7 @@ tasks: {}
 	t.Run("Implicit Root", func(t *testing.T) {
 		content := `
 version: "1"
+project: "root"
 tasks: {}
 `
 		tmpDir := t.TempDir()
@@ -252,6 +259,7 @@ tasks: {}
 
 		content := `
 version: "1"
+project: "root"
 root: "` + absoluteRoot + `"
 tasks: {}
 `
@@ -269,6 +277,7 @@ tasks: {}
 func TestFileConfigLoader_Load(t *testing.T) {
 	content := `
 version: "1"
+project: "root"
 tasks:
   build:
     cmd: ["go", "build"]
@@ -302,6 +311,7 @@ tasks:
 func TestLoad_WithWorkingDir(t *testing.T) {
 	content := `
 version: "1"
+project: "root"
 tasks:
   build:
     cmd: ["go", "build"]
@@ -328,14 +338,14 @@ tasks:
 	}
 
 	// Verify build task has custom workingDir
-	require.Contains(t, tasks, "build")
-	assert.Equal(t, "/custom/path", tasks["build"])
+	require.Contains(t, tasks, "root:build")
+	assert.Equal(t, "/custom/path", tasks["root:build"])
 
 	// Verify test task uses default workingDir (tmpDir)
-	require.Contains(t, tasks, "test")
+	require.Contains(t, tasks, "root:test")
 	expectedRoot, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
-	actualRoot, err := filepath.EvalSymlinks(tasks["test"])
+	actualRoot, err := filepath.EvalSymlinks(tasks["root:test"])
 	require.NoError(t, err)
 	assert.Equal(t, expectedRoot, actualRoot)
 }
@@ -354,6 +364,7 @@ func TestLoad_Workspace(t *testing.T) {
 	// Root config
 	rootContent := `
 version: "1"
+project: "root"
 workspace: ["packages/*"]
 tasks:
   root-task:
@@ -373,6 +384,7 @@ tasks:
 	require.NoError(t, err)
 	pkgAContent := `
 version: "1"
+project: "pkg-a"
 tasks:
   pkg-a-task:
     cmd: ["echo pkg-a"]
@@ -386,6 +398,7 @@ tasks:
 	require.NoError(t, err)
 	pkgBContent := `
 version: "1"
+project: "pkg-b"
 tasks:
   pkg-b-task:
     cmd: ["echo pkg-b"]
@@ -408,26 +421,204 @@ tasks:
 	}
 
 	// Verify root task
-	require.Contains(t, tasks, "root-task")
+	require.Contains(t, tasks, "root:root-task")
 	rootPath, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
-	rootTaskPath, err := filepath.EvalSymlinks(tasks["root-task"])
+	rootTaskPath, err := filepath.EvalSymlinks(tasks["root:root-task"])
 	require.NoError(t, err)
 	assert.Equal(t, rootPath, rootTaskPath)
 
 	// Verify pkg-a task
-	require.Contains(t, tasks, "pkg-a-task")
+	require.Contains(t, tasks, "pkg-a:pkg-a-task")
 	pkgAPath, err := filepath.EvalSymlinks(pkgADir)
 	require.NoError(t, err)
-	pkgATaskPath, err := filepath.EvalSymlinks(tasks["pkg-a-task"])
+	pkgATaskPath, err := filepath.EvalSymlinks(tasks["pkg-a:pkg-a-task"])
 	require.NoError(t, err)
 	assert.Equal(t, pkgAPath, pkgATaskPath)
 
 	// Verify pkg-b task
-	require.Contains(t, tasks, "pkg-b-task")
+	require.Contains(t, tasks, "pkg-b:pkg-b-task")
 	pkgBPath, err := filepath.EvalSymlinks(pkgBDir)
 	require.NoError(t, err)
-	pkgBTaskPath, err := filepath.EvalSymlinks(tasks["pkg-b-task"])
+	pkgBTaskPath, err := filepath.EvalSymlinks(tasks["pkg-b:pkg-b-task"])
 	require.NoError(t, err)
 	assert.Equal(t, pkgBPath, pkgBTaskPath)
+}
+
+func TestLoad_MissingProjectName(t *testing.T) {
+	content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["echo build"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	_, err = config.Load(configPath)
+	require.Error(t, err)
+
+	zErr, ok := err.(*zerr.Error)
+	if !ok {
+		t.Fatalf("expected *zerr.Error, got %T: %v", err, err)
+	}
+	meta := zErr.Metadata()
+	if msg, ok := meta["error"].(string); !ok || msg != "missing project name" {
+		t.Errorf("expected metadata error='missing project name', got %v", meta["error"])
+	}
+}
+
+func TestLoad_DuplicateProjectName(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Root config
+	rootContent := `
+version: "1"
+project: "common"
+workspace: ["pkg"]
+tasks: {}
+`
+	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	require.NoError(t, err)
+
+	// Package config with same project name
+	pkgDir := filepath.Join(tmpDir, "pkg")
+	err = os.MkdirAll(pkgDir, 0o750)
+	require.NoError(t, err)
+	pkgContent := `
+version: "1"
+project: "common"
+tasks: {}
+`
+	err = os.WriteFile(filepath.Join(pkgDir, "bob.yaml"), []byte(pkgContent), 0o600)
+	require.NoError(t, err)
+
+	_, err = config.Load(filepath.Join(tmpDir, "bob.yaml"))
+	require.Error(t, err)
+
+	zErr, ok := err.(*zerr.Error)
+	if !ok {
+		t.Fatalf("expected *zerr.Error, got %T: %v", err, err)
+	}
+	meta := zErr.Metadata()
+	if msg, ok := meta["error"].(string); !ok || msg != "duplicate project name" {
+		t.Errorf("expected metadata error='duplicate project name', got %v", meta["error"])
+	}
+}
+
+func TestLoad_CrossProjectDependency(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Root config
+	rootContent := `
+version: "1"
+project: "root"
+workspace: ["lib"]
+tasks:
+  build:
+    cmd: ["echo root build"]
+    dependsOn: ["lib:build"]
+`
+	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	require.NoError(t, err)
+
+	// Lib config
+	libDir := filepath.Join(tmpDir, "lib")
+	err = os.MkdirAll(libDir, 0o750)
+	require.NoError(t, err)
+	libContent := `
+version: "1"
+project: "lib"
+tasks:
+  build:
+    cmd: ["echo lib build"]
+`
+	err = os.WriteFile(filepath.Join(libDir, "bob.yaml"), []byte(libContent), 0o600)
+	require.NoError(t, err)
+
+	g, err := config.Load(filepath.Join(tmpDir, "bob.yaml"))
+	require.NoError(t, err)
+
+	// Validate to populate execution order
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Verify dependency
+	tasks := make(map[string][]string)
+	for task := range g.Walk() {
+		deps := make([]string, len(task.Dependencies))
+		for i, dep := range task.Dependencies {
+			deps[i] = dep.String()
+		}
+		tasks[task.Name.String()] = deps
+	}
+
+	require.Contains(t, tasks, "root:build")
+	assert.Contains(t, tasks["root:build"], "lib:build")
+}
+
+func TestLoad_LocalDependency(t *testing.T) {
+	content := `
+version: "1"
+project: "myproj"
+tasks:
+  build:
+    cmd: ["echo build"]
+    dependsOn: ["lint"]
+  lint:
+    cmd: ["echo lint"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	g, err := config.Load(configPath)
+	require.NoError(t, err)
+
+	// Validate to populate execution order
+	err = g.Validate()
+	require.NoError(t, err)
+
+	tasks := make(map[string][]string)
+	for task := range g.Walk() {
+		deps := make([]string, len(task.Dependencies))
+		for i, dep := range task.Dependencies {
+			deps[i] = dep.String()
+		}
+		tasks[task.Name.String()] = deps
+	}
+
+	require.Contains(t, tasks, "myproj:build")
+	assert.Contains(t, tasks["myproj:build"], "myproj:lint")
+}
+
+func TestLoad_InvalidDependency(t *testing.T) {
+	content := `
+version: "1"
+project: "myproj"
+tasks:
+  build:
+    cmd: ["echo build"]
+    dependsOn: ["missing"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	_, err = config.Load(configPath)
+	require.Error(t, err)
+
+	// Verify error metadata
+	zErr, ok := err.(*zerr.Error)
+	if !ok {
+		t.Fatalf("expected *zerr.Error, got %T: %v", err, err)
+	}
+	meta := zErr.Metadata()
+	if dep, ok := meta["missing_dependency"].(string); !ok || dep != "myproj:missing" {
+		t.Errorf("expected metadata missing_dependency=myproj:missing, got %v", meta["missing_dependency"])
+	}
 }
