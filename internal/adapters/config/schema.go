@@ -3,6 +3,7 @@ package config
 // Bobfile represents the structure of the bob.yaml configuration file.
 type Bobfile struct {
 	Version   string             `yaml:"version"`
+	Project   string             `yaml:"project"`
 	Root      string             `yaml:"root"`
 	Workspace []string           `yaml:"workspace"`
 	Tasks     map[string]TaskDTO `yaml:"tasks"`
