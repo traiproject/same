@@ -25,6 +25,7 @@ func TestRun(t *testing.T) {
 			setupConfig: func(tmpDir string) string {
 				configPath := tmpDir + "/bob.yaml"
 				configContent := `version: "1"
+project: "test"
 tasks:
   test:
     cmd: ["echo", "hello"]
@@ -35,7 +36,7 @@ tasks:
 				}
 				return configPath
 			},
-			args:         []string{"bob", "run", "test"},
+			args:         []string{"bob", "run", "test:test"},
 			expectedExit: 0,
 		},
 		{
@@ -90,6 +91,7 @@ func TestRun_StoreInitError(t *testing.T) {
 	// Create a valid config
 	configPath := tmpDir + "/bob.yaml"
 	configContent := `version: "1"
+project: "test"
 tasks:
   test:
     cmd: ["echo", "hello"]
@@ -117,7 +119,7 @@ tasks:
 	}()
 
 	// Set args
-	os.Args = []string{"bob", "run", "test"}
+	os.Args = []string{"bob", "run", "test:test"}
 
 	// Run and expect error exit code
 	exitCode := run()

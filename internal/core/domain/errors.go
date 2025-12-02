@@ -89,4 +89,7 @@ var (
 
 	// ErrWriteHashFailed is returned when writing the hash to the digest fails.
 	ErrWriteHashFailed = zerr.New("failed to write hash to digest")
+
+	// ErrInvalidConfig is returned when the configuration is invalid.
+	ErrInvalidConfig = zerr.New("invalid configuration")
 )
