@@ -508,6 +508,32 @@ tasks: {}
 	}
 }
 
+func TestLoad_ReservedProjectName(t *testing.T) {
+	content := `
+version: "1"
+project: "all"
+tasks:
+  build:
+    cmd: ["echo build"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	_, err = config.Load(configPath)
+	require.Error(t, err)
+
+	zErr, ok := err.(*zerr.Error)
+	if !ok {
+		t.Fatalf("expected *zerr.Error, got %T: %v", err, err)
+	}
+	meta := zErr.Metadata()
+	if project, ok := meta["project"].(string); !ok || project != "all" {
+		t.Errorf("expected metadata project='all', got %v", meta["project"])
+	}
+}
+
 func TestLoad_CrossProjectDependency(t *testing.T) {
 	tmpDir := t.TempDir()
 
