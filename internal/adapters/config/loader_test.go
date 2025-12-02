@@ -339,3 +339,95 @@ tasks:
 	require.NoError(t, err)
 	assert.Equal(t, expectedRoot, actualRoot)
 }
+
+func TestLoad_Workspace(t *testing.T) {
+	// Create a temporary directory structure:
+	// root/
+	//   bob.yaml (workspace: ["packages/*"])
+	//   packages/
+	//     pkg-a/
+	//       bob.yaml
+	//     pkg-b/
+	//       bob.yaml
+	tmpDir := t.TempDir()
+
+	// Root config
+	rootContent := `
+version: "1"
+workspace: ["packages/*"]
+tasks:
+  root-task:
+    cmd: ["echo root"]
+`
+	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	require.NoError(t, err)
+
+	// Packages directory
+	packagesDir := filepath.Join(tmpDir, "packages")
+	err = os.MkdirAll(packagesDir, 0o750)
+	require.NoError(t, err)
+
+	// Package A
+	pkgADir := filepath.Join(packagesDir, "pkg-a")
+	err = os.MkdirAll(pkgADir, 0o750)
+	require.NoError(t, err)
+	pkgAContent := `
+version: "1"
+tasks:
+  pkg-a-task:
+    cmd: ["echo pkg-a"]
+`
+	err = os.WriteFile(filepath.Join(pkgADir, "bob.yaml"), []byte(pkgAContent), 0o600)
+	require.NoError(t, err)
+
+	// Package B
+	pkgBDir := filepath.Join(packagesDir, "pkg-b")
+	err = os.MkdirAll(pkgBDir, 0o750)
+	require.NoError(t, err)
+	pkgBContent := `
+version: "1"
+tasks:
+  pkg-b-task:
+    cmd: ["echo pkg-b"]
+`
+	err = os.WriteFile(filepath.Join(pkgBDir, "bob.yaml"), []byte(pkgBContent), 0o600)
+	require.NoError(t, err)
+
+	// Load the config
+	g, err := config.Load(filepath.Join(tmpDir, "bob.yaml"))
+	require.NoError(t, err)
+
+	// Validate the graph to populate execution order
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Verify tasks
+	tasks := make(map[string]string)
+	for task := range g.Walk() {
+		tasks[task.Name.String()] = task.WorkingDir.String()
+	}
+
+	// Verify root task
+	require.Contains(t, tasks, "root-task")
+	rootPath, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+	rootTaskPath, err := filepath.EvalSymlinks(tasks["root-task"])
+	require.NoError(t, err)
+	assert.Equal(t, rootPath, rootTaskPath)
+
+	// Verify pkg-a task
+	require.Contains(t, tasks, "pkg-a-task")
+	pkgAPath, err := filepath.EvalSymlinks(pkgADir)
+	require.NoError(t, err)
+	pkgATaskPath, err := filepath.EvalSymlinks(tasks["pkg-a-task"])
+	require.NoError(t, err)
+	assert.Equal(t, pkgAPath, pkgATaskPath)
+
+	// Verify pkg-b task
+	require.Contains(t, tasks, "pkg-b-task")
+	pkgBPath, err := filepath.EvalSymlinks(pkgBDir)
+	require.NoError(t, err)
+	pkgBTaskPath, err := filepath.EvalSymlinks(tasks["pkg-b-task"])
+	require.NoError(t, err)
+	assert.Equal(t, pkgBPath, pkgBTaskPath)
+}
