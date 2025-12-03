@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.trai.ch/bob/internal/adapters/config"
+	"go.trai.ch/bob/internal/core/ports/mocks"
 	"go.trai.ch/zerr"
+	"go.uber.org/mock/gomock"
 )
 
 func TestLoad_Success(t *testing.T) {
@@ -32,7 +34,9 @@ tasks:
 	}
 
 	// Load the config
-	g, err := config.Load(configPath)
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	g, err := loader.Load(tmpDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -76,7 +80,9 @@ tasks:
 	}
 
 	// Load the config
-	_, err := config.Load(configPath)
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	_, err := loader.Load(tmpDir)
 	if err == nil {
 		t.Fatal("expected error for missing dependency, got nil")
 	}
@@ -107,7 +113,9 @@ tasks:
 	}
 
 	// Load the config
-	_, err := config.Load(configPath)
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	_, err := loader.Load(tmpDir)
 	if err == nil {
 		t.Fatal("expected error for reserved task name 'all', got nil")
 	}
@@ -131,9 +139,11 @@ tasks:
 
 func TestLoad_Errors(t *testing.T) {
 	t.Run("File Not Found", func(t *testing.T) {
-		_, err := config.Load("non-existent-file.yaml")
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		_, err := loader.Load("/non-existent-directory")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to read config file")
+		assert.Contains(t, err.Error(), "could not find bobfile or workfile")
 	})
 
 	t.Run("Invalid YAML", func(t *testing.T) {
@@ -145,11 +155,13 @@ tasks:
     input: ["src/**/*"  # Unclosed list/quote
 `
 		tmpDir := t.TempDir()
-		configPath := filepath.Join(tmpDir, "invalid.yaml")
+		configPath := filepath.Join(tmpDir, "bob.yaml")
 		err := os.WriteFile(configPath, []byte(content), 0o600)
 		require.NoError(t, err)
 
-		_, err = config.Load(configPath)
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		_, err = loader.Load(tmpDir)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to parse config file")
 	})
@@ -177,7 +189,9 @@ tasks:
 	require.NoError(t, err)
 
 	// Load the config
-	g, err := config.Load(configPath)
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	g, err := loader.Load(tmpDir)
 	require.NoError(t, err)
 
 	// Verify graph is valid
@@ -217,7 +231,9 @@ tasks: {}
 		err := os.WriteFile(configPath, []byte(content), 0o600)
 		require.NoError(t, err)
 
-		g, err := config.Load(configPath)
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		g, err := loader.Load(tmpDir)
 		require.NoError(t, err)
 
 		expectedRoot := filepath.Join(tmpDir, "src")
@@ -234,7 +250,9 @@ tasks: {}
 		err := os.WriteFile(configPath, []byte(content), 0o600)
 		require.NoError(t, err)
 
-		g, err := config.Load(configPath)
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		g, err := loader.Load(tmpDir)
 		require.NoError(t, err)
 
 		// On some platforms (e.g., macOS), t.TempDir() may return a symlinked path.
@@ -259,7 +277,9 @@ tasks: {}
 		err := os.WriteFile(configPath, []byte(content), 0o600)
 		require.NoError(t, err)
 
-		g, err := config.Load(configPath)
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		g, err := loader.Load(tmpDir)
 		require.NoError(t, err)
 
 		assert.Equal(t, absoluteRoot, g.Root())
@@ -282,7 +302,8 @@ tasks:
 	err := os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err)
 
-	loader := &config.FileConfigLoader{Filename: "bob.yaml"}
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
 	g, err := loader.Load(tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, g)
@@ -314,7 +335,9 @@ tasks:
 	err := os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err)
 
-	g, err := config.Load(configPath)
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	g, err := loader.Load(tmpDir)
 	require.NoError(t, err)
 
 	// Verify graph is valid

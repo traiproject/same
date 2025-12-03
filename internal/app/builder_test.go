@@ -14,7 +14,7 @@ func TestNewApp_Success(t *testing.T) {
 	stateDir := filepath.Join(tmpDir, "state")
 
 	// Call NewApp
-	components, err := app.NewApp("bob.yaml", stateDir)
+	components, err := app.NewApp(stateDir)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -43,30 +43,10 @@ func TestNewApp_InvalidStateDir(t *testing.T) {
 
 	// Try to create a state directory where a file exists
 	// This should fail when NewStore tries to create subdirectories
-	_, err := app.NewApp("bob.yaml", invalidPath)
+	_, err := app.NewApp(invalidPath)
 
 	// We expect an error
 	if err == nil {
 		t.Error("Expected error when state directory cannot be created, got nil")
 	}
-}
-
-func TestAppComponents_SetConfigPath(t *testing.T) {
-	// Create a temporary directory for the state store
-	tmpDir := t.TempDir()
-	stateDir := filepath.Join(tmpDir, "state")
-
-	// Initialize app components
-	components, err := app.NewApp("bob.yaml", stateDir)
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	// Set a new config path
-	newPath := "custom_bob.yaml"
-	components.SetConfigPath(newPath)
-
-	// We can't directly verify the internal state changed,
-	// but we can verify the method doesn't panic and returns cleanly
-	// The actual functionality is tested through integration tests
 }

@@ -17,24 +17,18 @@ import (
 type Components struct {
 	App          *App
 	Logger       ports.Logger
-	configLoader *config.FileConfigLoader
-}
-
-// SetConfigPath updates the configuration file path dynamically.
-// This is used by the CLI layer to respond to command-line flags.
-func (c *Components) SetConfigPath(path string) {
-	c.configLoader.Filename = path
+	configLoader *config.Loader
 }
 
 // NewApp creates and configures a new App instance with all required dependencies.
 // It instantiates all necessary adapters and wires them together.
 // Returns the configured Components and any initialization error.
-func NewApp(configPath, stateDir string) (*Components, error) {
+func NewApp(stateDir string) (*Components, error) {
 	// 1. Infrastructure - Logger (needed early for error reporting)
 	log := logger.New()
 
 	// 2. Infrastructure - Config Loader
-	configLoader := &config.FileConfigLoader{Filename: configPath}
+	configLoader := &config.Loader{Logger: log}
 
 	// 3. Infrastructure - Execution and File System
 	executor := shell.NewExecutor(log)

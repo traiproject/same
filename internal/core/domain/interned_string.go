@@ -16,6 +16,16 @@ func NewInternedString(s string) InternedString {
 	}
 }
 
+// NewInternedStrings creates a new InternedString slice from a string slice.
+// It uses the unique package to intern the strings.
+func NewInternedStrings(s []string) []InternedString {
+	res := make([]InternedString, len(s))
+	for i, s := range s {
+		res[i] = NewInternedString(s)
+	}
+	return res
+}
+
 // String returns the underlying string value.
 func (is InternedString) String() string {
 	return is.h.Value()
