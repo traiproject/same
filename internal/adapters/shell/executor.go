@@ -38,6 +38,7 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task) error {
 	// Merge environment: start with os.Environ() (preserves Nix shell context),
 	// then override with task-specific environment variables
 	cmd.Env = mergeEnvironment(os.Environ(), task.Environment)
+	cmd.Dir = task.WorkingDir.String()
 
 	// Wire Stdout/Stderr to logger
 	cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
