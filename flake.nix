@@ -32,7 +32,7 @@
           env.CGO_ENABLED = 0;
 
           src = ./.;
-          vendorHash = "sha256-O7P6VnixJxs6WQyt8O4aLvKnxa7rN4pqANnbLRDJ5fA=";
+          vendorHash = "sha256-aeQyyt/BfthGDqApVDfwUBW6/bSQyjNOa3/uHspQnak=";
 
           ldflags = [
             "-X go.trai.ch/bob/internal/build.Version=${version}"
