@@ -1,4 +1,5 @@
 version: "1"
+project: "bob"
 tasks:
   # Install dependencies
   install:
