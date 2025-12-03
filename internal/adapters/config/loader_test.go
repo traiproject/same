@@ -353,7 +353,8 @@ tasks:
 func TestLoad_Workspace(t *testing.T) {
 	// Create a temporary directory structure:
 	// root/
-	//   bob.yaml (workspace: ["packages/*"])
+	//   bob.work.yaml (workspace: ["packages/*"])
+	//   bob.yaml (project: root) -- NOT included in workspace unless specified
 	//   packages/
 	//     pkg-a/
 	//       bob.yaml
@@ -361,16 +362,23 @@ func TestLoad_Workspace(t *testing.T) {
 	//       bob.yaml
 	tmpDir := t.TempDir()
 
+	// Root workspace config
+	rootWorkContent := `
+version: "1"
+workspace: ["packages/*", "."]
+`
+	err := os.WriteFile(filepath.Join(tmpDir, "bob.work.yaml"), []byte(rootWorkContent), 0o600)
+	require.NoError(t, err)
+
 	// Root config
 	rootContent := `
 version: "1"
 project: "root"
-workspace: ["packages/*"]
 tasks:
   root-task:
     cmd: ["echo root"]
 `
-	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	err = os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
 	require.NoError(t, err)
 
 	// Packages directory
@@ -406,8 +414,8 @@ tasks:
 	err = os.WriteFile(filepath.Join(pkgBDir, "bob.yaml"), []byte(pkgBContent), 0o600)
 	require.NoError(t, err)
 
-	// Load the config
-	g, err := config.Load(filepath.Join(tmpDir, "bob.yaml"))
+	// Load the config (point to workspace file)
+	g, err := config.Load(filepath.Join(tmpDir, "bob.work.yaml"))
 	require.NoError(t, err)
 
 	// Validate the graph to populate execution order
@@ -474,13 +482,19 @@ func TestLoad_DuplicateProjectName(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Root config
+	rootWorkContent := `
+version: "1"
+workspace: ["pkg", "."]
+`
+	err := os.WriteFile(filepath.Join(tmpDir, "bob.work.yaml"), []byte(rootWorkContent), 0o600)
+	require.NoError(t, err)
+
 	rootContent := `
 version: "1"
 project: "common"
-workspace: ["pkg"]
 tasks: {}
 `
-	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	err = os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
 	require.NoError(t, err)
 
 	// Package config with same project name
@@ -495,7 +509,7 @@ tasks: {}
 	err = os.WriteFile(filepath.Join(pkgDir, "bob.yaml"), []byte(pkgContent), 0o600)
 	require.NoError(t, err)
 
-	_, err = config.Load(filepath.Join(tmpDir, "bob.yaml"))
+	_, err = config.Load(filepath.Join(tmpDir, "bob.work.yaml"))
 	require.Error(t, err)
 
 	zErr, ok := err.(*zerr.Error)
@@ -538,16 +552,22 @@ func TestLoad_CrossProjectDependency(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Root config
+	rootWorkContent := `
+version: "1"
+workspace: ["lib", "."]
+`
+	err := os.WriteFile(filepath.Join(tmpDir, "bob.work.yaml"), []byte(rootWorkContent), 0o600)
+	require.NoError(t, err)
+
 	rootContent := `
 version: "1"
 project: "root"
-workspace: ["lib"]
 tasks:
   build:
     cmd: ["echo root build"]
     dependsOn: ["lib:build"]
 `
-	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	err = os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
 	require.NoError(t, err)
 
 	// Lib config
@@ -564,7 +584,7 @@ tasks:
 	err = os.WriteFile(filepath.Join(libDir, "bob.yaml"), []byte(libContent), 0o600)
 	require.NoError(t, err)
 
-	g, err := config.Load(filepath.Join(tmpDir, "bob.yaml"))
+	g, err := config.Load(filepath.Join(tmpDir, "bob.work.yaml"))
 	require.NoError(t, err)
 
 	// Validate to populate execution order

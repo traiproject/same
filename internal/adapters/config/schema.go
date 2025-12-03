@@ -1,12 +1,18 @@
 package config
 
+// BobWorkspace represents the structure of the bob.work.yaml configuration file.
+type BobWorkspace struct {
+	Version   string   `yaml:"version"`
+	Root      string   `yaml:"root"`
+	Workspace []string `yaml:"workspace"`
+}
+
 // Bobfile represents the structure of the bob.yaml configuration file.
 type Bobfile struct {
-	Version   string             `yaml:"version"`
-	Project   string             `yaml:"project"`
-	Root      string             `yaml:"root"`
-	Workspace []string           `yaml:"workspace"`
-	Tasks     map[string]TaskDTO `yaml:"tasks"`
+	Version string             `yaml:"version"`
+	Project string             `yaml:"project"`
+	Root    string             `yaml:"root"`
+	Tasks   map[string]TaskDTO `yaml:"tasks"`
 }
 
 // TaskDTO represents a task definition in the configuration.

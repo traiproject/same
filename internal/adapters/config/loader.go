@@ -19,7 +19,6 @@ type FileConfigLoader struct {
 }
 
 // Load reads the configuration from the given working directory.
-// Load reads the configuration from the given working directory.
 func (l *FileConfigLoader) Load(cwd string) (*domain.Graph, error) {
 	// Find the workspace root or fallback to the nearest config
 	rootPath, err := findWorkspaceRoot(cwd)
@@ -47,9 +46,27 @@ func Load(path string) (*domain.Graph, error) {
 		return nil, zerr.Wrap(err, "failed to resolve absolute path")
 	}
 
-	configs, err := loadRecursively(absPath, make(map[string]bool))
-	if err != nil {
-		return nil, err
+	var configs []loadedConfig
+	var rootDir string
+	var configuredRoot string
+
+	filename := filepath.Base(absPath)
+	if filename == "bob.work.yaml" {
+		var err error
+		configs, configuredRoot, err = loadWorkspace(absPath)
+		if err != nil {
+			return nil, err
+		}
+		rootDir = filepath.Dir(absPath)
+	} else {
+		// Assume standalone project
+		lc, err := loadProject(absPath)
+		if err != nil {
+			return nil, err
+		}
+		configs = []loadedConfig{lc}
+		rootDir = lc.ProjectPath
+		configuredRoot = lc.Config.Root
 	}
 
 	if err := validateProjectNames(configs); err != nil {
@@ -59,7 +76,7 @@ func Load(path string) (*domain.Graph, error) {
 	mergedTasks := mergeTasks(configs)
 
 	g := domain.NewGraph()
-	g.SetRoot(resolveRoot(configs[0].ProjectPath, configs[0].Config.Root))
+	g.SetRoot(resolveRoot(rootDir, configuredRoot))
 
 	if err := createTasksFromMerged(g, mergedTasks); err != nil {
 		return nil, err
@@ -68,29 +85,29 @@ func Load(path string) (*domain.Graph, error) {
 	return g, nil
 }
 
-// findWorkspaceRoot looks for a bob.yaml file starting from startDir and traversing upwards.
-// It returns the path to the config file that should be used as the root.
+// findWorkspaceRoot looks for a workspace root or standalone project.
 func findWorkspaceRoot(startDir string) (string, error) {
 	absStartDir, err := filepath.Abs(startDir)
 	if err != nil {
 		return "", zerr.Wrap(err, "failed to resolve absolute path")
 	}
 
-	var nearestConfig string
+	var candidateProject string
 	currDir := absStartDir
 
 	for {
-		configPath := filepath.Join(currDir, "bob.yaml")
-		if _, err := os.Stat(configPath); err == nil {
-			// Found a config file
-			if nearestConfig == "" {
-				nearestConfig = configPath
-			}
+		// 1. Check for workspace file
+		workspacePath := filepath.Join(currDir, "bob.work.yaml")
+		if _, err := os.Stat(workspacePath); err == nil {
+			return workspacePath, nil
+		}
 
-			// Check if it's a workspace root
-			// If we can't read/parse it, we treat it as not a workspace and continue searching.
-			if isWorkspace, err := isWorkspaceConfig(configPath); err == nil && isWorkspace {
-				return configPath, nil
+		// 2. Check for project file
+		projectPath := filepath.Join(currDir, "bob.yaml")
+		if _, err := os.Stat(projectPath); err == nil {
+			// Found a project file, store as candidate if we haven't found one yet
+			if candidateProject == "" {
+				candidateProject = projectPath
 			}
 		}
 
@@ -102,27 +119,94 @@ func findWorkspaceRoot(startDir string) (string, error) {
 		currDir = parentDir
 	}
 
-	if nearestConfig != "" {
-		return nearestConfig, nil
+	// If we found a standalone project candidate, return it
+	if candidateProject != "" {
+		return candidateProject, nil
 	}
 
-	// Fallback to startDir/bob.yaml
-	return filepath.Join(absStartDir, "bob.yaml"), nil
+	return "", zerr.With(domain.ErrConfigReadFailed, "error", "no bob.yaml or bob.work.yaml found")
 }
 
-func isWorkspaceConfig(path string) (bool, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path is trusted or checked
+func loadWorkspace(path string) ([]loadedConfig, string, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // path is provided by user
 	if err != nil {
-		return false, err
+		return nil, "", zerr.Wrap(err, domain.ErrConfigReadFailed.Error())
+	}
+
+	var workspace BobWorkspace
+	if err := yaml.Unmarshal(data, &workspace); err != nil {
+		return nil, "", zerr.Wrap(err, domain.ErrConfigParseFailed.Error())
+	}
+
+	workspaceDir := filepath.Dir(path)
+	var configs []loadedConfig
+
+	for _, pattern := range workspace.Workspace {
+		// Construct absolute glob pattern relative to the workspace directory
+		absPattern := pattern
+		if !filepath.IsAbs(pattern) {
+			absPattern = filepath.Join(workspaceDir, pattern)
+		}
+
+		matches, err := filepath.Glob(absPattern)
+		if err != nil {
+			return nil, "", zerr.With(zerr.Wrap(err, "failed to glob workspace pattern"), "pattern", pattern)
+		}
+
+		for _, match := range matches {
+			info, err := os.Stat(match)
+			if err != nil {
+				continue
+			}
+
+			var projectPath string
+			switch {
+			case info.IsDir():
+				projectPath = filepath.Join(match, "bob.yaml")
+			case filepath.Base(match) == "bob.yaml":
+				projectPath = match
+			default:
+				continue
+			}
+
+			// Check if file exists
+			if _, err := os.Stat(projectPath); err != nil {
+				continue
+			}
+
+			lc, err := loadProject(projectPath)
+			if err != nil {
+				return nil, "", err
+			}
+			configs = append(configs, lc)
+		}
+	}
+
+	return configs, workspace.Root, nil
+}
+
+func loadProject(path string) (loadedConfig, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // path is provided by user
+	if err != nil {
+		return loadedConfig{}, zerr.Wrap(err, domain.ErrConfigReadFailed.Error())
 	}
 
 	var bobfile Bobfile
-	// Shallow parse to check for workspace field
 	if err := yaml.Unmarshal(data, &bobfile); err != nil {
-		return false, err
+		return loadedConfig{}, zerr.Wrap(err, domain.ErrConfigParseFailed.Error())
 	}
 
-	return len(bobfile.Workspace) > 0, nil
+	// Validation: Ensure no workspace field is present?
+	// The struct doesn't have it, so yaml.Unmarshal will ignore it.
+	// We could parse into map[string]interface{} to strictly forbid it,
+	// but the instructions say "triggers a parsing error or is strictly ignored".
+	// Since I removed the field from the struct, it is strictly ignored.
+	// For stricter validation, we can check raw yaml, but "strictly ignored" is acceptable.
+
+	return loadedConfig{
+		ProjectPath: filepath.Dir(path),
+		Config:      bobfile,
+	}, nil
 }
 
 func validateProjectNames(configs []loadedConfig) error {
@@ -237,80 +321,6 @@ func buildDomainTask(fullName string, info *mergedTask, rewrittenDeps []string) 
 	}
 
 	return task
-}
-
-func loadRecursively(configPath string, visited map[string]bool) ([]loadedConfig, error) {
-	if visited[configPath] {
-		return nil, nil // Cycle detected or already visited
-	}
-	visited[configPath] = true
-
-	data, err := os.ReadFile(configPath) //nolint:gosec // path is provided by user
-	if err != nil {
-		return nil, zerr.Wrap(err, domain.ErrConfigReadFailed.Error())
-	}
-
-	var bobfile Bobfile
-	if err := yaml.Unmarshal(data, &bobfile); err != nil {
-		return nil, zerr.Wrap(err, domain.ErrConfigParseFailed.Error())
-	}
-
-	projectPath := filepath.Dir(configPath)
-	configs := []loadedConfig{{
-		ProjectPath: projectPath,
-		Config:      bobfile,
-	}}
-
-	for _, pattern := range bobfile.Workspace {
-		subConfigs, err := loadWorkspacePattern(projectPath, pattern, visited)
-		if err != nil {
-			return nil, err
-		}
-		configs = append(configs, subConfigs...)
-	}
-
-	return configs, nil
-}
-
-func loadWorkspacePattern(projectPath, pattern string, visited map[string]bool) ([]loadedConfig, error) {
-	// Construct absolute glob pattern relative to the current config's directory
-	absPattern := pattern
-	if !filepath.IsAbs(pattern) {
-		absPattern = filepath.Join(projectPath, pattern)
-	}
-
-	matches, err := filepath.Glob(absPattern)
-	if err != nil {
-		return nil, zerr.With(zerr.Wrap(err, "failed to glob workspace pattern"), "pattern", pattern)
-	}
-
-	var configs []loadedConfig
-	for _, match := range matches {
-		info, err := os.Stat(match)
-		if err != nil {
-			continue
-		}
-
-		var nextConfigPath string
-		switch {
-		case info.IsDir():
-			nextConfigPath = filepath.Join(match, "bob.yaml")
-			if _, statErr := os.Stat(nextConfigPath); statErr != nil {
-				continue // No bob.yaml in this directory
-			}
-		case filepath.Base(match) == "bob.yaml":
-			nextConfigPath = match
-		default:
-			continue // Not a directory or bob.yaml file
-		}
-
-		subConfigs, err := loadRecursively(nextConfigPath, visited)
-		if err != nil {
-			return nil, err
-		}
-		configs = append(configs, subConfigs...)
-	}
-	return configs, nil
 }
 
 func internStrings(strs []string) []domain.InternedString {
