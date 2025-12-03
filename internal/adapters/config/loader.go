@@ -78,7 +78,10 @@ func validateProjectNames(configs []loadedConfig) error {
 			return zerr.With(err, "file", lc.ProjectPath)
 		}
 		if !validName.MatchString(lc.Config.Project) {
-			err := zerr.With(domain.ErrInvalidConfig, "error", "project name must can only contain alphanumeric characters, underscores or hyphens")
+			err := zerr.With(
+				domain.ErrInvalidConfig,
+				"error", "project name must only contain alphanumeric characters, underscores or hyphens",
+			)
 			return zerr.With(err, "project", lc.Config.Project)
 		}
 		if projectNames[lc.Config.Project] {
