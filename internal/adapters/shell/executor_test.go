@@ -28,7 +28,7 @@ func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 	task := &domain.Task{
 		Name:       domain.NewInternedString("test-task"),
 		Command:    []string{"sh", "-c", "echo line1; echo line2"},
-		WorkingDir: domain.NewInternedString("Root"),
+		WorkingDir: domain.NewInternedString(t.TempDir()),
 	}
 
 	err := executor.Execute(context.Background(), task)
@@ -52,7 +52,7 @@ func TestExecutor_Execute_EnvironmentVariables(t *testing.T) {
 		Environment: map[string]string{
 			"MY_TEST_VAR": "test-value-123",
 		},
-		WorkingDir: domain.NewInternedString("Root"),
+		WorkingDir: domain.NewInternedString(t.TempDir()),
 	}
 
 	err := executor.Execute(context.Background(), task)
