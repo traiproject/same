@@ -648,3 +648,26 @@ tasks:
 		t.Errorf("expected metadata missing_dependency=myproj:missing, got %v", meta["missing_dependency"])
 	}
 }
+
+func TestLoad_InvalidProjectName(t *testing.T) {
+	t.Run("Invalid Characters", func(t *testing.T) {
+		content := `
+version: "1"
+project: "my project"
+tasks: {}
+`
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "bob.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		_, err = config.Load(configPath)
+		require.Error(t, err)
+
+		zErr, ok := err.(*zerr.Error)
+		require.True(t, ok)
+		meta := zErr.Metadata()
+		assert.Equal(t, "project name must can only contain alphanumeric characters, underscores or hyphens", meta["error"])
+		assert.Equal(t, "my project", meta["project"])
+	})
+}

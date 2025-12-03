@@ -4,6 +4,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -65,6 +66,8 @@ func Load(path string) (*domain.Graph, error) {
 
 func validateProjectNames(configs []loadedConfig) error {
 	projectNames := make(map[string]bool)
+	validName := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
 	for _, lc := range configs {
 		if lc.Config.Project == "" {
 			err := zerr.With(domain.ErrInvalidConfig, "error", "missing project name")
@@ -73,6 +76,10 @@ func validateProjectNames(configs []loadedConfig) error {
 		if lc.Config.Project == "all" {
 			err := zerr.With(domain.ErrReservedTaskName, "project", lc.Config.Project)
 			return zerr.With(err, "file", lc.ProjectPath)
+		}
+		if !validName.MatchString(lc.Config.Project) {
+			err := zerr.With(domain.ErrInvalidConfig, "error", "project name must can only contain alphanumeric characters, underscores or hyphens")
+			return zerr.With(err, "project", lc.Config.Project)
 		}
 		if projectNames[lc.Config.Project] {
 			err := zerr.With(domain.ErrInvalidConfig, "error", "duplicate project name")
