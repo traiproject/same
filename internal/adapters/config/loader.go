@@ -21,8 +21,12 @@ type FileConfigLoader struct {
 // Load reads the configuration from the given working directory.
 // Load reads the configuration from the given working directory.
 func (l *FileConfigLoader) Load(cwd string) (*domain.Graph, error) {
-	path := filepath.Join(cwd, l.Filename)
-	return Load(path)
+	// Find the workspace root or fallback to the nearest config
+	rootPath, err := findWorkspaceRoot(cwd)
+	if err != nil {
+		return nil, err
+	}
+	return Load(rootPath)
 }
 
 type loadedConfig struct {
@@ -62,6 +66,63 @@ func Load(path string) (*domain.Graph, error) {
 	}
 
 	return g, nil
+}
+
+// findWorkspaceRoot looks for a bob.yaml file starting from startDir and traversing upwards.
+// It returns the path to the config file that should be used as the root.
+func findWorkspaceRoot(startDir string) (string, error) {
+	absStartDir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", zerr.Wrap(err, "failed to resolve absolute path")
+	}
+
+	var nearestConfig string
+	currDir := absStartDir
+
+	for {
+		configPath := filepath.Join(currDir, "bob.yaml")
+		if _, err := os.Stat(configPath); err == nil {
+			// Found a config file
+			if nearestConfig == "" {
+				nearestConfig = configPath
+			}
+
+			// Check if it's a workspace root
+			// If we can't read/parse it, we treat it as not a workspace and continue searching.
+			if isWorkspace, err := isWorkspaceConfig(configPath); err == nil && isWorkspace {
+				return configPath, nil
+			}
+		}
+
+		parentDir := filepath.Dir(currDir)
+		if parentDir == currDir {
+			// Reached root
+			break
+		}
+		currDir = parentDir
+	}
+
+	if nearestConfig != "" {
+		return nearestConfig, nil
+	}
+
+	// Fallback to startDir/bob.yaml
+	return filepath.Join(absStartDir, "bob.yaml"), nil
+}
+
+func isWorkspaceConfig(path string) (bool, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // path is trusted or checked
+	if err != nil {
+		return false, err
+	}
+
+	var bobfile Bobfile
+	// Shallow parse to check for workspace field
+	if err := yaml.Unmarshal(data, &bobfile); err != nil {
+		return false, err
+	}
+
+	return len(bobfile.Workspace) > 0, nil
 }
 
 func validateProjectNames(configs []loadedConfig) error {
