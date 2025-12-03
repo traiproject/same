@@ -1,17 +1,27 @@
-# Mocks
-**/mocks/*_mock.go
-**/mocks/mock_*.go
+############################
+# Bob
+############################
 
+.bob/
+
+############################
+# Go build artifacts
+############################
+
+# Binaries
+bin/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-bin
 
-
-# Test binary, built with `go test -c`
+# Test binaries (e.g. `go test -c`)
 *.test
+
+############################
+# Go test / coverage / profiling
+############################
 
 # Code coverage profiles and other test artifacts
 *.out
@@ -19,23 +29,72 @@ coverage.*
 *.coverprofile
 profile.cov
 
-# Dependency directories
+# Common profiling outputs
+*.prof
+
+############################
+# Generated Go code
+############################
+
+# Generated mocks
+**/mocks/*_mock.go
+**/mocks/mock_*.go
+
+############################
+# Go dependency / workspace files
+############################
+
+# Vendor directory (use Go modules instead)
 vendor/
 
-# Go workspace file
+# Local Go workspaces (usually per-developer)
 go.work
 go.work.sum
 
-# env file
+############################
+# Nix & direnv
+############################
+
+# direnv state
+.direnv/
+
+# Nix build results (from `nix build`, `nix develop`, etc.)
+result
+result-*
+
+# Optional local overrides for flakes / env
+.envrc.local
+
+############################
+# Environment / secrets
+############################
+
+# Generic env files
 .env
-.direnv
+.env.*
 
-# Nix
-result*
+############################
+# Editor / IDE / tooling
+############################
 
-# Bob
-.bob
-
-# Editor/IDE
+# IntelliJ / GoLand
 .idea/
+
+# VS Code
 .vscode/
+
+# Generic editor swap/backup files
+*~
+*.swp
+*.swo
+
+############################
+# OS-specific cruft
+############################
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+

@@ -69,21 +69,20 @@ linters:
         - "2"
     depguard:
       rules:
-        # 1) Pure domain layer: internal/core/*
         core:
           list-mode: strict
           files:
-            - "internal/core/**/*.go"
+            - "**/internal/core/**/*.go"
           allow:
             - $gostd
-            - "go.trai.ch/bob/internal/core"   # domain + ports
-          # no external libs, no engine/app/adapters allowed
+            - "go.trai.ch/bob/internal/core"
+            - "go.trai.ch/zerr"
+            - "github.com/stretchr/testify"
 
-        # 2) Engine: core logic, but no infra or app
         engine:
           list-mode: lax
           files:
-            - "internal/engine/**/*.go"
+            - "**/internal/engine/**/*.go"
           deny:
             - pkg: "go.trai.ch/bob/internal/adapters"
               desc: "engine must not depend on adapters (infra layer)"
@@ -92,27 +91,33 @@ linters:
             - pkg: "go.trai.ch/bob/cmd"
               desc: "engine must not depend on cmd"
 
-        # 3) Adapters: infra implementing ports, know about core, but not engine/app
         adapters:
           list-mode: lax
           files:
-            - "internal/adapters/**/*.go"
+            - "**/internal/adapters/**/*.go"
           deny:
             - pkg: "go.trai.ch/bob/internal/engine"
               desc: "adapters must not depend on engine"
             - pkg: "go.trai.ch/bob/internal/app"
               desc: "adapters must not depend on app"
 
-        # 4) App layer: orchestrates use-cases, talks to core + engine (optionally only via ports)
         app:
           list-mode: lax
           files:
-            - "internal/app/**/*.go"
+            - "**/internal/app/**/*.go"
           deny:
             - pkg: "go.trai.ch/bob/internal/adapters"
               desc: "app should depend on ports, not concrete adapters"
             - pkg: "go.trai.ch/bob/cmd"
               desc: "app must not depend on cmd"
+
+        cmd:
+          list-mode: lax
+          files:
+            - "**/cmd/**/*.go"
+          deny:
+            - pkg: "go.trai.ch/bob/internal/adapters"
+              desc: "CLI should go through app layer, not adapters directly"
 
 formatters:
   enable:

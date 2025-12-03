@@ -8,14 +8,7 @@ import (
 	"syscall"
 
 	"go.trai.ch/bob/cmd/bob/commands"
-	"go.trai.ch/bob/internal/adapters/cas"
-	"go.trai.ch/bob/internal/adapters/config"
-	"go.trai.ch/bob/internal/adapters/fs"
-	"go.trai.ch/bob/internal/adapters/logger"
-	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/app"
-	"go.trai.ch/bob/internal/engine/scheduler"
-	"go.trai.ch/zerr"
 )
 
 func main() {
@@ -27,36 +20,26 @@ func run() int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// 1. Infrastructure
-	log := logger.New()
-	configLoader := &config.FileConfigLoader{Filename: "bob.yaml"} // default value
-	executor := shell.NewExecutor(log)
-	walker := fs.NewWalker()
-	resolver := fs.NewResolver()
-	hasher := fs.NewHasher(walker)
-	store, err := cas.NewStore(".bob/state")
+	// 1. Initialize application components
+	components, err := app.NewApp("bob.yaml", ".bob/state")
 	if err != nil {
-		log.Error(zerr.Wrap(err, "failed to initialize build info store"))
+		// Logger is not available yet if initialization failed
+		// Write directly to stderr
+		_, _ = os.Stderr.WriteString("Error: " + err.Error() + "\n")
 		return 1
 	}
 
-	// 2. Engine
-	sched := scheduler.NewScheduler(executor, store, hasher, resolver, log)
+	// 2. Interface - CLI
+	cli := commands.New(components.App)
 
-	// 3. Application
-	application := app.New(configLoader, sched)
-
-	// 4. Interface
-	cli := commands.New(application)
-
-	// 5. Set up config hook to update the config loader before command execution
+	// 3. Set up config hook to update the config loader before command execution
 	cli.SetConfigHook(func(configPath string) {
-		configLoader.Filename = configPath
+		components.SetConfigPath(configPath)
 	})
 
-	// 6. Execution
+	// 4. Execution
 	if err := cli.Execute(ctx); err != nil {
-		log.Error(err)
+		components.Logger.Error(err)
 		return 1
 	}
 	return 0
