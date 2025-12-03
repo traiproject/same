@@ -29,7 +29,7 @@ func run() int {
 
 	// 1. Infrastructure
 	log := logger.New()
-	configLoader := &config.FileConfigLoader{Filename: "bob.yaml"} // default value
+	configLoader := config.NewFileConfigLoader("bob.yaml", log) // default value
 	executor := shell.NewExecutor(log)
 	walker := fs.NewWalker()
 	resolver := fs.NewResolver()

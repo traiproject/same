@@ -353,7 +353,8 @@ tasks:
 func TestLoad_Workspace(t *testing.T) {
 	// Create a temporary directory structure:
 	// root/
-	//   bob.yaml (workspace: ["packages/*"])
+	//   bob.yaml (no workspace field)
+	//   bob.work.yaml (workspace: ["packages/*"])
 	//   packages/
 	//     pkg-a/
 	//       bob.yaml
@@ -361,16 +362,23 @@ func TestLoad_Workspace(t *testing.T) {
 	//       bob.yaml
 	tmpDir := t.TempDir()
 
-	// Root config
+	// Root config (without workspace field)
 	rootContent := `
 version: "1"
 project: "root"
-workspace: ["packages/*"]
 tasks:
   root-task:
     cmd: ["echo root"]
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	require.NoError(t, err)
+
+	// Workspace config
+	workspaceContent := `
+version: "1"
+workspace: ["packages/*"]
+`
+	err = os.WriteFile(filepath.Join(tmpDir, "bob.work.yaml"), []byte(workspaceContent), 0o600)
 	require.NoError(t, err)
 
 	// Packages directory
@@ -473,14 +481,21 @@ tasks:
 func TestLoad_DuplicateProjectName(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Root config
+	// Root config (without workspace field)
 	rootContent := `
 version: "1"
 project: "common"
-workspace: ["pkg"]
 tasks: {}
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	require.NoError(t, err)
+
+	// Workspace config
+	workspaceContent := `
+version: "1"
+workspace: ["pkg"]
+`
+	err = os.WriteFile(filepath.Join(tmpDir, "bob.work.yaml"), []byte(workspaceContent), 0o600)
 	require.NoError(t, err)
 
 	// Package config with same project name
@@ -537,17 +552,24 @@ tasks:
 func TestLoad_CrossProjectDependency(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Root config
+	// Root config (without workspace field)
 	rootContent := `
 version: "1"
 project: "root"
-workspace: ["lib"]
 tasks:
   build:
     cmd: ["echo root build"]
     dependsOn: ["lib:build"]
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	require.NoError(t, err)
+
+	// Workspace config
+	workspaceContent := `
+version: "1"
+workspace: ["lib"]
+`
+	err = os.WriteFile(filepath.Join(tmpDir, "bob.work.yaml"), []byte(workspaceContent), 0o600)
 	require.NoError(t, err)
 
 	// Lib config

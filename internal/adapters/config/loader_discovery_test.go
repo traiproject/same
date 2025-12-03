@@ -13,7 +13,8 @@ import (
 func TestLoad_WorkspaceDiscovery(t *testing.T) {
 	// Structure:
 	// root/
-	//   bob.yaml (workspace: ["packages/*"])
+	//   bob.yaml (no workspace field)
+	//   bob.work.yaml (workspace: ["packages/*"])
 	//   packages/
 	//     pkg-a/
 	//       bob.yaml
@@ -22,16 +23,23 @@ func TestLoad_WorkspaceDiscovery(t *testing.T) {
 	//       bob.yaml
 	tmpDir := t.TempDir()
 
-	// Root config
+	// Root config (without workspace field)
 	rootContent := `
 version: "1"
 project: "root"
-workspace: ["packages/*"]
 tasks:
   root-task:
     cmd: ["echo root"]
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "bob.yaml"), []byte(rootContent), 0o600)
+	require.NoError(t, err)
+
+	// Workspace config
+	workspaceContent := `
+version: "1"
+workspace: ["packages/*"]
+`
+	err = os.WriteFile(filepath.Join(tmpDir, "bob.work.yaml"), []byte(workspaceContent), 0o600)
 	require.NoError(t, err)
 
 	// Packages directory
@@ -59,7 +67,7 @@ tasks:
 	require.NoError(t, err)
 
 	// Test 1: Load from deep inside pkg-a, should find root workspace
-	loader := &config.FileConfigLoader{Filename: "bob.yaml"}
+	loader := config.NewFileConfigLoader("bob.yaml", nil)
 	g, err := loader.Load(srcDir)
 	require.NoError(t, err)
 
@@ -96,7 +104,7 @@ tasks:
 	err = os.MkdirAll(srcDir, 0o750)
 	require.NoError(t, err)
 
-	loader := &config.FileConfigLoader{Filename: "bob.yaml"}
+	loader := config.NewFileConfigLoader("bob.yaml", nil)
 	g, err := loader.Load(srcDir)
 	require.NoError(t, err)
 
@@ -146,7 +154,7 @@ tasks:
 	err = os.MkdirAll(srcDir, 0o750)
 	require.NoError(t, err)
 
-	loader := &config.FileConfigLoader{Filename: "bob.yaml"}
+	loader := config.NewFileConfigLoader("bob.yaml", nil)
 	g, err := loader.Load(srcDir)
 	require.NoError(t, err)
 

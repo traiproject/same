@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
 	"gopkg.in/yaml.v3"
 )
@@ -16,6 +17,7 @@ import (
 // FileConfigLoader implements ports.ConfigLoader using a YAML file.
 type FileConfigLoader struct {
 	Filename string
+	logger   ports.Logger
 }
 
 // Load reads the configuration from the given working directory.
@@ -111,18 +113,16 @@ func findWorkspaceRoot(startDir string) (string, error) {
 }
 
 func isWorkspaceConfig(path string) (bool, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path is trusted or checked
-	if err != nil {
-		return false, err
+	projectPath := filepath.Dir(path)
+	workspaceConfigPath := filepath.Join(projectPath, "bob.work.yaml")
+
+	if _, err := os.Stat(workspaceConfigPath); err == nil {
+		// Workspace config file exists
+		return true, nil
 	}
 
-	var bobfile Bobfile
-	// Shallow parse to check for workspace field
-	if err := yaml.Unmarshal(data, &bobfile); err != nil {
-		return false, err
-	}
-
-	return len(bobfile.Workspace) > 0, nil
+	// No workspace config file found
+	return false, nil
 }
 
 func validateProjectNames(configs []loadedConfig) error {
@@ -261,12 +261,19 @@ func loadRecursively(configPath string, visited map[string]bool) ([]loadedConfig
 		Config:      bobfile,
 	}}
 
-	for _, pattern := range bobfile.Workspace {
-		subConfigs, err := loadWorkspacePattern(projectPath, pattern, visited)
-		if err != nil {
-			return nil, err
+	// Check for workspace configuration file
+	workspaceConfigPath := filepath.Join(projectPath, "bob.work.yaml")
+	if workspaceData, err := os.ReadFile(workspaceConfigPath); err == nil {
+		var workspaceConfig WorkspaceConfig
+		if err := yaml.Unmarshal(workspaceData, &workspaceConfig); err == nil {
+			for _, pattern := range workspaceConfig.Workspace {
+				subConfigs, err := loadWorkspacePattern(projectPath, pattern, visited)
+				if err != nil {
+					return nil, err
+				}
+				configs = append(configs, subConfigs...)
+			}
 		}
-		configs = append(configs, subConfigs...)
 	}
 
 	return configs, nil
@@ -348,4 +355,12 @@ func resolveRoot(configDir, configuredRoot string) string {
 		return filepath.Clean(configuredRoot)
 	}
 	return filepath.Clean(filepath.Join(configDir, configuredRoot))
+}
+
+// NewFileConfigLoader creates a new FileConfigLoader with the given filesystem and logger.
+func NewFileConfigLoader(filename string, logger ports.Logger) *FileConfigLoader {
+	return &FileConfigLoader{
+		Filename: filename,
+		logger:   logger,
+	}
 }
