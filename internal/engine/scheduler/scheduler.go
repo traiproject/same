@@ -115,7 +115,7 @@ func (s *Scheduler) Run(
 
 		select {
 		case res := <-state.resultsCh:
-			state.handleResult(res)
+			state.handleResult(&res)
 		case <-state.ctx.Done():
 		}
 	}
@@ -133,6 +133,7 @@ type result struct {
 	skipped     bool
 	inputHash   string
 	taskOutputs []string
+	workingDir  string
 }
 
 type schedulerRunState struct {
@@ -325,16 +326,26 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		err:         state.s.executor.Execute(state.ctx, t),
 		inputHash:   hash,
 		taskOutputs: outputs,
+		workingDir:  state.getTaskRoot(t),
 	}
+}
+
+// getTaskRoot returns the task's working directory, or the graph root if not set.
+func (state *schedulerRunState) getTaskRoot(t *domain.Task) string {
+	workingDir := t.WorkingDir.String()
+	if workingDir == "" {
+		return state.graph.Root()
+	}
+	return workingDir
 }
 
 func (state *schedulerRunState) computeInputHash(t *domain.Task) (string, error) {
 	if state.force {
-		return state.s.computeHashForce(t, state.graph.Root())
+		return state.s.computeHashForce(t, state.getTaskRoot(t))
 	}
 
 	// Normal mode: check cache
-	skipped, hash, err := state.s.checkTaskCache(state.ctx, t, state.graph.Root())
+	skipped, hash, err := state.s.checkTaskCache(state.ctx, t, state.getTaskRoot(t))
 	if err != nil {
 		return "", err
 	}
@@ -348,7 +359,7 @@ func (state *schedulerRunState) computeInputHash(t *domain.Task) (string, error)
 }
 
 func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {
-	rootAbs, err := filepath.Abs(state.graph.Root())
+	rootAbs, err := filepath.Abs(state.getTaskRoot(t))
 	if err != nil {
 		return zerr.Wrap(err, domain.ErrFailedToGetRoot.Error())
 	}
@@ -391,7 +402,7 @@ func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {
 	return nil
 }
 
-func (state *schedulerRunState) handleResult(res result) {
+func (state *schedulerRunState) handleResult(res *result) {
 	state.active--
 
 	if res.err != nil {
@@ -404,7 +415,7 @@ func (state *schedulerRunState) handleResult(res result) {
 	}
 }
 
-func (state *schedulerRunState) handleSuccess(res result) {
+func (state *schedulerRunState) handleSuccess(res *result) {
 	state.s.updateStatus(res.task, StatusCompleted)
 	if res.skipped {
 		state.s.logger.Info(fmt.Sprintf("Skipping %s (cached)", res.task))
@@ -435,12 +446,12 @@ func (state *schedulerRunState) handleSuccess(res result) {
 	}
 }
 
-func (state *schedulerRunState) computeOutputHash(res result) string {
+func (state *schedulerRunState) computeOutputHash(res *result) string {
 	if len(res.taskOutputs) == 0 {
 		return ""
 	}
 
-	outputHash, err := state.s.hasher.ComputeOutputHash(res.taskOutputs, state.graph.Root())
+	outputHash, err := state.s.hasher.ComputeOutputHash(res.taskOutputs, res.workingDir)
 	if err != nil {
 		state.s.logger.Error(zerr.With(
 			zerr.Wrap(err, domain.ErrOutputHashComputationFailed.Error()),

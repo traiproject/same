@@ -667,7 +667,7 @@ tasks: {}
 		zErr, ok := err.(*zerr.Error)
 		require.True(t, ok)
 		meta := zErr.Metadata()
-		assert.Equal(t, "project name must can only contain alphanumeric characters, underscores or hyphens", meta["error"])
+		assert.Equal(t, "project name must only contain alphanumeric characters, underscores or hyphens", meta["error"])
 		assert.Equal(t, "my project", meta["project"])
 	})
 }

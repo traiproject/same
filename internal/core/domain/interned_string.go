@@ -18,6 +18,10 @@ func NewInternedString(s string) InternedString {
 
 // String returns the underlying string value.
 func (is InternedString) String() string {
+	var zero unique.Handle[string]
+	if is.h == zero {
+		return ""
+	}
 	return is.h.Value()
 }
 
