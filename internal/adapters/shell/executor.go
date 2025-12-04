@@ -35,6 +35,11 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task) error {
 
 	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // user provided command
 
+	// Set the working directory for the command
+	if task.WorkingDir.String() != "" {
+		cmd.Dir = task.WorkingDir.String()
+	}
+
 	// Merge environment: start with os.Environ() (preserves Nix shell context),
 	// then override with task-specific environment variables
 	cmd.Env = mergeEnvironment(os.Environ(), task.Environment)

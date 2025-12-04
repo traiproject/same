@@ -7,6 +7,8 @@ import (
 
 	"go.trai.ch/bob/internal/adapters/config"
 	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.uber.org/mock/gomock"
 )
 
 func TestLoad_Canonicalization(t *testing.T) {
@@ -24,7 +26,9 @@ tasks:
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	g, err := config.Load(configPath)
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	g, err := loader.Load(tmpDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

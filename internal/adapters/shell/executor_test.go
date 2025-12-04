@@ -25,10 +25,13 @@ func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 
 	executor := shell.NewExecutor(mockLogger)
 
+	// Use a valid temporary directory for the working directory
+	tmpDir := t.TempDir()
+
 	task := &domain.Task{
 		Name:       domain.NewInternedString("test-task"),
 		Command:    []string{"sh", "-c", "echo line1; echo line2"},
-		WorkingDir: domain.NewInternedString("Root"),
+		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
 	err := executor.Execute(context.Background(), task)
@@ -46,13 +49,16 @@ func TestExecutor_Execute_EnvironmentVariables(t *testing.T) {
 
 	executor := shell.NewExecutor(mockLogger)
 
+	// Use a valid temporary directory for the working directory
+	tmpDir := t.TempDir()
+
 	task := &domain.Task{
 		Name:    domain.NewInternedString("test-env-task"),
 		Command: []string{"sh", "-c", "echo $MY_TEST_VAR"},
 		Environment: map[string]string{
 			"MY_TEST_VAR": "test-value-123",
 		},
-		WorkingDir: domain.NewInternedString("Root"),
+		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
 	err := executor.Execute(context.Background(), task)

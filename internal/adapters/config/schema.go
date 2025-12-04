@@ -1,8 +1,16 @@
 package config
 
+// Workfile represents the structure of the bob.work.yaml configuration file.
+type Workfile struct {
+	Version  string   `yaml:"version"`
+	Root     string   `yaml:"root"`
+	Projects []string `yaml:"projects"`
+}
+
 // Bobfile represents the structure of the bob.yaml configuration file.
 type Bobfile struct {
 	Version string             `yaml:"version"`
+	Project string             `yaml:"project"`
 	Root    string             `yaml:"root"`
 	Tasks   map[string]TaskDTO `yaml:"tasks"`
 }

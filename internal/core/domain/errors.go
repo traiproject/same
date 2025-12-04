@@ -9,6 +9,15 @@ var (
 	// ErrMissingDependency is returned when a task references a dependency that doesn't exist in the graph.
 	ErrMissingDependency = zerr.New("missing dependency")
 
+	// ErrMissingProjectName is returned in workspace mode when a bobfile is missing a project name.
+	ErrMissingProjectName = zerr.New("missing project name")
+
+	// ErrInvalidProjectName is returned when a project name is invalid.
+	ErrInvalidProjectName = zerr.New("project name can only contain alphanumeric characters, hyphens and underscores")
+
+	// ErrDuplicateProjectName is returned when multiple projects share the same name in a workspace.
+	ErrDuplicateProjectName = zerr.New("duplicate project name")
+
 	// ErrCycleDetected is returned when a cycle is detected in the task dependency graph.
 	ErrCycleDetected = zerr.New("cycle detected")
 
@@ -26,6 +35,9 @@ var (
 
 	// ErrReservedTaskName is returned when a task uses a reserved name (e.g., "all").
 	ErrReservedTaskName = zerr.New("task name 'all' is reserved")
+
+	// ErrInvalidTaskName is returned when a task name contains invalid characters.
+	ErrInvalidTaskName = zerr.New("invalid task name")
 
 	// ErrStoreCreateFailed is returned when the build info store directory cannot be created.
 	ErrStoreCreateFailed = zerr.New("failed to create build info store directory")
@@ -47,6 +59,9 @@ var (
 
 	// ErrConfigParseFailed is returned when the config file cannot be parsed.
 	ErrConfigParseFailed = zerr.New("failed to parse config file")
+
+	// ErrConfigNotFound is returned when the config file cannot be found.
+	ErrConfigNotFound = zerr.New("could not find bobfile or workfile")
 
 	// ErrBuildExecutionFailed is returned when the build execution fails.
 	ErrBuildExecutionFailed = zerr.New("build execution failed")

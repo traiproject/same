@@ -21,7 +21,7 @@ func run() int {
 	defer cancel()
 
 	// 1. Initialize application components
-	components, err := app.NewApp("bob.yaml", ".bob/state")
+	components, err := app.NewApp(".bob/state")
 	if err != nil {
 		// Logger is not available yet if initialization failed
 		// Write directly to stderr
@@ -31,11 +31,6 @@ func run() int {
 
 	// 2. Interface - CLI
 	cli := commands.New(components.App)
-
-	// 3. Set up config hook to update the config loader before command execution
-	cli.SetConfigHook(func(configPath string) {
-		components.SetConfigPath(configPath)
-	})
 
 	// 4. Execution
 	if err := cli.Execute(ctx); err != nil {

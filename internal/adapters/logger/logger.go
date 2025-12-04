@@ -29,6 +29,11 @@ func (l *Logger) Info(msg string) {
 	l.logger.Info(msg)
 }
 
+// Warn logs a warning message.
+func (l *Logger) Warn(msg string) {
+	l.logger.Warn(msg)
+}
+
 // Error logs an error message.
 func (l *Logger) Error(err error) {
 	l.logger.Error("operation failed", "error", err)
