@@ -91,6 +91,10 @@ func (l *Loader) loadBobfile(configPath string) (*domain.Graph, error) {
 		return nil, err
 	}
 
+	if bobfile.Project != "" {
+		l.Logger.Warn(fmt.Sprintf("'project' defined in %s has no effect in standalone mode", BobfileName))
+	}
+
 	g := domain.NewGraph()
 	g.SetRoot(resolveRoot(configPath, bobfile.Root))
 

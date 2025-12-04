@@ -362,3 +362,35 @@ tasks:
 	require.NoError(t, err)
 	assert.Equal(t, expectedRoot, actualRoot)
 }
+
+func TestLoad_ProjectFieldWarningInStandaloneMode(t *testing.T) {
+	content := `
+version: "1"
+project: "my-project"
+tasks:
+  build:
+    cmd: ["go", "build"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	// Create mock logger to capture warnings
+	ctrl := gomock.NewController(t)
+	mockLogger := mocks.NewMockLogger(ctrl)
+
+	// Expect the warning to be logged
+	mockLogger.EXPECT().
+		Warn(gomock.Eq("'project' defined in bob.yaml has no effect in standalone mode")).
+		Times(1)
+
+	loader := &config.Loader{Logger: mockLogger}
+	g, err := loader.Load(tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, g)
+
+	// Verify the graph is valid
+	err = g.Validate()
+	require.NoError(t, err)
+}
