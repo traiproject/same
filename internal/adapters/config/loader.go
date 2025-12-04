@@ -55,7 +55,7 @@ func (l *Loader) Load(cwd string) (*domain.Graph, error) {
 
 func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 	currentDir := cwd
-	var standaloneCandidat string
+	var standaloneCandidate string
 
 	for {
 		workfilePath := filepath.Join(currentDir, WorkfileName)
@@ -63,10 +63,10 @@ func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 			return workfilePath, ModeWorkspace, nil
 		}
 
-		if standaloneCandidat == "" {
+		if standaloneCandidate == "" {
 			bobfilePath := filepath.Join(currentDir, BobfileName)
 			if _, err := os.Stat(bobfilePath); err == nil {
-				standaloneCandidat = bobfilePath
+				standaloneCandidate = bobfilePath
 			}
 		}
 
@@ -78,8 +78,8 @@ func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 		currentDir = parentDir
 	}
 
-	if standaloneCandidat != "" {
-		return standaloneCandidat, ModeStandalone, nil
+	if standaloneCandidate != "" {
+		return standaloneCandidate, ModeStandalone, nil
 	}
 
 	return "", "", zerr.With(domain.ErrConfigNotFound, "cwd", cwd)
