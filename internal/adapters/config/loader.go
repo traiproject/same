@@ -366,10 +366,14 @@ func readAndUnmarshalYAML[T any](configPath string, target *T) error {
 	return nil
 }
 
-// validateTaskName checks if the task name is reserved.
+// validateTaskName checks if the task name is reserved or contains invalid characters.
 func validateTaskName(name string) error {
 	if name == "all" {
 		return zerr.With(domain.ErrReservedTaskName, "task_name", name)
+	}
+	if strings.Contains(name, ":") {
+		err := zerr.With(domain.ErrInvalidTaskName, "invalid_character", ":")
+		return zerr.With(err, "task_name", name)
 	}
 	return nil
 }

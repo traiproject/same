@@ -36,6 +36,9 @@ var (
 	// ErrReservedTaskName is returned when a task uses a reserved name (e.g., "all").
 	ErrReservedTaskName = zerr.New("task name 'all' is reserved")
 
+	// ErrInvalidTaskName is returned when a task name contains invalid characters.
+	ErrInvalidTaskName = zerr.New("invalid task name")
+
 	// ErrStoreCreateFailed is returned when the build info store directory cannot be created.
 	ErrStoreCreateFailed = zerr.New("failed to create build info store directory")
 
