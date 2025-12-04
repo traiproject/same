@@ -86,7 +86,8 @@ func (g *Graph) Validate() error {
 // buildDependentsMap creates a reverse adjacency list (dependents map).
 func (g *Graph) buildDependentsMap() map[InternedString][]InternedString {
 	dependents := make(map[InternedString][]InternedString)
-	for _, task := range g.tasks {
+	for taskName := range g.tasks {
+		task := g.tasks[taskName]
 		for _, dep := range task.Dependencies {
 			dependents[dep] = append(dependents[dep], task.Name)
 		}

@@ -111,7 +111,8 @@ func (l *Loader) loadBobfile(configPath string) (*domain.Graph, error) {
 	}
 
 	// Second pass: Create tasks and add to graph
-	for name, dto := range bobfile.Tasks {
+	for name := range bobfile.Tasks {
+		dto := bobfile.Tasks[name]
 		if err := validateTaskName(name); err != nil {
 			return nil, err
 		}
@@ -124,7 +125,7 @@ func (l *Loader) loadBobfile(configPath string) (*domain.Graph, error) {
 		}
 
 		workingDir := resolveTaskWorkingDir(g.Root(), dto.WorkingDir)
-		task := buildTask(name, &dto, workingDir, dto.DependsOn)
+		task := buildTask(name, dto, workingDir, dto.DependsOn)
 
 		if err := g.AddTask(task); err != nil {
 			return nil, err
@@ -277,7 +278,8 @@ func (l *Loader) validateBobfile(bobfile *Bobfile, relPath string) error {
 }
 
 func (l *Loader) addProjectTasks(g *domain.Graph, bobfile *Bobfile, projectPath string) error {
-	for taskName, dto := range bobfile.Tasks {
+	for taskName := range bobfile.Tasks {
+		dto := bobfile.Tasks[taskName]
 		if err := validateTaskName(taskName); err != nil {
 			return err
 		}
@@ -298,7 +300,7 @@ func (l *Loader) addProjectTasks(g *domain.Graph, bobfile *Bobfile, projectPath 
 		namespacedDeps := l.namespaceDependencies(bobfile.Project, dto.DependsOn)
 		workingDir := resolveTaskWorkingDir(projectPath, dto.WorkingDir)
 
-		task := buildTask(namespacedTaskName, &dto, workingDir, namespacedDeps)
+		task := buildTask(namespacedTaskName, dto, workingDir, namespacedDeps)
 
 		if err := g.AddTask(task); err != nil {
 			return err
