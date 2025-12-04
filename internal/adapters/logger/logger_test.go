@@ -100,6 +100,28 @@ func TestLogger_Error(t *testing.T) {
 	}
 }
 
+func TestLogger_Warn(t *testing.T) {
+	// Capture stderr output
+	output, err := captureStderr(func() {
+		// Create the logger inside the capture function so it uses the redirected stderr
+		lg := logger.New()
+		lg.Warn("some warning")
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert that the output contains "some warning"
+	if !strings.Contains(output, "some warning") {
+		t.Errorf("Expected output to contain 'some warning', got: %s", output)
+	}
+
+	// Assert that the output contains "WARN"
+	if !strings.Contains(output, "WARN") {
+		t.Errorf("Expected output to contain 'WARN', got: %s", output)
+	}
+}
+
 func TestNew(t *testing.T) {
 	// Test that New() returns a non-nil logger
 	lg := logger.New()

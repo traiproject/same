@@ -88,3 +88,46 @@ func TestInternedStringJSON(t *testing.T) {
 		}
 	})
 }
+
+func TestNewInternedStrings(t *testing.T) {
+	t.Run("Convert slice of strings to InternedStrings", func(t *testing.T) {
+		strings := []string{"build", "test", "deploy"}
+
+		internedStrings := domain.NewInternedStrings(strings)
+
+		// Verify we got the correct number of elements
+		if len(internedStrings) != len(strings) {
+			t.Errorf("Expected %d interned strings, got %d", len(strings), len(internedStrings))
+		}
+
+		// Verify each string value is preserved
+		for i, expected := range strings {
+			if internedStrings[i].String() != expected {
+				t.Errorf("Expected interned string at index %d to be %q, got %q", i, expected, internedStrings[i].String())
+			}
+		}
+	})
+
+	t.Run("Empty slice returns empty slice", func(t *testing.T) {
+		emptyStrings := []string{}
+
+		internedStrings := domain.NewInternedStrings(emptyStrings)
+
+		if len(internedStrings) != 0 {
+			t.Errorf("Expected empty slice, got %d elements", len(internedStrings))
+		}
+	})
+
+	t.Run("Duplicate strings are deduplicated via interning", func(t *testing.T) {
+		// Create same string multiple times to test interning
+		s1 := "task"
+		s2 := "task" // Same value
+
+		internedStrings := domain.NewInternedStrings([]string{s1, s2})
+
+		// Both should have equal handles due to interning
+		if internedStrings[0].Value() != internedStrings[1].Value() {
+			t.Errorf("Expected handles to be equal for identical strings")
+		}
+	})
+}

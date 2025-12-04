@@ -137,6 +137,47 @@ tasks:
 	}
 }
 
+func TestLoad_InvalidTaskName(t *testing.T) {
+	content := `
+version: "1"
+tasks:
+  invalid:name:
+    cmd: ["echo hello"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	// Load the config
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	_, err := loader.Load(tmpDir)
+	if err == nil {
+		t.Fatal("expected error for task name with colon, got nil")
+	}
+
+	// Verify error message contains "invalid"
+	if !strings.Contains(err.Error(), "invalid") {
+		t.Errorf("expected error message to contain 'invalid', got: %v", err)
+	}
+
+	// Verify error metadata
+	zErr, ok := err.(*zerr.Error)
+	if !ok {
+		t.Fatalf("expected *zerr.Error, got %T: %v", err, err)
+	}
+
+	meta := zErr.Metadata()
+	if invalidChar, ok := meta["invalid_character"].(string); !ok || invalidChar != ":" {
+		t.Errorf("expected metadata invalid_character=':' got %v", meta["invalid_character"])
+	}
+	if taskName, ok := meta["task_name"].(string); !ok || taskName != "invalid:name" {
+		t.Errorf("expected metadata task_name='invalid:name', got %v", meta["task_name"])
+	}
+}
+
 func TestLoad_Errors(t *testing.T) {
 	t.Run("File Not Found", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
