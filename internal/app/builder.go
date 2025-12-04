@@ -27,6 +27,6 @@ func NewComponents(app *App, logger ports.Logger, loader *config.Loader) *Compon
 // NewApp creates and configures a new App instance with all required dependencies.
 // It uses the kessoku-generated InitializeApp function in wire_band.go.
 // Returns the configured Components and any initialization error.
-func NewApp(stateDir string) (*Components, error) {
+func NewApp() (*Components, error) {
 	return InitializeApp()
 }

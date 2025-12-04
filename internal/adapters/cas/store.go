@@ -27,7 +27,12 @@ type Store struct {
 
 // NewStore creates a new BuildInfoStore backed by the directory at the given path.
 func NewStore() (*Store, error) {
-	cleanPath := filepath.Clean(storePath)
+	return newStoreWithPath(storePath)
+}
+
+// newStoreWithPath creates a Store with a custom path (used for testing).
+func newStoreWithPath(path string) (*Store, error) {
+	cleanPath := filepath.Clean(path)
 	if err := os.MkdirAll(cleanPath, dirPerm); err != nil {
 		return nil, zerr.Wrap(err, domain.ErrStoreCreateFailed.Error())
 	}
