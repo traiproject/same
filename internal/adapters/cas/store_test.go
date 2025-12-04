@@ -13,6 +13,39 @@ import (
 	"go.trai.ch/bob/internal/core/domain"
 )
 
+func TestNewStore(t *testing.T) {
+	// NewStore uses a hardcoded path ".bob/store"
+	// We need to test in a temp directory context
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir failed: %v", err)
+	}
+	defer func() {
+		if chErr := os.Chdir(originalWd); chErr != nil {
+			t.Errorf("Failed to restore working directory: %v", chErr)
+		}
+	}()
+
+	store, err := cas.NewStore()
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	if store == nil {
+		t.Fatal("NewStore returned nil store")
+	}
+
+	// Verify the directory was created
+	expectedPath := filepath.Join(tmpDir, ".bob", "store")
+	if _, statErr := os.Stat(expectedPath); os.IsNotExist(statErr) {
+		t.Errorf("NewStore did not create directory at %s", expectedPath)
+	}
+}
+
 func TestStore_PutAndGet(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "bob_state")
