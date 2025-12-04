@@ -20,6 +20,11 @@ type Loader struct {
 	Logger ports.Logger
 }
 
+// NewLoader creates a new Loader with the given logger.
+func NewLoader(logger ports.Logger) *Loader {
+	return &Loader{Logger: logger}
+}
+
 // Mode represents the configuration mode of bob.
 type Mode string
 
