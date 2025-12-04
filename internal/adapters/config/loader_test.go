@@ -14,6 +14,19 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func TestNewLoader(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockLogger := mocks.NewMockLogger(ctrl)
+
+	loader := config.NewLoader(mockLogger)
+	if loader == nil {
+		t.Fatal("NewLoader returned nil")
+	}
+	if loader.Logger != mockLogger {
+		t.Error("NewLoader did not set the logger correctly")
+	}
+}
+
 func TestLoad_Success(t *testing.T) {
 	// Create a temporary config file
 	content := `

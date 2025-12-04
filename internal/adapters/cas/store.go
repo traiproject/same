@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	dirPerm  = 0o750
-	filePerm = 0o644
+	dirPerm   = 0o750
+	filePerm  = 0o644
+	storePath = ".bob/store"
 )
 
 // Store implements ports.BuildInfoStore using a file-per-task strategy.
@@ -25,7 +26,12 @@ type Store struct {
 }
 
 // NewStore creates a new BuildInfoStore backed by the directory at the given path.
-func NewStore(path string) (*Store, error) {
+func NewStore() (*Store, error) {
+	return newStoreWithPath(storePath)
+}
+
+// newStoreWithPath creates a Store with a custom path (used for testing).
+func newStoreWithPath(path string) (*Store, error) {
 	cleanPath := filepath.Clean(path)
 	if err := os.MkdirAll(cleanPath, dirPerm); err != nil {
 		return nil, zerr.Wrap(err, domain.ErrStoreCreateFailed.Error())

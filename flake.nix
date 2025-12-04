@@ -34,7 +34,30 @@
           mockgen
           gci
           gofumpt
+          kessoku
         ];
+
+        kessoku = pkgs.buildGoModule rec {
+          pname = "kessoku";
+          version = "1.0.0";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "mazrean";
+            repo = "kessoku";
+            rev = "v${version}";
+            sha256 = "036q7ad91qcznifs3nwgq37886db0s3b0k46kzpral2gra5bcm9a";
+          };
+
+          subPackages = [ "cmd/kessoku" ];
+
+          ldflags = [
+            "-X github.com/mazrean/kessoku/internal/config.version=v${version}"
+          ];
+
+          env.GOWORK = "off";
+
+          vendorHash = "sha256-LC8u9tcH/Z+We698NdAtHr8ZSS0IoXrUbITPp2rr8Fk=";
+        };
       in
       rec {
         packages.default = pkgs.buildGoModule {
@@ -42,7 +65,7 @@
           inherit version;
 
           src = ./.;
-          vendorHash = "sha256-aeQyyt/BfthGDqApVDfwUBW6/bSQyjNOa3/uHspQnak=";
+          vendorHash = "sha256-W6w8awvwHo5DTJiws24nrx9H0TaWIe/xdqXwR8p7SIU=";
 
           env.CGO_ENABLED = 1;
 
@@ -51,7 +74,10 @@
           ];
 
           excludePackages = [ ];
-          nativeBuildInputs = [ pkgs.mockgen ];
+          nativeBuildInputs = [
+            pkgs.mockgen
+            kessoku
+          ];
 
           preBuild = ''
             go generate ./...

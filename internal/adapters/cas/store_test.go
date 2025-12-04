@@ -13,11 +13,44 @@ import (
 	"go.trai.ch/bob/internal/core/domain"
 )
 
+func TestNewStore(t *testing.T) {
+	// NewStore uses a hardcoded path ".bob/store"
+	// We need to test in a temp directory context
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	if cdErr := os.Chdir(tmpDir); cdErr != nil {
+		t.Fatalf("Chdir failed: %v", cdErr)
+	}
+	defer func() {
+		if chErr := os.Chdir(originalWd); chErr != nil {
+			t.Errorf("Failed to restore working directory: %v", chErr)
+		}
+	}()
+
+	store, err := cas.NewStore()
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	if store == nil {
+		t.Fatal("NewStore returned nil store")
+	}
+
+	// Verify the directory was created
+	expectedPath := filepath.Join(tmpDir, ".bob", "store")
+	if _, statErr := os.Stat(expectedPath); os.IsNotExist(statErr) {
+		t.Errorf("NewStore did not create directory at %s", expectedPath)
+	}
+}
+
 func TestStore_PutAndGet(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "bob_state")
 
-	store, err := cas.NewStore(storePath)
+	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -52,7 +85,7 @@ func TestStore_Persistence(t *testing.T) {
 	storePath := filepath.Join(tmpDir, "bob_state")
 
 	// 1. Create store and save data
-	store1, err := cas.NewStore(storePath)
+	store1, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore 1 failed: %v", err)
 	}
@@ -66,7 +99,7 @@ func TestStore_Persistence(t *testing.T) {
 	}
 
 	// 2. Create new store instance pointing to same directory
-	store2, err2 := cas.NewStore(storePath)
+	store2, err2 := cas.NewStoreWithPath(storePath)
 	if err2 != nil {
 		t.Fatalf("NewStore 2 failed: %v", err2)
 	}
@@ -87,7 +120,7 @@ func TestStore_OmitZero(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "bob_state")
 
-	store, err := cas.NewStore(storePath)
+	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -140,7 +173,7 @@ func TestNewStore_Error(t *testing.T) {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
-	_, err := cas.NewStore(filePath)
+	_, err := cas.NewStoreWithPath(filePath)
 	if err == nil {
 		t.Fatal("NewStore should have failed when path is a file")
 	}
@@ -149,7 +182,7 @@ func TestNewStore_Error(t *testing.T) {
 func TestGet_ReadError(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "bob_state")
-	store, err := cas.NewStore(storePath)
+	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -175,7 +208,7 @@ func TestGet_ReadError(t *testing.T) {
 func TestGet_UnmarshalError(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "bob_state")
-	store, err := cas.NewStore(storePath)
+	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -199,7 +232,7 @@ func TestGet_UnmarshalError(t *testing.T) {
 func TestPut_WriteError(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "bob_state")
-	store, err := cas.NewStore(storePath)
+	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}

@@ -21,7 +21,7 @@ func run() int {
 	defer cancel()
 
 	// 1. Initialize application components
-	components, err := app.NewApp(".bob/state")
+	components, err := app.NewApp()
 	if err != nil {
 		// Logger is not available yet if initialization failed
 		// Write directly to stderr

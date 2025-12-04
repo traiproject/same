@@ -2,14 +2,8 @@
 package app
 
 import (
-	"go.trai.ch/bob/internal/adapters/cas"
 	"go.trai.ch/bob/internal/adapters/config"
-	"go.trai.ch/bob/internal/adapters/fs"
-	"go.trai.ch/bob/internal/adapters/logger"
-	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/core/ports"
-	"go.trai.ch/bob/internal/engine/scheduler"
-	"go.trai.ch/zerr"
 )
 
 // Components contains all the initialized application components.
@@ -17,40 +11,22 @@ import (
 type Components struct {
 	App          *App
 	Logger       ports.Logger
-	configLoader *config.Loader
+	configLoader ports.ConfigLoader
+}
+
+// NewComponents creates a new Components struct from dependencies.
+// This is used by the kessoku-generated injector.
+func NewComponents(app *App, logger ports.Logger, loader *config.Loader) *Components {
+	return &Components{
+		App:          app,
+		Logger:       logger,
+		configLoader: loader,
+	}
 }
 
 // NewApp creates and configures a new App instance with all required dependencies.
-// It instantiates all necessary adapters and wires them together.
+// It uses the kessoku-generated InitializeApp function in wire_band.go.
 // Returns the configured Components and any initialization error.
-func NewApp(stateDir string) (*Components, error) {
-	// 1. Infrastructure - Logger (needed early for error reporting)
-	log := logger.New()
-
-	// 2. Infrastructure - Config Loader
-	configLoader := &config.Loader{Logger: log}
-
-	// 3. Infrastructure - Execution and File System
-	executor := shell.NewExecutor(log)
-	walker := fs.NewWalker()
-	resolver := fs.NewResolver()
-	hasher := fs.NewHasher(walker)
-
-	// 4. Infrastructure - Content-Addressed Store
-	store, err := cas.NewStore(stateDir)
-	if err != nil {
-		return nil, zerr.Wrap(err, "failed to initialize build info store")
-	}
-
-	// 5. Engine - Scheduler
-	sched := scheduler.NewScheduler(executor, store, hasher, resolver, log)
-
-	// 6. Application - Wire everything together
-	application := New(configLoader, sched)
-
-	return &Components{
-		App:          application,
-		Logger:       log,
-		configLoader: configLoader,
-	}, nil
+func NewApp() (*Components, error) {
+	return InitializeApp()
 }
