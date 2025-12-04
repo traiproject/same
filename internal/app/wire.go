@@ -46,7 +46,7 @@ var AppSet = kessoku.Set(
 	kessoku.Provide(NewComponents),
 )
 
-//go:generate go tool kessoku $GOFILE
+//go:generate kessoku $GOFILE
 var _ = kessoku.Inject[*Components]("InitializeApp",
 	AdapterSet,
 	EngineSet,

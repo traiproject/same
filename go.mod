@@ -13,14 +13,8 @@ require (
 )
 
 require (
-	github.com/alecthomas/kong v1.12.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
-	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
 )
-
-tool github.com/mazrean/kessoku/cmd/kessoku
