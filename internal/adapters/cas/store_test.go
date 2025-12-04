@@ -22,8 +22,8 @@ func TestNewStore(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Chdir failed: %v", err)
+	if cdErr := os.Chdir(tmpDir); cdErr != nil {
+		t.Fatalf("Chdir failed: %v", cdErr)
 	}
 	defer func() {
 		if chErr := os.Chdir(originalWd); chErr != nil {
