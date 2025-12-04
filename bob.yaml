@@ -18,9 +18,13 @@ tasks:
 
   # Generate mocks
   generate:
-    input: ["internal/engine/scheduler/scheduler.go"]
+    input:
+      - "internal/engine/scheduler/scheduler.go"
+      - "internal/app/wire.go"
     cmd: ["go", "generate", "./..."]
-    target: ["internal/core/ports/mocks/"]
+    target:
+      - "internal/core/ports/mocks/"
+      - "internal/app/wire_band.go"
     dependsOn: ["install"]
 
   # Run tests
