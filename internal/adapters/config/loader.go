@@ -29,12 +29,12 @@ const (
 	// BobfileName represents the name of a bobfile.
 	BobfileName = "bob.yaml"
 	// ModeWorkspace indicates that bob has a workfile.
-	ModeWorkspace Mode = "ModeWorkspace"
+	ModeWorkspace Mode = "workspace"
 	// ModeStandalone indicates that bob has only one bobfile.
-	ModeStandalone Mode = "ModeStandalone"
+	ModeStandalone Mode = "standalone"
 )
 
-var projectNameRegex = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
+var validProjectNameRegex = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
 
 // Load reads a configuration file from the given path and returns a domain.Graph.
 func (l *Loader) Load(cwd string) (*domain.Graph, error) {
@@ -263,7 +263,7 @@ func (l *Loader) validateBobfile(bobfile *Bobfile, relPath string) error {
 		return zerr.With(domain.ErrMissingProjectName, "directory", relPath)
 	}
 
-	if !projectNameRegex.MatchString(bobfile.Project) {
+	if !validProjectNameRegex.MatchString(bobfile.Project) {
 		err := zerr.With(domain.ErrInvalidProjectName, "project_name", bobfile.Project)
 		return zerr.With(err, "directory", relPath)
 	}
