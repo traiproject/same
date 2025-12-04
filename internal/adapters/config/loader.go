@@ -208,7 +208,7 @@ func (l *Loader) processProject(
 	// Check for bob.yaml existence
 	bobYamlPath := filepath.Join(projectPath, BobfileName)
 	if _, fileErr := os.Stat(bobYamlPath); os.IsNotExist(fileErr) {
-		l.Logger.Warn(fmt.Sprintf("%s missing in project %s, skipping\n", BobfileName, relPath))
+		l.Logger.Warn(fmt.Sprintf("%s missing in project %s, skipping", BobfileName, relPath))
 		return nil
 	}
 
@@ -231,7 +231,7 @@ func (l *Loader) processProject(
 	projectNames[bobfile.Project] = relPath
 
 	if bobfile.Root != "" {
-		l.Logger.Warn(fmt.Sprintf("'root' defined in %s is ignored in workspace mode\n", relPath))
+		l.Logger.Warn(fmt.Sprintf("'root' defined in %s is ignored in workspace mode", relPath))
 	}
 
 	return l.addProjectTasks(g, bobfile, projectPath)
@@ -273,6 +273,18 @@ func (l *Loader) addProjectTasks(g *domain.Graph, bobfile *Bobfile, projectPath 
 			return err
 		}
 
+		// Rebase inputs and targets to be relative to the workspace root
+		var err error
+		dto.Input, err = l.rebasePaths(dto.Input, projectPath, g.Root())
+		if err != nil {
+			return zerr.Wrap(err, "failed to rebase inputs for project "+bobfile.Project)
+		}
+
+		dto.Target, err = l.rebasePaths(dto.Target, projectPath, g.Root())
+		if err != nil {
+			return zerr.Wrap(err, "failed to rebase targets for project "+bobfile.Project)
+		}
+
 		namespacedTaskName := fmt.Sprintf("%s:%s", bobfile.Project, taskName)
 		namespacedDeps := l.namespaceDependencies(bobfile.Project, dto.DependsOn)
 		workingDir := resolveTaskWorkingDir(projectPath, dto.WorkingDir)
@@ -284,6 +296,21 @@ func (l *Loader) addProjectTasks(g *domain.Graph, bobfile *Bobfile, projectPath 
 		}
 	}
 	return nil
+}
+
+func (l *Loader) rebasePaths(paths []string, base, root string) ([]string, error) {
+	rebased := make([]string, len(paths))
+	for i, p := range paths {
+		// Join with base (project path) to get the full path
+		abs := filepath.Join(base, p)
+		// Make it relative to the workspace root
+		rel, err := filepath.Rel(root, abs)
+		if err != nil {
+			return nil, err
+		}
+		rebased[i] = rel
+	}
+	return rebased, nil
 }
 
 func (l *Loader) namespaceDependencies(projectName string, deps []string) []string {
