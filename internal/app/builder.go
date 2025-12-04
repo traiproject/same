@@ -11,7 +11,7 @@ import (
 type Components struct {
 	App          *App
 	Logger       ports.Logger
-	configLoader *config.Loader
+	configLoader ports.ConfigLoader
 }
 
 // NewComponents creates a new Components struct from dependencies.
