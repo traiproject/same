@@ -448,3 +448,86 @@ tasks:
 	err = g.Validate()
 	require.NoError(t, err)
 }
+
+func TestLoad_WithTools(t *testing.T) {
+	content := `
+version: "1"
+tools:
+  go: "go@1.23"
+  node: "nodejs@20"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    tools: ["go"]
+  test:
+    cmd: ["go", "test"]
+    tools: ["go", "node"]
+  lint:
+    cmd: ["golangci-lint", "run"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	g, err := loader.Load(tmpDir)
+	require.NoError(t, err)
+
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Collect tasks and verify tools
+	tasks := make(map[string]map[string]string)
+	for task := range g.Walk() {
+		tasks[task.Name.String()] = task.Tools
+	}
+
+	// Verify build task has only go tool
+	require.Contains(t, tasks, "build")
+	assert.Equal(t, map[string]string{"go": "go@1.23"}, tasks["build"])
+
+	// Verify test task has both go and node tools
+	require.Contains(t, tasks, "test")
+	assert.Equal(t, map[string]string{
+		"go":   "go@1.23",
+		"node": "nodejs@20",
+	}, tasks["test"])
+
+	// Verify lint task has no tools
+	require.Contains(t, tasks, "lint")
+	assert.Nil(t, tasks["lint"])
+}
+
+func TestLoad_MissingTool(t *testing.T) {
+	content := `
+version: "1"
+tools:
+  go: "go@1.23"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    tools: ["go", "undefined-tool"]
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bob.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+	_, err = loader.Load(tmpDir)
+	require.Error(t, err)
+
+	// Verify error message
+	assert.Contains(t, err.Error(), "tool not found")
+
+	// Verify error metadata
+	zErr, ok := err.(*zerr.Error)
+	require.True(t, ok, "expected *zerr.Error, got %T", err)
+
+	meta := zErr.Metadata()
+	assert.Equal(t, "undefined-tool", meta["tool_alias"])
+	assert.Equal(t, "build", meta["task"])
+}
