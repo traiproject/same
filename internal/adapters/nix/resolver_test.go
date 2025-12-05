@@ -189,6 +189,28 @@ func TestResolve_CacheMiss_Success(t *testing.T) {
 						AttrPath: "legacyPackages.x86_64-linux.go",
 					},
 				},
+				"aarch64-linux": {
+					FlakeInstallable: FlakeInstallable{
+						Ref: FlakeRef{
+							Type:  "github",
+							Owner: "NixOS",
+							Repo:  "nixpkgs",
+							Rev:   expectedHash,
+						},
+						AttrPath: "legacyPackages.aarch64-linux.go",
+					},
+				},
+				"x86_64-darwin": {
+					FlakeInstallable: FlakeInstallable{
+						Ref: FlakeRef{
+							Type:  "github",
+							Owner: "NixOS",
+							Repo:  "nixpkgs",
+							Rev:   expectedHash,
+						},
+						AttrPath: "legacyPackages.x86_64-darwin.go",
+					},
+				},
 				"aarch64-darwin": {
 					FlakeInstallable: FlakeInstallable{
 						Ref: FlakeRef{
