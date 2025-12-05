@@ -125,7 +125,14 @@ func (l *Loader) loadBobfile(configPath string) (*domain.Graph, error) {
 		}
 
 		workingDir := resolveTaskWorkingDir(g.Root(), dto.WorkingDir)
-		task := buildTask(name, dto, workingDir, dto.DependsOn)
+
+		// Resolve tool aliases to flake references
+		taskTools, err := resolveTaskTools(dto.Tools, bobfile.Tools)
+		if err != nil {
+			return nil, zerr.With(err, "task", name)
+		}
+
+		task := buildTask(name, dto, workingDir, dto.DependsOn, taskTools)
 
 		if err := g.AddTask(task); err != nil {
 			return nil, err
@@ -153,7 +160,8 @@ func (l *Loader) loadWorkfile(configPath string) (*domain.Graph, error) {
 	// Track project names to ensure uniqueness
 	projectNames := make(map[string]string)
 
-	if err := l.processProjects(g, workspaceRoot, projectPaths, projectNames); err != nil {
+	// Pass workspace-level tools to all projects
+	if err := l.processProjects(g, workspaceRoot, projectPaths, projectNames, workfile.Tools); err != nil {
 		return nil, err
 	}
 
@@ -191,10 +199,14 @@ func (l *Loader) resolveProjectPaths(workspaceRoot string, patterns []string) ([
 }
 
 func (l *Loader) processProjects(
-	g *domain.Graph, workspaceRoot string, projectPaths []string, projectNames map[string]string,
+	g *domain.Graph,
+	workspaceRoot string,
+	projectPaths []string,
+	projectNames map[string]string,
+	workspaceTools map[string]string,
 ) error {
 	for _, projectPath := range projectPaths {
-		if err := l.processProject(g, workspaceRoot, projectPath, projectNames); err != nil {
+		if err := l.processProject(g, workspaceRoot, projectPath, projectNames, workspaceTools); err != nil {
 			return err
 		}
 	}
@@ -202,7 +214,10 @@ func (l *Loader) processProjects(
 }
 
 func (l *Loader) processProject(
-	g *domain.Graph, workspaceRoot, projectPath string, projectNames map[string]string,
+	g *domain.Graph,
+	workspaceRoot, projectPath string,
+	projectNames map[string]string,
+	workspaceTools map[string]string,
 ) error {
 	relPath, _ := filepath.Rel(workspaceRoot, projectPath)
 
@@ -244,7 +259,10 @@ func (l *Loader) processProject(
 		l.Logger.Warn(fmt.Sprintf("'root' defined in %s is ignored in workspace mode", relPath))
 	}
 
-	return l.addProjectTasks(g, bobfile, projectPath)
+	// Merge tools: workspace tools as base, project tools override
+	resolvedTools := mergeTools(workspaceTools, bobfile.Tools)
+
+	return l.addProjectTasks(g, bobfile, projectPath, resolvedTools)
 }
 
 func (l *Loader) loadBobfileFromPath(bobYamlPath, relPath string) (*Bobfile, error) {
@@ -277,7 +295,12 @@ func (l *Loader) validateBobfile(bobfile *Bobfile, relPath string) error {
 	return nil
 }
 
-func (l *Loader) addProjectTasks(g *domain.Graph, bobfile *Bobfile, projectPath string) error {
+func (l *Loader) addProjectTasks(
+	g *domain.Graph,
+	bobfile *Bobfile,
+	projectPath string,
+	resolvedTools map[string]string,
+) error {
 	for taskName := range bobfile.Tasks {
 		dto := bobfile.Tasks[taskName]
 		if err := validateTaskName(taskName); err != nil {
@@ -300,7 +323,13 @@ func (l *Loader) addProjectTasks(g *domain.Graph, bobfile *Bobfile, projectPath 
 		namespacedDeps := l.namespaceDependencies(bobfile.Project, dto.DependsOn)
 		workingDir := resolveTaskWorkingDir(projectPath, dto.WorkingDir)
 
-		task := buildTask(namespacedTaskName, dto, workingDir, namespacedDeps)
+		// Resolve tool aliases to flake references
+		taskTools, err := resolveTaskTools(dto.Tools, resolvedTools)
+		if err != nil {
+			return zerr.With(err, "task", namespacedTaskName)
+		}
+
+		task := buildTask(namespacedTaskName, dto, workingDir, namespacedDeps, taskTools)
 
 		if err := g.AddTask(task); err != nil {
 			return err
@@ -389,8 +418,44 @@ func validateTaskName(name string) error {
 	return nil
 }
 
+// mergeTools creates a new map with workspaceTools as base, project tools overriding.
+func mergeTools(workspaceTools, projectTools map[string]string) map[string]string {
+	result := make(map[string]string, len(workspaceTools)+len(projectTools))
+	for k, v := range workspaceTools {
+		result[k] = v
+	}
+	for k, v := range projectTools {
+		result[k] = v
+	}
+	return result
+}
+
+// resolveTaskTools maps tool aliases to their full flake references.
+// Returns ErrMissingTool if any alias is not found in resolvedTools.
+func resolveTaskTools(aliases []string, resolvedTools map[string]string) (map[string]string, error) {
+	if len(aliases) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]string, len(aliases))
+	for _, alias := range aliases {
+		ref, ok := resolvedTools[alias]
+		if !ok {
+			return nil, zerr.With(domain.ErrMissingTool, "tool_alias", alias)
+		}
+		result[alias] = ref
+	}
+	return result, nil
+}
+
 // buildTask creates a domain.Task from a TaskDTO with the given parameters.
-func buildTask(name string, dto *TaskDTO, workingDir domain.InternedString, deps []string) *domain.Task {
+func buildTask(
+	name string,
+	dto *TaskDTO,
+	workingDir domain.InternedString,
+	deps []string,
+	tools map[string]string,
+) *domain.Task {
 	return &domain.Task{
 		Name:         domain.NewInternedString(name),
 		Command:      dto.Cmd,
@@ -399,6 +464,7 @@ func buildTask(name string, dto *TaskDTO, workingDir domain.InternedString, deps
 		Dependencies: domain.NewInternedStrings(deps),
 		Environment:  dto.Environment,
 		WorkingDir:   workingDir,
+		Tools:        tools,
 	}
 }
 

@@ -131,4 +131,7 @@ var (
 
 	// ErrNixInstallFailed is returned when installing a package via Nix CLI fails.
 	ErrNixInstallFailed = zerr.New("failed to install package via Nix")
+
+	// ErrMissingTool is returned when a task references a tool alias that is not defined.
+	ErrMissingTool = zerr.New("tool not found")
 )
