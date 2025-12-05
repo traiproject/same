@@ -128,4 +128,7 @@ var (
 
 	// ErrNixPackageNotFound is returned when a package version is not found in NixHub.
 	ErrNixPackageNotFound = zerr.New("package version not found in NixHub")
+
+	// ErrNixInstallFailed is returned when installing a package via Nix CLI fails.
+	ErrNixInstallFailed = zerr.New("failed to install package via Nix")
 )
