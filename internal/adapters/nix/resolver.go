@@ -24,7 +24,7 @@ const (
 	dirPerm           = 0o750
 	filePerm          = 0o644
 	cachePath         = ".bob/cache/nixhub"
-	nixHubAPIBase     = "https://www.nixhub.io/api/v2/resolve"
+	nixHubAPIBase     = "https://search.devbox.sh/v2/resolve"
 	httpClientTimeout = 30 * time.Second
 )
 
