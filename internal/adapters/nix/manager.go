@@ -50,6 +50,10 @@ func (m *Manager) Install(ctx context.Context, toolName, commitHash string) (str
 	}
 
 	// Parse json output.
+	return parseBuildResults(output, toolName, commitHash)
+}
+
+func parseBuildResults(output []byte, toolName, commitHash string) (string, error) {
 	var results buildResults
 	if err := json.Unmarshal(output, &results); err != nil {
 		parseErr := zerr.Wrap(err, "failed to parse nix build JSON output")
@@ -60,14 +64,14 @@ func (m *Manager) Install(ctx context.Context, toolName, commitHash string) (str
 	if len(results) == 0 {
 		emptyErr := zerr.With(domain.ErrNixInstallFailed, "tool", toolName)
 		emptyErr = zerr.With(emptyErr, "commit", commitHash)
-		return "", zerr.With(emptyErr, "reason", "empty build results from nix build")
+		return "", zerr.Wrap(emptyErr, "empty build results from nix build")
 	}
 
 	storePath, ok := results[0].Outputs["out"]
 	if !ok || storePath == "" {
 		outErr := zerr.With(domain.ErrNixInstallFailed, "tool", toolName)
 		outErr = zerr.With(outErr, "commit", commitHash)
-		return "", zerr.With(outErr, "reason", "no 'out' output found in build results")
+		return "", zerr.Wrap(outErr, "no 'out' output found in build results")
 	}
 
 	return storePath, nil

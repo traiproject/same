@@ -27,3 +27,8 @@ func (s *Scheduler) CheckTaskCache(
 ) (skipped bool, hash string, err error) {
 	return s.checkTaskCache(ctx, task, root)
 }
+
+// PrepareTask exports prepareTask for testing purposes.
+func (s *Scheduler) PrepareTask(ctx context.Context, task *domain.Task) ([]string, error) {
+	return s.prepareTask(ctx, task)
+}

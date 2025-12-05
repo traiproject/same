@@ -1207,3 +1207,102 @@ func TestScheduler_Run_UnsafeOutputPath(t *testing.T) {
 		assert.Contains(t, err.Error(), "output path is outside project root")
 	})
 }
+
+func TestScheduler_PrepareTask(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockExec := mocks.NewMockExecutor(ctrl)
+	mockStore := mocks.NewMockBuildInfoStore(ctrl)
+	mockHasher := mocks.NewMockHasher(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockLogger := mocks.NewMockLogger(ctrl)
+	mockDepResolver := mocks.NewMockDependencyResolver(ctrl)
+	mockPkgManager := mocks.NewMockPackageManager(ctrl)
+
+	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, mockDepResolver, mockPkgManager)
+	ctx := context.Background()
+
+	t.Run("NoTools", func(t *testing.T) {
+		task := &domain.Task{
+			Name:  domain.NewInternedString("task"),
+			Tools: nil,
+		}
+		paths, err := s.PrepareTask(ctx, task)
+		require.NoError(t, err)
+		assert.Nil(t, paths)
+	})
+
+	t.Run("ValidTools", func(t *testing.T) {
+		task := &domain.Task{
+			Name: domain.NewInternedString("task"),
+			Tools: map[string]string{
+				"go":   "go@1.21",
+				"lint": "golangci-lint@1.55",
+			},
+		}
+
+		// Mock successful resolution and installation for go
+		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("hash-go", nil)
+		mockPkgManager.EXPECT().Install(ctx, "go", "hash-go").Return("/nix/store/go", nil)
+
+		// Mock successful resolution and installation for lint
+		mockDepResolver.EXPECT().Resolve(ctx, "golangci-lint", "1.55").Return("hash-lint", nil)
+		mockPkgManager.EXPECT().Install(ctx, "golangci-lint", "hash-lint").Return("/nix/store/lint", nil)
+
+		paths, err := s.PrepareTask(ctx, task)
+		require.NoError(t, err)
+		assert.Len(t, paths, 2)
+		assert.Contains(t, paths, "/nix/store/go/bin")
+		assert.Contains(t, paths, "/nix/store/lint/bin")
+	})
+
+	t.Run("InvalidToolSpec", func(t *testing.T) {
+		task := &domain.Task{
+			Name: domain.NewInternedString("task"),
+			Tools: map[string]string{
+				"go": "go1.21", // Missing @
+			},
+		}
+
+		paths, err := s.PrepareTask(ctx, task)
+		require.Error(t, err)
+		assert.Nil(t, paths)
+		assert.Contains(t, err.Error(), domain.ErrInvalidToolSpec.Error())
+	})
+
+	t.Run("ResolutionFailed", func(t *testing.T) {
+		task := &domain.Task{
+			Name: domain.NewInternedString("task"),
+			Tools: map[string]string{
+				"go": "go@1.21",
+			},
+		}
+
+		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("", errors.New("resolve failure"))
+
+		paths, err := s.PrepareTask(ctx, task)
+		require.Error(t, err)
+		assert.Nil(t, paths)
+		assert.Contains(t, err.Error(), domain.ErrToolResolutionFailed.Error())
+		assert.Contains(t, err.Error(), "resolve failure")
+	})
+
+	t.Run("InstallFailed", func(t *testing.T) {
+		task := &domain.Task{
+			Name: domain.NewInternedString("task"),
+			Tools: map[string]string{
+				"go": "go@1.21",
+			},
+		}
+
+		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("hash-go", nil)
+		mockPkgManager.EXPECT().Install(ctx, "go", "hash-go").Return("", errors.New("install failure"))
+
+		paths, err := s.PrepareTask(ctx, task)
+		require.Error(t, err)
+		assert.Nil(t, paths)
+		assert.Contains(t, err.Error(), domain.ErrToolInstallFailed.Error())
+		assert.Contains(t, err.Error(), "install failure")
+	})
+}

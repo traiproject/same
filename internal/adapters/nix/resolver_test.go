@@ -475,3 +475,279 @@ func TestSaveToCache(t *testing.T) {
 		t.Errorf("sys.CommitHash = %v, want test-hash", sys.CommitHash)
 	}
 }
+
+func TestNewResolver_MkdirAllError(t *testing.T) {
+	// Create a file where the cache directory should be to cause MkdirAll to fail
+	tmpDir := t.TempDir()
+	conflictPath := filepath.Join(tmpDir, "conflict")
+
+	// Create a file at the path where we want to create a directory
+	if err := os.WriteFile(conflictPath, []byte("file"), filePerm); err != nil {
+		t.Fatalf("failed to create conflict file: %v", err)
+	}
+
+	// Try to create resolver with a path that would require creating a directory where a file exists
+	cachePath := filepath.Join(conflictPath, "cache")
+	_, err := newResolverWithPath(cachePath)
+	if err == nil {
+		t.Error("newResolverWithPath() expected error when MkdirAll fails")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixCacheCreateFailed.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixCacheCreateFailed)
+	}
+}
+
+func TestQueryNixHub_NonOKStatusCode(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Mock server returning 500 Internal Server Error
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	resolver := &Resolver{
+		cacheDir: tmpDir,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &testTransport{
+				serverURL: server.URL,
+			},
+		},
+	}
+
+	ctx := context.Background()
+	_, err := resolver.Resolve(ctx, "go", "1.21")
+	if err == nil {
+		t.Error("Resolve() expected error for non-OK status code")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixAPIRequestFailed.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixAPIRequestFailed)
+	}
+}
+
+func TestQueryNixHub_EmptySystems(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Mock server returning response with empty systems
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		resp := nixHubResponse{
+			Name:    "go",
+			Version: "1.21",
+			Systems: map[string]SystemResponse{}, // Empty systems
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	resolver := &Resolver{
+		cacheDir: tmpDir,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &testTransport{
+				serverURL: server.URL,
+			},
+		},
+	}
+
+	ctx := context.Background()
+	_, err := resolver.Resolve(ctx, "go", "1.21")
+	if err == nil {
+		t.Error("Resolve() expected error for empty systems")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixPackageNotFound.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixPackageNotFound)
+	}
+}
+
+func TestResolve_UnsupportedSystem(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Mock server returning response with only unsupported systems
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		resp := nixHubResponse{
+			Name:    "go",
+			Version: "1.21",
+			Systems: map[string]SystemResponse{
+				"riscv64-linux": { // Only unsupported system
+					FlakeInstallable: FlakeInstallable{
+						Ref: FlakeRef{
+							Rev: "some-hash",
+						},
+						AttrPath: "legacyPackages.riscv64-linux.go",
+					},
+				},
+			},
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	resolver := &Resolver{
+		cacheDir: tmpDir,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &testTransport{
+				serverURL: server.URL,
+			},
+		},
+	}
+
+	ctx := context.Background()
+	_, err := resolver.Resolve(ctx, "go", "1.21")
+	if err == nil {
+		t.Error("Resolve() expected error for unsupported system")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixPackageNotFound.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixPackageNotFound)
+	}
+}
+
+func TestLoadFromCache_ReadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	resolver, err := newResolverWithPath(tmpDir)
+	if err != nil {
+		t.Fatalf("newResolverWithPath() error = %v", err)
+	}
+
+	// Create cache file with no read permission to trigger read error
+	cachePath := filepath.Join(tmpDir, "unreadable.json")
+	if writeErr := os.WriteFile(cachePath, []byte("{}"), filePerm); writeErr != nil {
+		t.Fatalf("failed to write file: %v", writeErr)
+	}
+	if chmodErr := os.Chmod(cachePath, 0o000); chmodErr != nil {
+		t.Fatalf("failed to chmod file: %v", chmodErr)
+	}
+	// Restore permissions on cleanup
+	t.Cleanup(func() {
+		_ = os.Chmod(cachePath, filePerm)
+	})
+
+	_, err = resolver.loadFromCache(cachePath, "x86_64-linux")
+	if err == nil {
+		t.Error("loadFromCache() expected error for unreadable file")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixCacheReadFailed.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixCacheReadFailed)
+	}
+}
+
+func TestLoadFromCache_SystemNotInCache(t *testing.T) {
+	tmpDir := t.TempDir()
+	resolver, err := newResolverWithPath(tmpDir)
+	if err != nil {
+		t.Fatalf("newResolverWithPath() error = %v", err)
+	}
+
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	entry := cacheEntry{
+		Alias:   "go",
+		Version: "1.21",
+		Systems: map[string]SystemCache{
+			"x86_64-linux": {
+				CommitHash: "test-hash",
+				AttrPath:   "legacyPackages.x86_64-linux.go",
+			},
+		},
+		CachedAt: time.Now(),
+	}
+	data, _ := json.MarshalIndent(entry, "", "  ")
+	if writeErr := os.WriteFile(cachePath, data, filePerm); writeErr != nil {
+		t.Fatalf("failed to write cache: %v", writeErr)
+	}
+
+	// Try to load with a system not in the cache
+	_, err = resolver.loadFromCache(cachePath, "aarch64-darwin")
+	if err == nil {
+		t.Error("loadFromCache() expected error for system not in cache")
+	}
+	if err != domain.ErrNixCacheReadFailed {
+		t.Errorf("error = %v, want %v", err, domain.ErrNixCacheReadFailed)
+	}
+}
+
+func TestQueryNixHub_InvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Mock server returning invalid JSON
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not valid json"))
+	}))
+	defer server.Close()
+
+	resolver := &Resolver{
+		cacheDir: tmpDir,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &testTransport{
+				serverURL: server.URL,
+			},
+		},
+	}
+
+	ctx := context.Background()
+	_, err := resolver.Resolve(ctx, "go", "1.21")
+	if err == nil {
+		t.Error("Resolve() expected error for invalid JSON")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixAPIParseFailed.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixAPIParseFailed)
+	}
+}
+
+func TestGetCurrentSystem(t *testing.T) {
+	// This test verifies that getCurrentSystem returns a valid system string
+	system := getCurrentSystem()
+
+	validSystems := []string{
+		"x86_64-darwin",
+		"aarch64-darwin",
+		"x86_64-linux",
+		"aarch64-linux",
+	}
+
+	found := false
+	for _, valid := range validSystems {
+		if system == valid {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("getCurrentSystem() = %v, want one of %v", system, validSystems)
+	}
+}
+
+func TestQueryNixHub_ContextCancelled(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Mock server that waits before responding
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	resolver := &Resolver{
+		cacheDir: tmpDir,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &testTransport{
+				serverURL: server.URL,
+			},
+		},
+	}
+
+	// Cancel context immediately
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := resolver.Resolve(ctx, "go", "1.21")
+	if err == nil {
+		t.Error("Resolve() expected error for canceled context")
+	}
+}
