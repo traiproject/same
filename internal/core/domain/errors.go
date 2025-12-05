@@ -134,4 +134,13 @@ var (
 
 	// ErrMissingTool is returned when a task references a tool alias that is not defined.
 	ErrMissingTool = zerr.New("tool not found")
+
+	// ErrInvalidToolSpec is returned when a tool specification is missing the @ symbol.
+	ErrInvalidToolSpec = zerr.New("invalid tool specification, expected format: package@version")
+
+	// ErrToolResolutionFailed is returned when resolving a tool version fails.
+	ErrToolResolutionFailed = zerr.New("failed to resolve tool version")
+
+	// ErrToolInstallFailed is returned when installing a tool fails.
+	ErrToolInstallFailed = zerr.New("failed to install tool")
 )

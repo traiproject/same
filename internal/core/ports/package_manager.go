@@ -2,6 +2,8 @@ package ports
 
 import "context"
 
+//go:generate mockgen -source=package_manager.go -destination=mocks/mock_package_manager.go -package=mocks
+
 // DependencyResolver handles resolving a tool version to a specific Nixpkgs commit.
 type DependencyResolver interface {
 	// Resolve resolves a package identifier (e.g., "go@1.21") to a Nixpkgs commit hash.

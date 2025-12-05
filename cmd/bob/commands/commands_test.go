@@ -30,7 +30,7 @@ func TestRun_Success(t *testing.T) {
 
 	// Setup scheduler and app
 	mockResolver := mocks.NewMockInputResolver(ctrl)
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -77,7 +77,7 @@ func TestRun_NoTargets(t *testing.T) {
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -108,7 +108,7 @@ func TestRoot_Help(t *testing.T) {
 
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger)
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
