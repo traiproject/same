@@ -6,6 +6,7 @@ import (
 	"go.trai.ch/bob/internal/adapters/config"
 	"go.trai.ch/bob/internal/adapters/fs"
 	"go.trai.ch/bob/internal/adapters/logger"
+	"go.trai.ch/bob/internal/adapters/nix"
 	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/bob/internal/engine/scheduler"
@@ -33,6 +34,12 @@ var AdapterSet = kessoku.Set(
 
 	// CAS Store
 	kessoku.Bind[ports.BuildInfoStore](kessoku.Provide(cas.NewStore)),
+
+	// Nix Dependency Resolver
+	kessoku.Bind[ports.DependencyResolver](kessoku.Provide(nix.NewResolver)),
+
+	// Nix Package Manager
+	kessoku.Bind[ports.PackageManager](kessoku.Provide(nix.NewManager)),
 )
 
 // EngineSet groups engine-layer providers.

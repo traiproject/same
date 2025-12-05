@@ -58,7 +58,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 
 		// Channels for synchronization
 		dStarted := make(chan struct{})
@@ -175,7 +175,7 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 
 		// Mock Expectations
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -229,7 +229,7 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 
 		// Expect all three tasks to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -281,7 +281,7 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 
 		// Expect all three tasks to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -333,7 +333,7 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 
 		// Expect no tasks to execute
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
@@ -368,7 +368,7 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 
 		// Expect only A and B to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(2)
@@ -418,7 +418,7 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 
 		// Expect no execution
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
@@ -439,7 +439,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
 
-	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 	task := &domain.Task{
 		Name:    domain.NewInternedString("test-task"),
 		Outputs: []domain.InternedString{domain.NewInternedString("out.txt")},
@@ -560,7 +560,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -655,7 +655,7 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -745,7 +745,7 @@ func TestScheduler_Run_ContextCancellation(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -811,7 +811,7 @@ func TestScheduler_Run_ForceModeHasherError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -847,7 +847,7 @@ func TestScheduler_Run_StorePutError(t *testing.T) {
 
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -891,7 +891,7 @@ func TestScheduler_Run_EnvironmentCacheInvalidation(t *testing.T) {
 
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
@@ -1005,7 +1005,7 @@ func TestScheduler_Run_ResolverError(t *testing.T) {
 				mockResolver := mocks.NewMockInputResolver(ctrl)
 				mockLogger := mocks.NewMockLogger(ctrl)
 
-				s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+				s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 				g := domain.NewGraph()
 				g.SetRoot(".")
 				task := &domain.Task{
@@ -1041,7 +1041,7 @@ func TestScheduler_Run_OutputHashComputationError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -1085,7 +1085,7 @@ func TestScheduler_Run_ContextCancelledDuringScheduling(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
@@ -1153,7 +1153,7 @@ func TestScheduler_Run_ContextCancelledAfterCompletion(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("build")}
@@ -1184,7 +1184,7 @@ func TestScheduler_Run_UnsafeOutputPath(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 

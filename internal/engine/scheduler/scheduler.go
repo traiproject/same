@@ -33,31 +33,37 @@ const (
 
 // Scheduler manages the execution of tasks in the dependency graph.
 type Scheduler struct {
-	executor ports.Executor
-	store    ports.BuildInfoStore
-	hasher   ports.Hasher
-	resolver ports.InputResolver
-	logger   ports.Logger
+	executor    ports.Executor
+	store       ports.BuildInfoStore
+	hasher      ports.Hasher
+	resolver    ports.InputResolver
+	logger      ports.Logger
+	depResolver ports.DependencyResolver
+	pkgManager  ports.PackageManager
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
 }
 
-// NewScheduler creates a new Scheduler with the given executor, store, hasher, and logger.
+// NewScheduler creates a new Scheduler with the given dependencies.
 func NewScheduler(
 	executor ports.Executor,
 	store ports.BuildInfoStore,
 	hasher ports.Hasher,
 	resolver ports.InputResolver,
 	logger ports.Logger,
+	depResolver ports.DependencyResolver,
+	pkgManager ports.PackageManager,
 ) *Scheduler {
 	s := &Scheduler{
-		executor:   executor,
-		store:      store,
-		hasher:     hasher,
-		resolver:   resolver,
-		logger:     logger,
-		taskStatus: make(map[domain.InternedString]TaskStatus),
+		executor:    executor,
+		store:       store,
+		hasher:      hasher,
+		resolver:    resolver,
+		logger:      logger,
+		depResolver: depResolver,
+		pkgManager:  pkgManager,
+		taskStatus:  make(map[domain.InternedString]TaskStatus),
 	}
 	return s
 }
@@ -77,6 +83,50 @@ func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.taskStatus[name] = status
+}
+
+// prepareTask resolves and installs tools required by the task.
+// Returns a slice of store paths that should be added to the PATH.
+func (s *Scheduler) prepareTask(ctx context.Context, task *domain.Task) ([]string, error) {
+	if len(task.Tools) == 0 {
+		return nil, nil
+	}
+
+	storePaths := make([]string, 0, len(task.Tools))
+
+	for alias, pkgSpec := range task.Tools {
+		// Parse "package@version" format from value
+		// The alias is only used for task references, not for resolution
+		idx := strings.Index(pkgSpec, "@")
+		if idx == -1 {
+			parseErr := zerr.With(domain.ErrInvalidToolSpec, "alias", alias)
+			return nil, zerr.With(parseErr, "spec", pkgSpec)
+		}
+
+		packageName := pkgSpec[:idx]
+		version := pkgSpec[idx+1:]
+
+		// Resolve tool to specific Nixpkgs commit using package name
+		commitHash, err := s.depResolver.Resolve(ctx, packageName, version)
+		if err != nil {
+			resolveErr := zerr.Wrap(err, domain.ErrToolResolutionFailed.Error())
+			resolveErr = zerr.With(resolveErr, "package", packageName)
+			return nil, zerr.With(resolveErr, "version", version)
+		}
+
+		// Install tool and get store path using package name
+		storePath, err := s.pkgManager.Install(ctx, packageName, commitHash)
+		if err != nil {
+			installErr := zerr.Wrap(err, domain.ErrToolInstallFailed.Error())
+			installErr = zerr.With(installErr, "package", packageName)
+			return nil, zerr.With(installErr, "commit", commitHash)
+		}
+
+		// Append /bin to the store path for PATH environment
+		storePaths = append(storePaths, storePath+"/bin")
+	}
+
+	return storePaths, nil
 }
 
 // Run executes the tasks in the graph with the specified parallelism.
@@ -297,6 +347,13 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
+	// Prepare tools before hashing/execution
+	// Note: Store paths are currently unused - nix-shell integration will be added later
+	if _, err := state.s.prepareTask(state.ctx, t); err != nil {
+		state.resultsCh <- result{task: t.Name, err: err}
+		return
+	}
+
 	hash, err := state.computeInputHash(t)
 	if err != nil {
 		state.resultsCh <- result{task: t.Name, err: err}
