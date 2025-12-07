@@ -124,28 +124,44 @@ func TestResolve_FromCache(t *testing.T) {
 	// Create cache entry with all systems
 	systems := map[string]SystemCache{
 		"x86_64-linux": {
-			CommitHash: expectedHash,
-			AttrPath:   "legacyPackages.x86_64-linux.go",
+			FlakeInstallable: FlakeInstallable{
+				Ref: FlakeRef{
+					Rev: expectedHash,
+				},
+				AttrPath: "legacyPackages.x86_64-linux.go",
+			},
 		},
 		"aarch64-linux": {
-			CommitHash: expectedHash,
-			AttrPath:   "legacyPackages.aarch64-linux.go",
+			FlakeInstallable: FlakeInstallable{
+				Ref: FlakeRef{
+					Rev: expectedHash,
+				},
+				AttrPath: "legacyPackages.aarch64-linux.go",
+			},
 		},
 		"x86_64-darwin": {
-			CommitHash: expectedHash,
-			AttrPath:   "legacyPackages.x86_64-darwin.go",
+			FlakeInstallable: FlakeInstallable{
+				Ref: FlakeRef{
+					Rev: expectedHash,
+				},
+				AttrPath: "legacyPackages.x86_64-darwin.go",
+			},
 		},
 		"aarch64-darwin": {
-			CommitHash: expectedHash,
-			AttrPath:   "legacyPackages.aarch64-darwin.go",
+			FlakeInstallable: FlakeInstallable{
+				Ref: FlakeRef{
+					Rev: expectedHash,
+				},
+				AttrPath: "legacyPackages.aarch64-darwin.go",
+			},
 		},
 	}
 
 	entry := cacheEntry{
-		Alias:    alias,
-		Version:  version,
-		Systems:  systems,
-		CachedAt: time.Now(),
+		Alias:     alias,
+		Version:   version,
+		Systems:   systems,
+		Timestamp: time.Now(),
 	}
 	data, _ := json.MarshalIndent(entry, "", "  ")
 	if writeErr := os.WriteFile(cachePath, data, filePerm); writeErr != nil {
@@ -273,8 +289,8 @@ func TestResolve_CacheMiss_Success(t *testing.T) {
 	if !ok {
 		t.Errorf("current system %s not found in cache", system)
 	}
-	if sysCache.CommitHash != expectedHash {
-		t.Errorf("cached hash = %v, want %v", sysCache.CommitHash, expectedHash)
+	if sysCache.FlakeInstallable.Ref.Rev != expectedHash {
+		t.Errorf("cached hash = %v, want %v", sysCache.FlakeInstallable.Ref.Rev, expectedHash)
 	}
 }
 
@@ -435,6 +451,14 @@ func TestSaveToCache(t *testing.T) {
 					AttrPath: "legacyPackages.x86_64-linux.go",
 				},
 			},
+			"riscv64-linux": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Rev: "test-hash-2",
+					},
+					AttrPath: "legacyPackages.riscv64-linux.go",
+				},
+			},
 		},
 	}
 
@@ -443,7 +467,12 @@ func TestSaveToCache(t *testing.T) {
 		t.Errorf("saveToCache() error = %v", err)
 	}
 
-	// Verify file was written
+	verifyCacheEntry(t, cachePath, "go", testVersion, "test-hash")
+}
+
+func verifyCacheEntry(t *testing.T, cachePath, expectedAlias, expectedVersion, expectedHash string) {
+	t.Helper()
+
 	//nolint:gosec // Test file path is controlled
 	data, err := os.ReadFile(cachePath)
 	if err != nil {
@@ -455,11 +484,11 @@ func TestSaveToCache(t *testing.T) {
 		t.Fatalf("invalid cache file: %v", err)
 	}
 
-	if entry.Alias != "go" {
-		t.Errorf("entry.Alias = %v, want go", entry.Alias)
+	if entry.Alias != expectedAlias {
+		t.Errorf("entry.Alias = %v, want %v", entry.Alias, expectedAlias)
 	}
-	if entry.Version != testVersion {
-		t.Errorf("entry.Version = %v, want %s", entry.Version, testVersion)
+	if entry.Version != expectedVersion {
+		t.Errorf("entry.Version = %v, want %s", entry.Version, expectedVersion)
 	}
 
 	// Verify systems data
@@ -471,8 +500,12 @@ func TestSaveToCache(t *testing.T) {
 	if !ok {
 		t.Error("x86_64-linux system not found in cache")
 	}
-	if sys.CommitHash != "test-hash" {
-		t.Errorf("sys.CommitHash = %v, want test-hash", sys.CommitHash)
+	if sys.FlakeInstallable.Ref.Rev != expectedHash {
+		t.Errorf("sys.FlakeInstallable.Ref.Rev = %v, want %v", sys.FlakeInstallable.Ref.Rev, expectedHash)
+	}
+
+	if _, ok := entry.Systems["riscv64-linux"]; ok {
+		t.Error("riscv64-linux should be filtered out")
 	}
 }
 
@@ -647,11 +680,15 @@ func TestLoadFromCache_SystemNotInCache(t *testing.T) {
 		Version: "1.21",
 		Systems: map[string]SystemCache{
 			"x86_64-linux": {
-				CommitHash: "test-hash",
-				AttrPath:   "legacyPackages.x86_64-linux.go",
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Rev: "test-hash",
+					},
+					AttrPath: "legacyPackages.x86_64-linux.go",
+				},
 			},
 		},
-		CachedAt: time.Now(),
+		Timestamp: time.Now(),
 	}
 	data, _ := json.MarshalIndent(entry, "", "  ")
 	if writeErr := os.WriteFile(cachePath, data, filePerm); writeErr != nil {

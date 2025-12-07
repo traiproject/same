@@ -28,6 +28,13 @@ const (
 	httpClientTimeout = 30 * time.Second
 )
 
+var supportedSystems = map[string]struct{}{
+	"x86_64-linux":   {},
+	"aarch64-linux":  {},
+	"x86_64-darwin":  {},
+	"aarch64-darwin": {},
+}
+
 // Resolver implements ports.DependencyResolver using NixHub API with local caching.
 type Resolver struct {
 	cacheDir   string
@@ -127,7 +134,7 @@ func (r *Resolver) loadFromCache(path, system string) (string, error) {
 		return "", domain.ErrNixCacheReadFailed
 	}
 
-	return systemCache.CommitHash, nil
+	return systemCache.FlakeInstallable.Ref.Rev, nil
 }
 
 // saveToCache saves a resolution result to the cache.
@@ -135,17 +142,20 @@ func (r *Resolver) saveToCache(path, alias, version string, apiResponse *nixHubR
 	// Convert API response to cache entry
 	systems := make(map[string]SystemCache)
 	for sysName, sysData := range apiResponse.Systems {
+		if _, supported := supportedSystems[sysName]; !supported {
+			continue
+		}
 		systems[sysName] = SystemCache{
-			CommitHash: sysData.FlakeInstallable.Ref.Rev,
-			AttrPath:   sysData.FlakeInstallable.AttrPath,
+			FlakeInstallable: sysData.FlakeInstallable,
+			Outputs:          sysData.Outputs,
 		}
 	}
 
 	entry := cacheEntry{
-		Alias:    alias,
-		Version:  version,
-		Systems:  systems,
-		CachedAt: time.Now(),
+		Alias:     alias,
+		Version:   version,
+		Systems:   systems,
+		Timestamp: time.Now(),
 	}
 
 	data, err := json.MarshalIndent(entry, "", "  ")

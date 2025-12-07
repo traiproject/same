@@ -10,16 +10,16 @@ type buildResults []struct {
 
 // cacheEntry represents a cached resolution result with per-system commit hashes.
 type cacheEntry struct {
-	Alias    string                 `json:"alias"`
-	Version  string                 `json:"version"`
-	Systems  map[string]SystemCache `json:"systems"`
-	CachedAt time.Time              `json:"cached_at"`
+	Alias     string                 `json:"alias"`
+	Version   string                 `json:"version"`
+	Systems   map[string]SystemCache `json:"systems"`
+	Timestamp time.Time              `json:"timestamp"`
 }
 
 // SystemCache represents cached data for a specific system architecture.
 type SystemCache struct {
-	CommitHash string `json:"commit_hash"`
-	AttrPath   string `json:"attr_path"`
+	FlakeInstallable FlakeInstallable `json:"flake_installable"`
+	Outputs          []Output         `json:"outputs"`
 }
 
 // nixHubResponse represents the complete API response from NixHub v2/resolve.
