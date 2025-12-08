@@ -40,9 +40,11 @@ type Scheduler struct {
 	logger      ports.Logger
 	depResolver ports.DependencyResolver
 	pkgManager  ports.PackageManager
+	envFactory  ports.EnvironmentFactory
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
+	envCache   sync.Map // map[string][]string - EnvID -> environment variables
 }
 
 // NewScheduler creates a new Scheduler with the given dependencies.
@@ -54,6 +56,7 @@ func NewScheduler(
 	logger ports.Logger,
 	depResolver ports.DependencyResolver,
 	pkgManager ports.PackageManager,
+	envFactory ports.EnvironmentFactory,
 ) *Scheduler {
 	s := &Scheduler{
 		executor:    executor,
@@ -63,7 +66,9 @@ func NewScheduler(
 		logger:      logger,
 		depResolver: depResolver,
 		pkgManager:  pkgManager,
+		envFactory:  envFactory,
 		taskStatus:  make(map[domain.InternedString]TaskStatus),
+		envCache:    sync.Map{},
 	}
 	return s
 }
@@ -198,6 +203,7 @@ type schedulerRunState struct {
 	s           *Scheduler
 	allTasks    []domain.InternedString
 	force       bool
+	taskEnvIDs  map[domain.InternedString]string // task name -> environment ID
 }
 
 func (s *Scheduler) newRunState(
@@ -237,6 +243,16 @@ func (s *Scheduler) newRunState(
 		}
 	}
 
+	// Pre-calculate environment IDs for all tasks with tools
+	taskEnvIDs := make(map[domain.InternedString]string)
+	for name := range tasks {
+		task := tasks[name]
+		if len(task.Tools) > 0 {
+			envID := s.generateEnvID(task.Tools)
+			taskEnvIDs[name] = envID
+		}
+	}
+
 	return &schedulerRunState{
 		graph:       graph,
 		inDegree:    inDegree,
@@ -248,6 +264,7 @@ func (s *Scheduler) newRunState(
 		s:           s,
 		allTasks:    allTasks,
 		force:       force,
+		taskEnvIDs:  taskEnvIDs,
 	}, nil
 }
 
@@ -377,9 +394,11 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		outputs[i] = out.String()
 	}
 
+	// TODO: Use pre-calculated environments from taskEnvIDs
+	// This will be implemented in a follow-up PR after executor refactoring
 	state.resultsCh <- result{
 		task:        t.Name,
-		err:         state.s.executor.Execute(state.ctx, t),
+		err:         state.s.executor.Execute(state.ctx, t, nil), // Pass nil env for now
 		inputHash:   hash,
 		taskOutputs: outputs,
 	}

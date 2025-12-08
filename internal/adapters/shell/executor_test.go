@@ -34,7 +34,7 @@ func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task)
+	err := executor.Execute(context.Background(), task, nil)
 	require.NoError(t, err)
 }
 
@@ -61,6 +61,6 @@ func TestExecutor_Execute_EnvironmentVariables(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task)
+	err := executor.Execute(context.Background(), task, nil)
 	require.NoError(t, err)
 }

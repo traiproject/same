@@ -24,8 +24,10 @@ func NewExecutor(logger ports.Logger) *Executor {
 	}
 }
 
-// Execute runs the task's command.
-func (e *Executor) Execute(ctx context.Context, task *domain.Task) error {
+// Execute runs the task's command with the specified environment.
+// If env is nil or empty, it uses os.Environ() for Nix shell context compatibility.
+// Otherwise, it uses the provided env for hermetic execution.
+func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string) error {
 	if len(task.Command) == 0 {
 		return nil
 	}
@@ -40,9 +42,15 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task) error {
 		cmd.Dir = task.WorkingDir.String()
 	}
 
-	// Merge environment: start with os.Environ() (preserves Nix shell context),
-	// then override with task-specific environment variables
-	cmd.Env = mergeEnvironment(os.Environ(), task.Environment)
+	// Set environment:
+	// - If env is provided (hermetic execution), use it as the base
+	// - Otherwise, use os.Environ() to preserve Nix shell context
+	// - Then merge in task-specific environment variables
+	baseEnv := env
+	if len(baseEnv) == 0 {
+		baseEnv = os.Environ()
+	}
+	cmd.Env = mergeEnvironment(baseEnv, task.Environment)
 
 	// Wire Stdout/Stderr to logger
 	cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
