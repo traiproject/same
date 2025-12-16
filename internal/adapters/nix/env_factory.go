@@ -50,7 +50,7 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 	envID := domain.GenerateEnvID(tools)
 
 	// Wrap the entire expensive operation in singleflight to prevent cache stampedes
-	result, err, _ := e.requestGroup.Do(envID, func() (interface{}, error) {
+	result, err, _ := e.requestGroup.Do(envID, func() (any, error) {
 		// Step A: Check cache first (fast path)
 		cachePath := filepath.Join(e.cacheDir, "environments", envID+".json")
 		if cachedEnv, err := LoadEnvFromCache(cachePath); err == nil {
@@ -92,6 +92,7 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 		// Enforce local toolchain for Go to prevent auto-downloading newer versions
 		// based on go.mod directive.
 		env = append(env, "GOTOOLCHAIN=local")
+
 		slices.Sort(env) // Re-sort after appending
 
 		if err := SaveEnvToCache(cachePath, env); err != nil {
@@ -106,7 +107,27 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 		return nil, err
 	}
 
-	return result.([]string), nil
+	env := result.([]string)
+
+	// Force temporary directories to local system temp to avoid leaking
+	// transient build directories (e.g. from nix-shell).
+	// Note: We cannot use os.TempDir() here because it respects the current TMPDIR env var,
+	// which might be the polluted Nix path we are trying to avoid.
+	tmpDir := "/tmp"
+	env = append(env,
+		fmt.Sprintf("TMPDIR=%s", tmpDir),
+		fmt.Sprintf("TEMP=%s", tmpDir),
+		fmt.Sprintf("TMP=%s", tmpDir),
+	)
+
+	// Also force GOCACHE to user local cache to avoid using the transient build cache
+	if userCacheDir, err := os.UserCacheDir(); err == nil {
+		env = append(env, fmt.Sprintf("GOCACHE=%s", filepath.Join(userCacheDir, "go-build")))
+	}
+
+	slices.Sort(env)
+
+	return env, nil
 }
 
 // generateNixExpr generates a Nix expression from a commit-to-packages mapping.
@@ -298,6 +319,12 @@ func ShouldIncludeVar(key string) bool {
 		"PWD",
 		"OLDPWD",
 		"_",
+		"TMPDIR",
+		"TEMP",
+		"TMP",
+		"NIX_BUILD_TOP",
+		"NIX_BUILD_CORES",
+		"NIX_LOG_FD",
 	}
 
 	for _, excluded := range exclude {
@@ -320,8 +347,8 @@ func (e *EnvFactory) resolveTools(ctx context.Context, tools map[string]string) 
 	// Use number of CPUs as concurrency limit, matching scheduler default
 	g.SetLimit(runtime.NumCPU())
 
-	for alias, spec := range tools {
-		alias, spec := alias, spec // Capture loop variables
+	for _, spec := range tools {
+		spec := spec // Capture loop variables
 		g.Go(func() error {
 			// Parse spec to get package name and version
 			// Spec format: "package@version" (e.g., "go@1.25.4")
@@ -335,7 +362,10 @@ func (e *EnvFactory) resolveTools(ctx context.Context, tools map[string]string) 
 			version := parts[1]
 
 			// Resolve to commit hash and attribute path
-			commitHash, attrPath, err := e.resolver.Resolve(groupCtx, alias, version)
+			// Fix: Use the package name from spec (parts[0]) instead of the alias
+			// The alias is just the local name for the tool (e.g. "lint"),
+			// whereas parts[0] is the actual package name (e.g. "golangci-lint")
+			commitHash, attrPath, err := e.resolver.Resolve(groupCtx, parts[0], version)
 			if err != nil {
 				return zerr.Wrap(err, "failed to resolve tool")
 			}

@@ -1,3 +1,5 @@
+//go:build wireinject
+
 package app
 
 import (
@@ -56,9 +58,13 @@ var AppSet = kessoku.Set(
 	kessoku.Provide(NewComponents),
 )
 
-//go:generate sh -c "go run github.com/mazrean/kessoku/cmd/kessoku $GOFILE || true"
 var _ = kessoku.Inject[*Components]("InitializeApp",
 	AdapterSet,
 	EngineSet,
 	AppSet,
 )
+
+// InitializeApp is a stub for wire generation.
+func InitializeApp() (*Components, error) {
+	panic("wire")
+}

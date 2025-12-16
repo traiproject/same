@@ -1,6 +1,8 @@
 // Package app implements the application layer for bob.
 package app
 
+//go:generate sh -c "GOFLAGS='-tags=wireinject' go run github.com/mazrean/kessoku/cmd/kessoku wire.go"
+
 import (
 	"context"
 	"runtime"
