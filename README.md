@@ -11,3 +11,4 @@ Write Once, Build Once, Anywhere
 [![GoDoc](https://godoc.org/github.com/golang/gddo?status.svg)](https://pkg.go.dev/go.trai.ch/bob?tab=doc)
 [![Build Status](https://github.com/traiproject/bob/actions/workflows/ci.yml/badge.svg)](https://github.com/traiproject/bob/actions)
 [![Codecov](https://codecov.io/gh/traiproject/bob/graph/badge.svg?token=BZ2R4NX0DA)](https://codecov.io/gh/traiproject/bob)
+[![Go Report Card](https://goreportcard.com/badge/go.trai.ch/bob)](https://goreportcard.com/report/go.trai.ch/bob)
