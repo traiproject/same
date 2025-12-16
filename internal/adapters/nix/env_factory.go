@@ -9,12 +9,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
 
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
+	"golang.org/x/sync/errgroup"
 )
 
 // EnvFactory implements ports.EnvironmentFactory using Nix.
@@ -43,29 +46,45 @@ func NewEnvFactoryWithCache(
 func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string) ([]string, error) {
 	// Step A: Resolve all tools to commit hashes
 	commitToPackages := make(map[string][]string)
+	var mu sync.Mutex
+
+	g, groupCtx := errgroup.WithContext(ctx)
+	// Use number of CPUs as concurrency limit, matching scheduler default
+	g.SetLimit(runtime.NumCPU())
 
 	for alias, spec := range tools {
-		// Parse spec to get package name and version
-		// Spec format: "package@version" (e.g., "go@1.25.4")
-		parts := strings.SplitN(spec, "@", 2)
-		if len(parts) != 2 {
-			return nil, zerr.Wrap(
-				fmt.Errorf("invalid tool spec format: %s", spec),
-				"expected format: package@version",
-			)
-		}
-		version := parts[1]
+		alias, spec := alias, spec // Capture loop variables
+		g.Go(func() error {
+			// Parse spec to get package name and version
+			// Spec format: "package@version" (e.g., "go@1.25.4")
+			parts := strings.SplitN(spec, "@", 2)
+			if len(parts) != 2 {
+				return zerr.Wrap(
+					fmt.Errorf("invalid tool spec format: %s", spec),
+					"expected format: package@version",
+				)
+			}
+			version := parts[1]
 
-		// Resolve to commit hash and attribute path
-		commitHash, attrPath, err := e.resolver.Resolve(ctx, alias, version)
-		if err != nil {
-			return nil, zerr.Wrap(err, "failed to resolve tool")
-		}
+			// Resolve to commit hash and attribute path
+			commitHash, attrPath, err := e.resolver.Resolve(groupCtx, alias, version)
+			if err != nil {
+				return zerr.Wrap(err, "failed to resolve tool")
+			}
 
-		// Group packages by commit hash
-		// We use the attribute path returned by the resolver (e.g., "go_1_22")
-		// instead of the alias/package name derived from the spec.
-		commitToPackages[commitHash] = append(commitToPackages[commitHash], attrPath)
+			// Group packages by commit hash
+			// We use the attribute path returned by the resolver (e.g., "go_1_22")
+			// instead of the alias/package name derived from the spec.
+			mu.Lock()
+			commitToPackages[commitHash] = append(commitToPackages[commitHash], attrPath)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	// Step B: Create deterministic hash of toolset for cache key
