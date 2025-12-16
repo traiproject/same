@@ -25,8 +25,12 @@ func NewExecutor(logger ports.Logger) *Executor {
 }
 
 // Execute runs the task's command with the specified environment.
-// If env is nil or empty, it uses os.Environ() for Nix shell context compatibility.
-// Otherwise, it uses the provided env for hermetic execution.
+// It merges environments with the following priority (low to high):
+// 1. os.Environ() (System base)
+// 2. env (Nix Hermetic Environment)
+// 3. task.Environment (User-defined overrides)
+//
+// Special handling is applied to PATH: Nix paths are prepended to System paths.
 func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string) error {
 	if len(task.Command) == 0 {
 		return nil
@@ -42,15 +46,8 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string)
 		cmd.Dir = task.WorkingDir.String()
 	}
 
-	// Set environment:
-	// - If env is provided (hermetic execution), use it as the base
-	// - Otherwise, use os.Environ() to preserve Nix shell context
-	// - Then merge in task-specific environment variables
-	baseEnv := env
-	if len(baseEnv) == 0 {
-		baseEnv = os.Environ()
-	}
-	cmd.Env = mergeEnvironment(baseEnv, task.Environment)
+	// Construct the final environment
+	cmd.Env = resolveEnvironment(os.Environ(), env, task.Environment)
 
 	// Wire Stdout/Stderr to logger
 	cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
@@ -103,34 +100,42 @@ func (w *logWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// mergeEnvironment merges os.Environ() with task-specific environment variables.
-// Task environment variables override system environment variables.
-func mergeEnvironment(osEnv []string, taskEnv map[string]string) []string {
-	if len(taskEnv) == 0 {
-		return osEnv
-	}
-
-	// Create a map to track which keys we've overridden
-	envMap := make(map[string]string, len(osEnv)+len(taskEnv))
-
-	// Parse os.Environ() into the map
-	for _, entry := range osEnv {
-		key, value, found := strings.Cut(entry, "=")
-		if found {
-			envMap[key] = value
+// resolveEnvironment merges environment variables with the defined priority.
+func resolveEnvironment(sysEnv, nixEnv []string, taskEnv map[string]string) []string {
+	// 1. Start with System Environment
+	envMap := make(map[string]string)
+	for _, entry := range sysEnv {
+		k, v, ok := strings.Cut(entry, "=")
+		if ok {
+			envMap[k] = v
 		}
 	}
 
-	// Override with task environment
-	for key, value := range taskEnv {
-		envMap[key] = value
+	// 2. Apply Nix Environment (Prepend PATH)
+	for _, entry := range nixEnv {
+		k, v, ok := strings.Cut(entry, "=")
+		if ok {
+			if k == "PATH" {
+				if sysPath, exists := envMap["PATH"]; exists && sysPath != "" {
+					envMap[k] = v + string(os.PathListSeparator) + sysPath
+				} else {
+					envMap[k] = v
+				}
+			} else {
+				envMap[k] = v
+			}
+		}
 	}
 
-	// Convert back to []string format
+	// 3. Apply Task Environment Overrides
+	for k, v := range taskEnv {
+		envMap[k] = v
+	}
+
+	// Convert to slice
 	result := make([]string, 0, len(envMap))
-	for key, value := range envMap {
-		result = append(result, key+"="+value)
+	for k, v := range envMap {
+		result = append(result, k+"="+v)
 	}
-
 	return result
 }
