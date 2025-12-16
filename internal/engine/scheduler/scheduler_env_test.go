@@ -23,7 +23,8 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
-		// Mock depResolver and pkgManager are not needed for this test as we mock PrepareTask behavior via EnvFactory indirectly
+		// Mock depResolver and pkgManager are not needed for this test as we mock PrepareTask
+		// behavior via EnvFactory indirectly
 		// Actually prepareTask uses depResolver and pkgManager.
 		// Wait, prepareTask is called in executeTask.
 		// If tools are present, prepareTask tries to resolve and install them.
@@ -31,7 +32,10 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 		mockDepResolver := mocks.NewMockDependencyResolver(ctrl)
 		mockPkgManager := mocks.NewMockPackageManager(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, mockDepResolver, mockPkgManager, mockEnvFactory)
+		s := scheduler.NewScheduler(
+			mockExec, mockStore, mockHasher, mockResolver, mockLogger,
+			mockDepResolver, mockPkgManager, mockEnvFactory,
+		)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -47,7 +51,7 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 		ctx := context.Background()
 
 		// Mock Expectations
-		
+
 		// 1. prepareTask calls
 		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.22.2").Return("commit-hash", "pkgs.go", nil)
 		mockPkgManager.EXPECT().Install(ctx, "go", "commit-hash").Return("/nix/store/go-1.22.2", nil)

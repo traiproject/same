@@ -63,13 +63,14 @@ func newResolverWithPath(path string) (*Resolver, error) {
 
 // Resolve resolves a tool alias and version to a Nixpkgs commit hash and attribute path.
 // It checks the cache first, then queries the NixHub API if needed.
-func (r *Resolver) Resolve(ctx context.Context, alias, version string) (string, string, error) {
+func (r *Resolver) Resolve(ctx context.Context, alias, version string) (commitHash, attrPath string, err error) {
 	// Detect current system
 	system := getCurrentSystem()
 
 	// Try to load from cache first
 	cachePath := r.getCachePath(alias, version)
-	if commitHash, attrPath, err := r.loadFromCache(cachePath, system); err == nil {
+	commitHash, attrPath, err = r.loadFromCache(cachePath, system)
+	if err == nil {
 		return commitHash, attrPath, nil
 	}
 
@@ -86,8 +87,8 @@ func (r *Resolver) Resolve(ctx context.Context, alias, version string) (string, 
 		unsupportedErr = zerr.With(unsupportedErr, "version", version)
 		return "", "", zerr.With(unsupportedErr, "system", system)
 	}
-	commitHash := systemData.FlakeInstallable.Ref.Rev
-	attrPath := systemData.FlakeInstallable.AttrPath
+	commitHash = systemData.FlakeInstallable.Ref.Rev
+	attrPath = systemData.FlakeInstallable.AttrPath
 
 	// Save to cache for future use
 	if err := r.saveToCache(cachePath, alias, version, apiResponse); err != nil {
@@ -114,7 +115,7 @@ func (r *Resolver) getCachePath(alias, version string) string {
 }
 
 // loadFromCache attempts to load a cached resolution result for the given system.
-func (r *Resolver) loadFromCache(path, system string) (string, string, error) {
+func (r *Resolver) loadFromCache(path, system string) (commitHash, attrPath string, err error) {
 	//nolint:gosec // Path is constructed from trusted directory and hashed filename
 	data, err := os.ReadFile(path)
 	if err != nil {

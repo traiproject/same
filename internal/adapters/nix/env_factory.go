@@ -103,7 +103,6 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 	}
 	// Step E: Persist to cache
 
-
 	// Enforce local toolchain for Go to prevent auto-downloading newer versions
 	// based on go.mod directive.
 	env = append(env, "GOTOOLCHAIN=local")

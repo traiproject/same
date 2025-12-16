@@ -1,3 +1,4 @@
+// Package scheduler exports internal functions for testing.
 package scheduler
 
 import (

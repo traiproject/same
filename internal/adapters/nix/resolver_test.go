@@ -194,57 +194,7 @@ func TestResolve_CacheMiss_Success(t *testing.T) {
 			t.Errorf("unexpected query params: %v", r.URL.Query())
 		}
 
-		resp := nixHubResponse{
-			Name:    "go",
-			Version: testVersion,
-			Summary: "The Go programming language",
-			Systems: map[string]SystemResponse{
-				"x86_64-linux": {
-					FlakeInstallable: FlakeInstallable{
-						Ref: FlakeRef{
-							Type:  "github",
-							Owner: "NixOS",
-							Repo:  "nixpkgs",
-							Rev:   expectedHash,
-						},
-						AttrPath: "legacyPackages.x86_64-linux.go",
-					},
-				},
-				"aarch64-linux": {
-					FlakeInstallable: FlakeInstallable{
-						Ref: FlakeRef{
-							Type:  "github",
-							Owner: "NixOS",
-							Repo:  "nixpkgs",
-							Rev:   expectedHash,
-						},
-						AttrPath: "legacyPackages.aarch64-linux.go",
-					},
-				},
-				"x86_64-darwin": {
-					FlakeInstallable: FlakeInstallable{
-						Ref: FlakeRef{
-							Type:  "github",
-							Owner: "NixOS",
-							Repo:  "nixpkgs",
-							Rev:   expectedHash,
-						},
-						AttrPath: "legacyPackages.x86_64-darwin.go",
-					},
-				},
-				"aarch64-darwin": {
-					FlakeInstallable: FlakeInstallable{
-						Ref: FlakeRef{
-							Type:  "github",
-							Owner: "NixOS",
-							Repo:  "nixpkgs",
-							Rev:   expectedHash,
-						},
-						AttrPath: "legacyPackages.aarch64-darwin.go",
-					},
-				},
-			},
-		}
+		resp := buildNixHubResponse("go", testVersion, expectedHash)
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
@@ -276,32 +226,7 @@ func TestResolve_CacheMiss_Success(t *testing.T) {
 	}
 
 	// Verify cache was written
-	cachePath := filepath.Join(tmpDir, getHash("go", testVersion)+".json")
-	//nolint:gosec // Test file path is controlled
-	data, err := os.ReadFile(cachePath)
-	if err != nil {
-		t.Errorf("cache file not written: %v", err)
-	}
-
-	var entry cacheEntry
-	if err := json.Unmarshal(data, &entry); err != nil {
-		t.Errorf("invalid cache data: %v", err)
-	}
-
-	// Verify at least one system is cached
-	if len(entry.Systems) == 0 {
-		t.Error("no systems cached")
-	}
-
-	// Verify current system has the expected hash
-	system := getCurrentSystem()
-	sysCache, ok := entry.Systems[system]
-	if !ok {
-		t.Errorf("current system %s not found in cache", system)
-	}
-	if sysCache.FlakeInstallable.Ref.Rev != expectedHash {
-		t.Errorf("cached hash = %v, want %v", sysCache.FlakeInstallable.Ref.Rev, expectedHash)
-	}
+	verifyCacheWasWritten(t, tmpDir, "go", testVersion, expectedHash)
 }
 
 // testTransport is a custom RoundTripper that redirects requests to a test server.
@@ -516,6 +441,42 @@ func verifyCacheEntry(t *testing.T, cachePath, expectedAlias, expectedVersion, e
 
 	if _, ok := entry.Systems["riscv64-linux"]; ok {
 		t.Error("riscv64-linux should be filtered out")
+	}
+}
+
+// verifyCacheWasWritten checks that the cache file was written and contains the expected data.
+func verifyCacheWasWritten(t *testing.T, tmpDir, alias, version, expectedHash string) {
+	t.Helper()
+
+	cachePath := filepath.Join(tmpDir, getHash(alias, version)+".json")
+	//nolint:gosec // Test file path is controlled
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Errorf("cache file not written: %v", err)
+		return
+	}
+
+	var entry cacheEntry
+	if err := json.Unmarshal(data, &entry); err != nil {
+		t.Errorf("invalid cache data: %v", err)
+		return
+	}
+
+	// Verify at least one system is cached
+	if len(entry.Systems) == 0 {
+		t.Error("no systems cached")
+		return
+	}
+
+	// Verify current system has the expected hash
+	system := getCurrentSystem()
+	sysCache, ok := entry.Systems[system]
+	if !ok {
+		t.Errorf("current system %s not found in cache", system)
+		return
+	}
+	if sysCache.FlakeInstallable.Ref.Rev != expectedHash {
+		t.Errorf("cached hash = %v, want %v", sysCache.FlakeInstallable.Ref.Rev, expectedHash)
 	}
 }
 
@@ -798,5 +759,60 @@ func TestQueryNixHub_ContextCancelled(t *testing.T) {
 	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for canceled context")
+	}
+}
+
+// buildNixHubResponse creates a nixHubResponse for testing with all supported systems.
+func buildNixHubResponse(name, version, commitHash string) nixHubResponse {
+	return nixHubResponse{
+		Name:    name,
+		Version: version,
+		Summary: "The Go programming language",
+		Systems: map[string]SystemResponse{
+			"x86_64-linux": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Type:  "github",
+						Owner: "NixOS",
+						Repo:  "nixpkgs",
+						Rev:   commitHash,
+					},
+					AttrPath: "legacyPackages.x86_64-linux.go",
+				},
+			},
+			"aarch64-linux": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Type:  "github",
+						Owner: "NixOS",
+						Repo:  "nixpkgs",
+						Rev:   commitHash,
+					},
+					AttrPath: "legacyPackages.aarch64-linux.go",
+				},
+			},
+			"x86_64-darwin": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Type:  "github",
+						Owner: "NixOS",
+						Repo:  "nixpkgs",
+						Rev:   commitHash,
+					},
+					AttrPath: "legacyPackages.x86_64-darwin.go",
+				},
+			},
+			"aarch64-darwin": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Type:  "github",
+						Owner: "NixOS",
+						Repo:  "nixpkgs",
+						Rev:   commitHash,
+					},
+					AttrPath: "legacyPackages.aarch64-darwin.go",
+				},
+			},
+		},
 	}
 }
