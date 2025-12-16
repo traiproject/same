@@ -40,23 +40,34 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string)
 	name := task.Command[0]
 	args := task.Command[1:]
 
-	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // user provided command
+	// Construct the final environment
+	cmdEnv := resolveEnvironment(os.Environ(), env, task.Environment)
+
+	// Resolve the executable path using the new environment's PATH
+	// If command is not an absolute path, search in env
+	executable := name
+	if !filepath.IsAbs(name) {
+		if lp, err := lookPath(name, cmdEnv); err == nil {
+			executable = lp
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, executable, args...) //nolint:gosec // user provided command
+
+	// Restore the original command name in Args[0]
+	// exec.CommandContext sets Args[0] to the executable path.
+	// We want to preserve the original name as invoked.
+	if len(cmd.Args) > 0 {
+		cmd.Args[0] = name
+	}
 
 	// Set the working directory for the command
 	if task.WorkingDir.String() != "" {
 		cmd.Dir = task.WorkingDir.String()
 	}
 
-	// Construct the final environment
-	cmd.Env = resolveEnvironment(os.Environ(), env, task.Environment)
-
-	// Resolve the executable path using the new environment's PATH
-	// If command is not an absolute path, search in env
-	if !filepath.IsAbs(name) {
-		if lp, err := lookPath(name, cmd.Env); err == nil {
-			cmd.Path = lp
-		}
-	}
+	// Assign the constructed environment
+	cmd.Env = cmdEnv
 
 	// Wire Stdout/Stderr to logger
 	cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
