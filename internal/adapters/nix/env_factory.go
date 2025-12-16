@@ -54,17 +54,18 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 				"expected format: package@version",
 			)
 		}
-		packageName := parts[0]
 		version := parts[1]
 
-		// Resolve to commit hash
-		commitHash, err := e.resolver.Resolve(ctx, alias, version)
+		// Resolve to commit hash and attribute path
+		commitHash, attrPath, err := e.resolver.Resolve(ctx, alias, version)
 		if err != nil {
 			return nil, zerr.Wrap(err, "failed to resolve tool")
 		}
 
 		// Group packages by commit hash
-		commitToPackages[commitHash] = append(commitToPackages[commitHash], packageName)
+		// We use the attribute path returned by the resolver (e.g., "go_1_22")
+		// instead of the alias/package name derived from the spec.
+		commitToPackages[commitHash] = append(commitToPackages[commitHash], attrPath)
 	}
 
 	// Step B: Create deterministic hash of toolset for cache key
@@ -100,8 +101,14 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 	if err != nil {
 		return nil, zerr.Wrap(err, "failed to parse nix output")
 	}
-
 	// Step E: Persist to cache
+
+
+	// Enforce local toolchain for Go to prevent auto-downloading newer versions
+	// based on go.mod directive.
+	env = append(env, "GOTOOLCHAIN=local")
+	slices.Sort(env) // Re-sort after appending
+
 	if err := SaveEnvToCache(cachePath, env); err != nil {
 		// Log warning but don't fail - cache write is not critical
 		_ = err

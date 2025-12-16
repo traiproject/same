@@ -1,4 +1,3 @@
-// Package scheduler implements the task execution scheduler.
 package scheduler
 
 import (
@@ -112,7 +111,7 @@ func (s *Scheduler) prepareTask(ctx context.Context, task *domain.Task) ([]strin
 		version := pkgSpec[idx+1:]
 
 		// Resolve tool to specific Nixpkgs commit using package name
-		commitHash, err := s.depResolver.Resolve(ctx, packageName, version)
+		commitHash, _, err := s.depResolver.Resolve(ctx, packageName, version)
 		if err != nil {
 			resolveErr := zerr.Wrap(err, domain.ErrToolResolutionFailed.Error())
 			resolveErr = zerr.With(resolveErr, "package", packageName)
@@ -394,11 +393,19 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		outputs[i] = out.String()
 	}
 
-	// TODO: Use pre-calculated environments from taskEnvIDs
-	// This will be implemented in a follow-up PR after executor refactoring
+	var env []string
+	if len(t.Tools) > 0 {
+		var err error
+		env, err = state.s.envFactory.GetEnvironment(state.ctx, t.Tools)
+		if err != nil {
+			state.resultsCh <- result{task: t.Name, err: err}
+			return
+		}
+	}
+
 	state.resultsCh <- result{
 		task:        t.Name,
-		err:         state.s.executor.Execute(state.ctx, t, nil), // Pass nil env for now
+		err:         state.s.executor.Execute(state.ctx, t, env),
 		inputHash:   hash,
 		taskOutputs: outputs,
 	}

@@ -8,7 +8,9 @@ import "context"
 type DependencyResolver interface {
 	// Resolve resolves a package identifier (e.g., "go@1.21") to a Nixpkgs commit hash.
 	// It should check the cache first, then query the NixHub API.
-	Resolve(ctx context.Context, alias, version string) (commitHash string, err error)
+	// Resolve resolves a package identifier (e.g., "go@1.21") to a Nixpkgs commit hash and attribute path.
+	// It should check the cache first, then query the NixHub API.
+	Resolve(ctx context.Context, alias, version string) (commitHash, attrPath string, err error)
 }
 
 // PackageManager handles the fetching and preparation of tools.

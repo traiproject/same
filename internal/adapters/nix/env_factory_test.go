@@ -45,7 +45,7 @@ func TestGetEnvironment_Success(t *testing.T) {
 	// Use a real nixpkgs commit that should work
 	resolver.EXPECT().
 		Resolve(gomock.Any(), "hello", "2.12.1").
-		Return("2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", nil)
+		Return("2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.hello", nil)
 
 	tmpDir := t.TempDir()
 	factory := nix.NewEnvFactoryWithCache(resolver, manager, tmpDir)
@@ -114,7 +114,7 @@ func TestGetEnvironment_ResolverError(t *testing.T) {
 	// Mock resolver to return error
 	resolver.EXPECT().
 		Resolve(gomock.Any(), "go", "1.25.4").
-		Return("", fmt.Errorf("resolver error"))
+		Return("", "", fmt.Errorf("resolver error"))
 
 	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
 	ctx := context.Background()

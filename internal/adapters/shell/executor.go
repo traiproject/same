@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"go.trai.ch/bob/internal/core/domain"
@@ -49,6 +50,14 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string)
 	// Construct the final environment
 	cmd.Env = resolveEnvironment(os.Environ(), env, task.Environment)
 
+	// Resolve the executable path using the new environment's PATH
+	// If command is not an absolute path, search in env
+	if !filepath.IsAbs(name) {
+		if lp, err := lookPath(name, cmd.Env); err == nil {
+			cmd.Path = lp
+		}
+	}
+
 	// Wire Stdout/Stderr to logger
 	cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
 	cmd.Stderr = &logWriter{logger: e.logger, level: "error"}
@@ -89,8 +98,8 @@ func (w *logWriter) Write(p []byte) (n int, err error) {
 	// I'll implement a simple line scanner or just cast to string for now.
 	// Splitting by newline is safer for loggers.
 
-	lines := strings.SplitSeq(strings.TrimSuffix(msg, "\n"), "\n")
-	for line := range lines {
+	lines := strings.Split(strings.TrimSuffix(msg, "\n"), "\n")
+	for _, line := range lines {
 		if w.level == "info" {
 			w.logger.Info(line)
 		} else {
@@ -138,4 +147,43 @@ func resolveEnvironment(sysEnv, nixEnv []string, taskEnv map[string]string) []st
 		result = append(result, k+"="+v)
 	}
 	return result
+}
+
+// lookPath searches for an executable in the directories named by the PATH environment variable.
+func lookPath(file string, env []string) (string, error) {
+	// Find PATH in env
+	var path string
+	for _, e := range env {
+		if strings.HasPrefix(e, "PATH=") {
+			path = strings.TrimPrefix(e, "PATH=")
+			break
+		}
+	}
+
+	if path == "" {
+		return "", exec.ErrNotFound
+	}
+
+	for _, dir := range filepath.SplitList(path) {
+		if dir == "" {
+			// Unix shell semantics: path element "" means "."
+			dir = "."
+		}
+		path := filepath.Join(dir, file)
+		if err := findExecutable(path); err == nil {
+			return path, nil
+		}
+	}
+	return "", exec.ErrNotFound
+}
+
+func findExecutable(file string) error {
+	d, err := os.Stat(file)
+	if err != nil {
+		return err
+	}
+	if m := d.Mode(); !m.IsDir() && m&0111 != 0 {
+		return nil
+	}
+	return os.ErrPermission
 }

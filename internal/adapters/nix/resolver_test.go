@@ -170,12 +170,17 @@ func TestResolve_FromCache(t *testing.T) {
 
 	// Resolve should return cached value without hitting API
 	ctx := context.Background()
-	got, err := resolver.Resolve(ctx, alias, version)
+	got, gotAttr, err := resolver.Resolve(ctx, alias, version)
 	if err != nil {
 		t.Errorf("Resolve() error = %v", err)
 	}
 	if got != expectedHash {
 		t.Errorf("Resolve() = %v, want %v", got, expectedHash)
+	}
+	if gotAttr != "legacyPackages."+getCurrentSystem()+".go" {
+		// Note: constructing expected attr path dynamically for test portability
+		expectedAttr := "legacyPackages." + getCurrentSystem() + ".go"
+		t.Errorf("Resolve() attr = %v, want %v", gotAttr, expectedAttr)
 	}
 }
 
@@ -257,12 +262,17 @@ func TestResolve_CacheMiss_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	got, err := resolver.Resolve(ctx, "go", testVersion)
+	got, gotAttr, err := resolver.Resolve(ctx, "go", testVersion)
 	if err != nil {
 		t.Errorf("Resolve() error = %v", err)
 	}
 	if got != expectedHash {
 		t.Errorf("Resolve() = %v, want %v", got, expectedHash)
+	}
+	// Check expected attribute path based on current system
+	expectedAttr := "legacyPackages." + getCurrentSystem() + ".go"
+	if gotAttr != expectedAttr {
+		t.Errorf("Resolve() attr = %v, want %v", gotAttr, expectedAttr)
 	}
 
 	// Verify cache was written
@@ -329,7 +339,7 @@ func TestResolve_PackageNotFound(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "nonexistent", "1.0.0")
+	_, _, err := resolver.Resolve(ctx, "nonexistent", "1.0.0")
 	if err == nil {
 		t.Error("Resolve() expected error for nonexistent package")
 	}
@@ -407,7 +417,7 @@ func TestResolve_InvalidCacheData(t *testing.T) {
 
 	// Should fall back to API when cache is corrupted
 	ctx := context.Background()
-	got, err := resolver.Resolve(ctx, "go", testVersion)
+	got, _, err := resolver.Resolve(ctx, "go", testVersion)
 	if err != nil {
 		t.Errorf("Resolve() error = %v", err)
 	}
@@ -423,7 +433,7 @@ func TestLoadFromCache_NotFound(t *testing.T) {
 		t.Fatalf("newResolverWithPath() error = %v", err)
 	}
 
-	_, err = resolver.loadFromCache(filepath.Join(tmpDir, "nonexistent.json"), "x86_64-linux")
+	_, _, err = resolver.loadFromCache(filepath.Join(tmpDir, "nonexistent.json"), "x86_64-linux")
 	if err == nil {
 		t.Error("loadFromCache() expected error for nonexistent file")
 	}
@@ -550,7 +560,7 @@ func TestQueryNixHub_NonOKStatusCode(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for non-OK status code")
 	}
@@ -585,7 +595,8 @@ func TestQueryNixHub_EmptySystems(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for empty systems")
 	}
@@ -629,7 +640,8 @@ func TestResolve_UnsupportedSystem(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for unsupported system")
 	}
@@ -658,7 +670,7 @@ func TestLoadFromCache_ReadError(t *testing.T) {
 		_ = os.Chmod(cachePath, filePerm)
 	})
 
-	_, err = resolver.loadFromCache(cachePath, "x86_64-linux")
+	_, _, err = resolver.loadFromCache(cachePath, "x86_64-linux")
 	if err == nil {
 		t.Error("loadFromCache() expected error for unreadable file")
 	}
@@ -696,7 +708,7 @@ func TestLoadFromCache_SystemNotInCache(t *testing.T) {
 	}
 
 	// Try to load with a system not in the cache
-	_, err = resolver.loadFromCache(cachePath, "aarch64-darwin")
+	_, _, err = resolver.loadFromCache(cachePath, "aarch64-darwin")
 	if err == nil {
 		t.Error("loadFromCache() expected error for system not in cache")
 	}
@@ -726,7 +738,7 @@ func TestQueryNixHub_InvalidJSON(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for invalid JSON")
 	}
@@ -783,7 +795,7 @@ func TestQueryNixHub_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for canceled context")
 	}

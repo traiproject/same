@@ -1252,11 +1252,11 @@ func TestScheduler_PrepareTask(t *testing.T) {
 		}
 
 		// Mock successful resolution and installation for go
-		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("hash-go", nil)
+		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("hash-go", "pkgs.go", nil)
 		mockPkgManager.EXPECT().Install(ctx, "go", "hash-go").Return("/nix/store/go", nil)
 
 		// Mock successful resolution and installation for lint
-		mockDepResolver.EXPECT().Resolve(ctx, "golangci-lint", "1.55").Return("hash-lint", nil)
+		mockDepResolver.EXPECT().Resolve(ctx, "golangci-lint", "1.55").Return("hash-lint", "pkgs.lint", nil)
 		mockPkgManager.EXPECT().Install(ctx, "golangci-lint", "hash-lint").Return("/nix/store/lint", nil)
 
 		paths, err := s.PrepareTask(ctx, task)
@@ -1288,7 +1288,7 @@ func TestScheduler_PrepareTask(t *testing.T) {
 			},
 		}
 
-		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("", errors.New("resolve failure"))
+		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("", "", errors.New("resolve failure"))
 
 		paths, err := s.PrepareTask(ctx, task)
 		require.Error(t, err)
@@ -1305,7 +1305,7 @@ func TestScheduler_PrepareTask(t *testing.T) {
 			},
 		}
 
-		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("hash-go", nil)
+		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("hash-go", "pkgs.go", nil)
 		mockPkgManager.EXPECT().Install(ctx, "go", "hash-go").Return("", errors.New("install failure"))
 
 		paths, err := s.PrepareTask(ctx, task)
