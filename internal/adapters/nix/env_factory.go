@@ -18,13 +18,15 @@ import (
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 )
 
 // EnvFactory implements ports.EnvironmentFactory using Nix.
 type EnvFactory struct {
-	resolver ports.DependencyResolver
-	manager  ports.PackageManager
-	cacheDir string
+	resolver     ports.DependencyResolver
+	manager      ports.PackageManager
+	cacheDir     string
+	requestGroup singleflight.Group
 }
 
 // NewEnvFactoryWithCache creates a new EnvironmentFactory backed by Nix with a specific cache directory.
@@ -44,95 +46,104 @@ func NewEnvFactoryWithCache(
 // The tools map contains alias->spec pairs (e.g., "go" -> "go@1.25.4").
 // Returns environment variables as "KEY=VALUE" strings suitable for process execution.
 func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string) ([]string, error) {
-	// Step A: Resolve all tools to commit hashes
-	commitToPackages := make(map[string][]string)
-	var mu sync.Mutex
-
-	g, groupCtx := errgroup.WithContext(ctx)
-	// Use number of CPUs as concurrency limit, matching scheduler default
-	g.SetLimit(runtime.NumCPU())
-
-	for alias, spec := range tools {
-		alias, spec := alias, spec // Capture loop variables
-		g.Go(func() error {
-			// Parse spec to get package name and version
-			// Spec format: "package@version" (e.g., "go@1.25.4")
-			parts := strings.SplitN(spec, "@", 2)
-			if len(parts) != 2 {
-				return zerr.Wrap(
-					fmt.Errorf("invalid tool spec format: %s", spec),
-					"expected format: package@version",
-				)
-			}
-			version := parts[1]
-
-			// Resolve to commit hash and attribute path
-			commitHash, attrPath, err := e.resolver.Resolve(groupCtx, alias, version)
-			if err != nil {
-				return zerr.Wrap(err, "failed to resolve tool")
-			}
-
-			// Group packages by commit hash
-			// We use the attribute path returned by the resolver (e.g., "go_1_22")
-			// instead of the alias/package name derived from the spec.
-			mu.Lock()
-			commitToPackages[commitHash] = append(commitToPackages[commitHash], attrPath)
-			mu.Unlock()
-
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-
-	// Step B: Create deterministic hash of toolset for cache key
+	// Step 0: Generate deterministic ID first to use as singleflight key
 	envID := domain.GenerateEnvID(tools)
 
-	// Step C: Check cache
-	cachePath := filepath.Join(e.cacheDir, "environments", envID+".json")
-	if cachedEnv, err := LoadEnvFromCache(cachePath); err == nil {
-		return cachedEnv, nil
-	}
+	// Wrap the entire expensive operation in singleflight to prevent cache stampedes
+	result, err, _ := e.requestGroup.Do(envID, func() (interface{}, error) {
+		// Step A: Check cache first (fast path)
+		cachePath := filepath.Join(e.cacheDir, "environments", envID+".json")
+		if cachedEnv, err := LoadEnvFromCache(cachePath); err == nil {
+			return cachedEnv, nil
+		}
 
-	// Step D: Generate and execute Nix expression
-	system := getCurrentSystem()
-	nixExpr := e.generateNixExpr(system, commitToPackages)
+		// Step B: Resolve all tools to commit hashes
+		commitToPackages := make(map[string][]string)
+		var mu sync.Mutex
 
-	// Write to temporary file
-	tmpPath, cleanupFn, err := createNixTempFile(nixExpr)
+		g, groupCtx := errgroup.WithContext(ctx)
+		// Use number of CPUs as concurrency limit, matching scheduler default
+		g.SetLimit(runtime.NumCPU())
+
+		for alias, spec := range tools {
+			alias, spec := alias, spec // Capture loop variables
+			g.Go(func() error {
+				// Parse spec to get package name and version
+				// Spec format: "package@version" (e.g., "go@1.25.4")
+				parts := strings.SplitN(spec, "@", 2)
+				if len(parts) != 2 {
+					return zerr.Wrap(
+						fmt.Errorf("invalid tool spec format: %s", spec),
+						"expected format: package@version",
+					)
+				}
+				version := parts[1]
+
+				// Resolve to commit hash and attribute path
+				commitHash, attrPath, err := e.resolver.Resolve(groupCtx, alias, version)
+				if err != nil {
+					return zerr.Wrap(err, "failed to resolve tool")
+				}
+
+				// Group packages by commit hash
+				// We use the attribute path returned by the resolver (e.g., "go_1_22")
+				// instead of the alias/package name derived from the spec.
+				mu.Lock()
+				commitToPackages[commitHash] = append(commitToPackages[commitHash], attrPath)
+				mu.Unlock()
+
+				return nil
+			})
+		}
+
+		if err := g.Wait(); err != nil {
+			return nil, err
+		}
+
+		// Step C: Generate and execute Nix expression
+		system := getCurrentSystem()
+		nixExpr := e.generateNixExpr(system, commitToPackages)
+
+		// Write to temporary file
+		tmpPath, cleanupFn, err := createNixTempFile(nixExpr)
+		if err != nil {
+			return nil, err
+		}
+		defer cleanupFn()
+
+		// Execute nix print-dev-env
+		//nolint:gosec // tmpPath is a trusted temp file created by us
+		cmd := exec.CommandContext(ctx, "nix", "print-dev-env", "--json", "--file", tmpPath)
+		output, err := cmd.Output()
+		if err != nil {
+			return nil, zerr.Wrap(err, "failed to execute nix print-dev-env")
+		}
+
+		// Parse JSON output
+		env, err := ParseNixDevEnv(output)
+		if err != nil {
+			return nil, zerr.Wrap(err, "failed to parse nix output")
+		}
+		// Step D: Persist to cache
+
+		// Enforce local toolchain for Go to prevent auto-downloading newer versions
+		// based on go.mod directive.
+		env = append(env, "GOTOOLCHAIN=local")
+		slices.Sort(env) // Re-sort after appending
+
+		if err := SaveEnvToCache(cachePath, env); err != nil {
+			// Log warning but don't fail - cache write is not critical
+			_ = err
+		}
+
+		return env, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	defer cleanupFn()
 
-	// Execute nix print-dev-env
-	//nolint:gosec // tmpPath is a trusted temp file created by us
-	cmd := exec.CommandContext(ctx, "nix", "print-dev-env", "--json", "--file", tmpPath)
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, zerr.Wrap(err, "failed to execute nix print-dev-env")
-	}
-
-	// Parse JSON output
-	env, err := ParseNixDevEnv(output)
-	if err != nil {
-		return nil, zerr.Wrap(err, "failed to parse nix output")
-	}
-	// Step E: Persist to cache
-
-	// Enforce local toolchain for Go to prevent auto-downloading newer versions
-	// based on go.mod directive.
-	env = append(env, "GOTOOLCHAIN=local")
-	slices.Sort(env) // Re-sort after appending
-
-	if err := SaveEnvToCache(cachePath, env); err != nil {
-		// Log warning but don't fail - cache write is not critical
-		_ = err
-	}
-
-	return env, nil
+	return result.([]string), nil
 }
 
 // generateNixExpr generates a Nix expression from a commit-to-packages mapping.
