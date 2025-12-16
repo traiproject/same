@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"go.trai.ch/bob/internal/adapters/nix"
+	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports/mocks"
 	"go.uber.org/mock/gomock"
 )
@@ -135,8 +136,8 @@ func TestGenerateEnvID(t *testing.T) {
 			"golangci-lint": "golangci-lint@2.6.2",
 		}
 
-		id1 := nix.GenerateEnvID(tools)
-		id2 := nix.GenerateEnvID(tools)
+		id1 := domain.GenerateEnvID(tools)
+		id2 := domain.GenerateEnvID(tools)
 
 		if id1 != id2 {
 			t.Errorf("generateEnvID() not deterministic: %s != %s", id1, id2)
@@ -155,8 +156,8 @@ func TestGenerateEnvID(t *testing.T) {
 			"go": "go@1.24.0",
 		}
 
-		id1 := nix.GenerateEnvID(tools1)
-		id2 := nix.GenerateEnvID(tools2)
+		id1 := domain.GenerateEnvID(tools1)
+		id2 := domain.GenerateEnvID(tools2)
 
 		if id1 == id2 {
 			t.Error("generateEnvID() produced same hash for different tools")
@@ -173,8 +174,8 @@ func TestGenerateEnvID(t *testing.T) {
 			"go":            "go@1.25.4",
 		}
 
-		id1 := nix.GenerateEnvID(tools1)
-		id2 := nix.GenerateEnvID(tools2)
+		id1 := domain.GenerateEnvID(tools1)
+		id2 := domain.GenerateEnvID(tools2)
 
 		if id1 != id2 {
 			t.Errorf("generateEnvID() not order independent: %s != %s", id1, id2)

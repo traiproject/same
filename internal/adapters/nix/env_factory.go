@@ -2,8 +2,6 @@ package nix
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
 )
@@ -69,7 +68,7 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 	}
 
 	// Step B: Create deterministic hash of toolset for cache key
-	envID := GenerateEnvID(tools)
+	envID := domain.GenerateEnvID(tools)
 
 	// Step C: Check cache
 	cachePath := filepath.Join(e.cacheDir, "environments", envID+".json")
@@ -186,30 +185,6 @@ func createNixTempFile(nixExpr string) (tmpPath string, cleanup func(), err erro
 	}
 
 	return tmpPath, cleanup, nil
-}
-
-// GenerateEnvID creates a deterministic hash from a tools map for cache keying.
-func GenerateEnvID(tools map[string]string) string {
-	// Sort keys for deterministic ordering
-	aliases := make([]string, 0, len(tools))
-	for alias := range tools {
-		aliases = append(aliases, alias)
-	}
-	slices.Sort(aliases)
-
-	// Build deterministic string
-	var builder strings.Builder
-	for _, alias := range aliases {
-		spec := tools[alias]
-		builder.WriteString(alias)
-		builder.WriteString(":")
-		builder.WriteString(spec)
-		builder.WriteString(";")
-	}
-
-	// Hash the string
-	hash := sha256.Sum256([]byte(builder.String()))
-	return hex.EncodeToString(hash[:])
 }
 
 // LoadEnvFromCache attempts to load a cached environment.

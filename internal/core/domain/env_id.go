@@ -1,5 +1,4 @@
-// Package scheduler implements the task execution scheduler.
-package scheduler
+package domain
 
 import (
 	"crypto/sha256"
@@ -8,9 +7,8 @@ import (
 	"strings"
 )
 
-// generateEnvID creates a deterministic hash from a tools map for environment caching.
-// This implementation mirrors nix.GenerateEnvID to ensure consistency.
-func (s *Scheduler) generateEnvID(tools map[string]string) string {
+// GenerateEnvID creates a deterministic hash from a tools map for environment caching.
+func GenerateEnvID(tools map[string]string) string {
 	// Sort keys for deterministic ordering
 	aliases := make([]string, 0, len(tools))
 	for alias := range tools {

@@ -248,7 +248,7 @@ func (s *Scheduler) newRunState(
 	for name := range tasks {
 		task := tasks[name]
 		if len(task.Tools) > 0 {
-			envID := s.generateEnvID(task.Tools)
+			envID := domain.GenerateEnvID(task.Tools)
 			taskEnvIDs[name] = envID
 		}
 	}
