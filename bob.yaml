@@ -39,7 +39,7 @@ tasks:
     input: ["cmd", "internal"]
     cmd: ["go", "test", "-v", "-race", "./..."]
     tools: ["go"]
-    dependsOn: ["generate", "lint"]
+    dependsOn: ["generate"]
 
   # Build the binary
   build:
