@@ -42,7 +42,7 @@ var AdapterSet = kessoku.Set(
 	kessoku.Bind[ports.PackageManager](kessoku.Provide(nix.NewManager)),
 
 	// Nix Environment Factory
-	kessoku.Bind[ports.EnvironmentFactory](kessoku.Provide(nix.NewEnvFactoryDefault)),
+	kessoku.Bind[ports.EnvironmentFactory](kessoku.Provide(nix.NewEnvFactory)),
 )
 
 // EngineSet groups engine-layer providers.

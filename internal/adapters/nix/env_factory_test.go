@@ -22,7 +22,7 @@ func TestNewEnvFactory(t *testing.T) {
 	resolver := mocks.NewMockDependencyResolver(ctrl)
 	manager := mocks.NewMockPackageManager(ctrl)
 
-	factory := nix.NewEnvFactory(resolver, manager, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
 	if factory == nil {
 		t.Fatal("NewEnvFactory() returned nil")
 	}
@@ -48,7 +48,7 @@ func TestGetEnvironment_Success(t *testing.T) {
 		Return("2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", nil)
 
 	tmpDir := t.TempDir()
-	factory := nix.NewEnvFactory(resolver, manager, tmpDir)
+	factory := nix.NewEnvFactoryWithCache(resolver, manager, tmpDir)
 
 	tools := map[string]string{
 		"hello": "hello@2.12.1",
@@ -87,7 +87,7 @@ func TestGetEnvironment_InvalidSpec(t *testing.T) {
 	resolver := mocks.NewMockDependencyResolver(ctrl)
 	manager := mocks.NewMockPackageManager(ctrl)
 
-	factory := nix.NewEnvFactory(resolver, manager, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -116,7 +116,7 @@ func TestGetEnvironment_ResolverError(t *testing.T) {
 		Resolve(gomock.Any(), "go", "1.25.4").
 		Return("", fmt.Errorf("resolver error"))
 
-	factory := nix.NewEnvFactory(resolver, manager, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
 	ctx := context.Background()
 
 	tools := map[string]string{

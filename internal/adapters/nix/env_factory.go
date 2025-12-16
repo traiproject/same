@@ -24,8 +24,8 @@ type EnvFactory struct {
 	cacheDir string
 }
 
-// NewEnvFactory creates a new EnvironmentFactory backed by Nix.
-func NewEnvFactory(
+// NewEnvFactoryWithCache creates a new EnvironmentFactory backed by Nix with a specific cache directory.
+func NewEnvFactoryWithCache(
 	resolver ports.DependencyResolver,
 	manager ports.PackageManager,
 	cacheDir string,
