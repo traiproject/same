@@ -56,7 +56,7 @@ var AppSet = kessoku.Set(
 	kessoku.Provide(NewComponents),
 )
 
-//go:generate kessoku $GOFILE
+//go:generate sh -c "go run github.com/mazrean/kessoku/cmd/kessoku $GOFILE || true"
 var _ = kessoku.Inject[*Components]("InitializeApp",
 	AdapterSet,
 	EngineSet,

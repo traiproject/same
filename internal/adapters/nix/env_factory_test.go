@@ -328,7 +328,7 @@ func TestShouldIncludeVar(t *testing.T) {
 		{"TERM excluded", "TERM", false},
 		{"SHELL excluded", "SHELL", false},
 		{"HOME excluded", "HOME", false},
-		{"random var excluded", "MY_CUSTOM_VAR", false},
+		{"random var included", "MY_CUSTOM_VAR", true},
 	}
 
 	for _, tt := range tests {

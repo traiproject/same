@@ -317,30 +317,8 @@ func ParseNixDevEnv(jsonData []byte) ([]string, error) {
 // ShouldIncludeVar determines if an environment variable should be included.
 // We want to include build-related variables but exclude interactive shell variables.
 func ShouldIncludeVar(key string) bool {
-	// Always include these
-	include := []string{
-		"PATH",
-		"GOROOT",
-		"GOPATH",
-		"GOCACHE",
-		"CC",
-		"CXX",
-		"LD",
-		"AR",
-		"CFLAGS",
-		"CXXFLAGS",
-		"LDFLAGS",
-		"PKG_CONFIG_PATH",
-		"NIX_",
-	}
-
-	for _, prefix := range include {
-		if strings.HasPrefix(key, prefix) {
-			return true
-		}
-	}
-
-	// Exclude interactive shell variables
+	// Exclude interactive shell variables and user-specific variables
+	// We want to preserve the system's values for these (e.g. HOME) or rely on defaults.
 	exclude := []string{
 		"TERM",
 		"SHELL",
@@ -353,6 +331,10 @@ func ShouldIncludeVar(key string) bool {
 		"LOGNAME",
 		"PS1",
 		"PS2",
+		"SHLVL",
+		"PWD",
+		"OLDPWD",
+		"_",
 	}
 
 	for _, excluded := range exclude {
@@ -361,6 +343,6 @@ func ShouldIncludeVar(key string) bool {
 		}
 	}
 
-	// Include anything else that looks build-related
-	return false
+	// Include everything else provided by Nix (PATH, GO*, CGO*, NIX_*, etc.)
+	return true
 }

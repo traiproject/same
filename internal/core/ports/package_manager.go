@@ -2,7 +2,7 @@ package ports
 
 import "context"
 
-//go:generate mockgen -source=package_manager.go -destination=mocks/mock_package_manager.go -package=mocks
+//go:generate go run go.uber.org/mock/mockgen -source=package_manager.go -destination=mocks/mock_package_manager.go -package=mocks
 
 // DependencyResolver handles resolving a tool version to a specific Nixpkgs commit.
 type DependencyResolver interface {
