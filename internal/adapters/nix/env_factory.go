@@ -58,45 +58,8 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 		}
 
 		// Step B: Resolve all tools to commit hashes
-		commitToPackages := make(map[string][]string)
-		var mu sync.Mutex
-
-		g, groupCtx := errgroup.WithContext(ctx)
-		// Use number of CPUs as concurrency limit, matching scheduler default
-		g.SetLimit(runtime.NumCPU())
-
-		for alias, spec := range tools {
-			alias, spec := alias, spec // Capture loop variables
-			g.Go(func() error {
-				// Parse spec to get package name and version
-				// Spec format: "package@version" (e.g., "go@1.25.4")
-				parts := strings.SplitN(spec, "@", 2)
-				if len(parts) != 2 {
-					return zerr.Wrap(
-						fmt.Errorf("invalid tool spec format: %s", spec),
-						"expected format: package@version",
-					)
-				}
-				version := parts[1]
-
-				// Resolve to commit hash and attribute path
-				commitHash, attrPath, err := e.resolver.Resolve(groupCtx, alias, version)
-				if err != nil {
-					return zerr.Wrap(err, "failed to resolve tool")
-				}
-
-				// Group packages by commit hash
-				// We use the attribute path returned by the resolver (e.g., "go_1_22")
-				// instead of the alias/package name derived from the spec.
-				mu.Lock()
-				commitToPackages[commitHash] = append(commitToPackages[commitHash], attrPath)
-				mu.Unlock()
-
-				return nil
-			})
-		}
-
-		if err := g.Wait(); err != nil {
+		commitToPackages, err := e.resolveTools(ctx, tools)
+		if err != nil {
 			return nil, err
 		}
 
@@ -345,4 +308,52 @@ func ShouldIncludeVar(key string) bool {
 
 	// Include everything else provided by Nix (PATH, GO*, CGO*, NIX_*, etc.)
 	return true
+}
+
+// resolveTools resolves all tools to their commit hashes and attribute paths.
+// It uses an error group to resolve tools concurrently.
+func (e *EnvFactory) resolveTools(ctx context.Context, tools map[string]string) (map[string][]string, error) {
+	commitToPackages := make(map[string][]string)
+	var mu sync.Mutex
+
+	g, groupCtx := errgroup.WithContext(ctx)
+	// Use number of CPUs as concurrency limit, matching scheduler default
+	g.SetLimit(runtime.NumCPU())
+
+	for alias, spec := range tools {
+		alias, spec := alias, spec // Capture loop variables
+		g.Go(func() error {
+			// Parse spec to get package name and version
+			// Spec format: "package@version" (e.g., "go@1.25.4")
+			parts := strings.SplitN(spec, "@", 2)
+			if len(parts) != 2 {
+				return zerr.Wrap(
+					fmt.Errorf("invalid tool spec format: %s", spec),
+					"expected format: package@version",
+				)
+			}
+			version := parts[1]
+
+			// Resolve to commit hash and attribute path
+			commitHash, attrPath, err := e.resolver.Resolve(groupCtx, alias, version)
+			if err != nil {
+				return zerr.Wrap(err, "failed to resolve tool")
+			}
+
+			// Group packages by commit hash
+			// We use the attribute path returned by the resolver (e.g., "go_1_22")
+			// instead of the alias/package name derived from the spec.
+			mu.Lock()
+			commitToPackages[commitHash] = append(commitToPackages[commitHash], attrPath)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return commitToPackages, nil
 }

@@ -31,12 +31,13 @@ func TestExecutor_Execute_HermeticBinaryOnly(t *testing.T) {
 	cmdName := "my-hermetic-tool"
 	cmdPath := filepath.Join(hermeticDir, cmdName)
 	content := "#!/bin/sh\necho success\n"
-	err := os.WriteFile(cmdPath, []byte(content), 0755)
+	//nolint:gosec // Test requires executable file
+	err := os.WriteFile(cmdPath, []byte(content), 0o700)
 	require.NoError(t, err)
 
 	task := &domain.Task{
-		Name:       domain.NewInternedString("test-hermetic"),
-		Command:    []string{cmdName},
+		Name:    domain.NewInternedString("test-hermetic"),
+		Command: []string{cmdName},
 		// WorkingDir doesn't matter for specific path lookup, but required by task
 		WorkingDir: domain.NewInternedString(hermeticDir),
 	}

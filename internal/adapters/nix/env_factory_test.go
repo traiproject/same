@@ -394,7 +394,7 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 	// the other goroutine calls GetEnvironment and gets blocked by singleflight.
 	resolver.EXPECT().
 		Resolve(gomock.Any(), "go", "1.25.4").
-		DoAndReturn(func(ctx context.Context, alias, version string) (string, string, error) {
+		DoAndReturn(func(_ context.Context, _, _ string) (string, string, error) {
 			close(resolveCalled) // Signal that we are inside Resolve
 			<-releaseResolve     // Wait until test allows us to proceed
 			return "2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.go", nil
@@ -416,11 +416,11 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		go func() {
 			defer wg.Done()
-			// We expect this to fail eventually because we're not mocking all the later steps 
+			// We expect this to fail eventually because we're not mocking all the later steps
 			// (generateNIxExpr, exec, etc) fully or they might fail due to missing system deps.
 			// But that's fine; we only care that they DO NOT trigger a second Resolve.
 			// However, to make the test cleaner, we should probably mock the outcome or accept error.
-			// Since this test relies on real nix execution (which might fail or pass), 
+			// Since this test relies on real nix execution (which might fail or pass),
 			// we should probably just check that Resolve is called once.
 			// The singleflight handles errors too so both should get same result/error.
 			_, _ = factory.GetEnvironment(ctx, tools)
@@ -435,9 +435,9 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 		t.Fatal("timed out waiting for Resolve to be called")
 	}
 
-	// Now that one is inside Resolve (holding the singleflight lock), 
-	// the other one should be blocked outside. 
-	// We verify singleflight effectiveness by the fact that we permit Resolve to return NOW, 
+	// Now that one is inside Resolve (holding the singleflight lock),
+	// the other one should be blocked outside.
+	// We verify singleflight effectiveness by the fact that we permit Resolve to return NOW,
 	// and assert Times(1) on the mock.
 
 	close(releaseResolve) // Let the operation finish
