@@ -21,12 +21,10 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
-	mockDepResolver := mocks.NewMockDependencyResolver(ctrl)
-	mockPkgManager := mocks.NewMockPackageManager(ctrl)
 
 	s := scheduler.NewScheduler(
 		mockExec, mockStore, mockHasher, mockResolver, mockLogger,
-		mockDepResolver, mockPkgManager, mockEnvFactory,
+		mockEnvFactory,
 	)
 
 	g := domain.NewGraph()
@@ -43,10 +41,6 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	ctx := context.Background()
 
 	// Mock Expectations
-
-	// 1. prepareTask calls
-	mockDepResolver.EXPECT().Resolve(ctx, "go", "1.22.2").Return("commit-hash", "pkgs.go", nil)
-	mockPkgManager.EXPECT().Install(ctx, "go", "commit-hash").Return("/nix/store/go-1.22.2", nil)
 
 	// 2. Input Hashing
 	mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)

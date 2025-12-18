@@ -2,12 +2,6 @@ package nix
 
 import "time"
 
-// Parse the JSON output to extract the store path.
-type buildResults []struct {
-	DrvPath string            `json:"drvPath"`
-	Outputs map[string]string `json:"outputs"`
-}
-
 // cacheEntry represents a cached resolution result with per-system commit hashes.
 type cacheEntry struct {
 	Alias     string                 `json:"alias"`

@@ -23,8 +23,8 @@ import (
 
 // EnvFactory implements ports.EnvironmentFactory using Nix.
 type EnvFactory struct {
-	resolver     ports.DependencyResolver
-	manager      ports.PackageManager
+	resolver ports.DependencyResolver
+
 	cacheDir     string
 	requestGroup singleflight.Group
 }
@@ -32,12 +32,10 @@ type EnvFactory struct {
 // NewEnvFactoryWithCache creates a new EnvironmentFactory backed by Nix with a specific cache directory.
 func NewEnvFactoryWithCache(
 	resolver ports.DependencyResolver,
-	manager ports.PackageManager,
 	cacheDir string,
 ) *EnvFactory {
 	return &EnvFactory{
 		resolver: resolver,
-		manager:  manager,
 		cacheDir: cacheDir,
 	}
 }

@@ -24,9 +24,8 @@ func TestNewEnvFactory(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
-	manager := mocks.NewMockPackageManager(ctrl)
 
-	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, "/tmp/cache")
 	if factory == nil {
 		t.Fatal("NewEnvFactory() returned nil")
 	}
@@ -44,7 +43,6 @@ func TestGetEnvironment_Success(t *testing.T) {
 	ctx := context.Background()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
-	manager := mocks.NewMockPackageManager(ctrl)
 
 	// Use a real nixpkgs commit that should work
 	resolver.EXPECT().
@@ -52,7 +50,7 @@ func TestGetEnvironment_Success(t *testing.T) {
 		Return("2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.hello", nil)
 
 	tmpDir := t.TempDir()
-	factory := nix.NewEnvFactoryWithCache(resolver, manager, tmpDir)
+	factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
 
 	tools := map[string]string{
 		"hello": "hello@2.12.1",
@@ -111,9 +109,8 @@ func TestGetEnvironment_InvalidSpec(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
-	manager := mocks.NewMockPackageManager(ctrl)
 
-	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, "/tmp/cache")
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -141,7 +138,6 @@ func TestGetEnvironment_AliasMismatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
-	manager := mocks.NewMockPackageManager(ctrl)
 
 	// Expect resolution with the PACKAGE NAME "golangci-lint", not the alias "lint"
 	resolver.EXPECT().
@@ -149,7 +145,7 @@ func TestGetEnvironment_AliasMismatch(t *testing.T) {
 		Return("2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.hello", nil)
 
 	tmpDir := t.TempDir()
-	factory := nix.NewEnvFactoryWithCache(resolver, manager, tmpDir)
+	factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -180,14 +176,13 @@ func TestGetEnvironment_ResolverError(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
-	manager := mocks.NewMockPackageManager(ctrl)
 
 	// Mock resolver to return error
 	resolver.EXPECT().
 		Resolve(gomock.Any(), "go", "1.25.4").
 		Return("", "", fmt.Errorf("resolver error"))
 
-	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, "/tmp/cache")
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -458,7 +453,6 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
-	manager := mocks.NewMockPackageManager(ctrl)
 
 	// Use atomic counter to verify single execution
 	var callCount int32
@@ -474,7 +468,7 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 		Times(1)
 
 	tmpDir := t.TempDir()
-	factory := nix.NewEnvFactoryWithCache(resolver, manager, tmpDir)
+	factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -523,7 +517,6 @@ func TestGetEnvironment_PartialResolveFailure(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
-	manager := mocks.NewMockPackageManager(ctrl)
 
 	// Mock one success and one failure
 	resolver.EXPECT().
@@ -534,7 +527,7 @@ func TestGetEnvironment_PartialResolveFailure(t *testing.T) {
 		Resolve(gomock.Any(), "golangci-lint", "2.6.2").
 		Return("", "", errors.New("resolution failed"))
 
-	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, "/tmp/cache")
 	ctx := context.Background()
 
 	tools := map[string]string{

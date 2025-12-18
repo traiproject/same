@@ -30,9 +30,6 @@ func (s *Scheduler) CheckTaskCache(
 }
 
 // PrepareTask exports prepareTask for testing purposes.
-func (s *Scheduler) PrepareTask(ctx context.Context, task *domain.Task) ([]string, error) {
-	return s.prepareTask(ctx, task)
-}
 
 // GetTaskEnvIDs exposes the taskEnvIDs map from a run state for testing.
 // This allows tests to verify that environment IDs are correctly pre-calculated.

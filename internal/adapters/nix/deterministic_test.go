@@ -16,7 +16,7 @@ func TestGenerateNixExpr_Deterministic(t *testing.T) {
 		"commit_C": {"pkg6"},
 	}
 
-	factory := nix.NewEnvFactoryWithCache(nil, nil, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(nil, "/tmp/cache")
 	system := "x86_64-darwin"
 
 	// Run multiple times and ensure output is identical

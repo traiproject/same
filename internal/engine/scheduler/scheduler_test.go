@@ -60,7 +60,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		// Channels for synchronization
 		dStarted := make(chan struct{})
@@ -178,7 +178,7 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		// Mock Expectations
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -233,7 +233,7 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		// Expect all three tasks to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -286,7 +286,7 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		// Expect all three tasks to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -339,7 +339,7 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		// Expect no tasks to execute
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -374,7 +374,7 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		// Expect only A and B to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(2)
@@ -425,7 +425,7 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		// Expect no execution
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -446,7 +446,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
 
-	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 	task := &domain.Task{
 		Name:    domain.NewInternedString("test-task"),
 		Outputs: []domain.InternedString{domain.NewInternedString("out.txt")},
@@ -567,7 +567,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -662,7 +662,7 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -752,7 +752,7 @@ func TestScheduler_Run_ContextCancellation(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -819,7 +819,7 @@ func TestScheduler_Run_ForceModeHasherError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -855,7 +855,7 @@ func TestScheduler_Run_StorePutError(t *testing.T) {
 
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -899,7 +899,7 @@ func TestScheduler_Run_EnvironmentCacheInvalidation(t *testing.T) {
 
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
@@ -1013,7 +1013,7 @@ func TestScheduler_Run_ResolverError(t *testing.T) {
 				mockResolver := mocks.NewMockInputResolver(ctrl)
 				mockLogger := mocks.NewMockLogger(ctrl)
 
-				s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+				s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 				g := domain.NewGraph()
 				g.SetRoot(".")
 				task := &domain.Task{
@@ -1049,7 +1049,7 @@ func TestScheduler_Run_OutputHashComputationError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -1093,7 +1093,7 @@ func TestScheduler_Run_ContextCancelledDuringScheduling(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
@@ -1162,7 +1162,7 @@ func TestScheduler_Run_ContextCancelledAfterCompletion(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("build")}
@@ -1193,7 +1193,7 @@ func TestScheduler_Run_UnsafeOutputPath(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
@@ -1217,107 +1217,6 @@ func TestScheduler_Run_UnsafeOutputPath(t *testing.T) {
 	})
 }
 
-func TestScheduler_PrepareTask(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockExec := mocks.NewMockExecutor(ctrl)
-	mockStore := mocks.NewMockBuildInfoStore(ctrl)
-	mockHasher := mocks.NewMockHasher(ctrl)
-	mockResolver := mocks.NewMockInputResolver(ctrl)
-	mockLogger := mocks.NewMockLogger(ctrl)
-	mockDepResolver := mocks.NewMockDependencyResolver(ctrl)
-	mockPkgManager := mocks.NewMockPackageManager(ctrl)
-
-	s := scheduler.NewScheduler(
-		mockExec, mockStore, mockHasher, mockResolver, mockLogger, mockDepResolver, mockPkgManager, nil,
-	)
-	ctx := context.Background()
-
-	t.Run("NoTools", func(t *testing.T) {
-		task := &domain.Task{
-			Name:  domain.NewInternedString("task"),
-			Tools: nil,
-		}
-		paths, err := s.PrepareTask(ctx, task)
-		require.NoError(t, err)
-		assert.Nil(t, paths)
-	})
-
-	t.Run("ValidTools", func(t *testing.T) {
-		task := &domain.Task{
-			Name: domain.NewInternedString("task"),
-			Tools: map[string]string{
-				"go":   "go@1.21",
-				"lint": "golangci-lint@1.55",
-			},
-		}
-
-		// Mock successful resolution and installation for go
-		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("hash-go", "pkgs.go", nil)
-		mockPkgManager.EXPECT().Install(ctx, "go", "hash-go").Return("/nix/store/go", nil)
-
-		// Mock successful resolution and installation for lint
-		mockDepResolver.EXPECT().Resolve(ctx, "golangci-lint", "1.55").Return("hash-lint", "pkgs.lint", nil)
-		mockPkgManager.EXPECT().Install(ctx, "golangci-lint", "hash-lint").Return("/nix/store/lint", nil)
-
-		paths, err := s.PrepareTask(ctx, task)
-		require.NoError(t, err)
-		assert.Len(t, paths, 2)
-		assert.Contains(t, paths, "/nix/store/go/bin")
-		assert.Contains(t, paths, "/nix/store/lint/bin")
-	})
-
-	t.Run("InvalidToolSpec", func(t *testing.T) {
-		task := &domain.Task{
-			Name: domain.NewInternedString("task"),
-			Tools: map[string]string{
-				"go": "go1.21", // Missing @
-			},
-		}
-
-		paths, err := s.PrepareTask(ctx, task)
-		require.Error(t, err)
-		assert.Nil(t, paths)
-		assert.Contains(t, err.Error(), domain.ErrInvalidToolSpec.Error())
-	})
-
-	t.Run("ResolutionFailed", func(t *testing.T) {
-		task := &domain.Task{
-			Name: domain.NewInternedString("task"),
-			Tools: map[string]string{
-				"go": "go@1.21",
-			},
-		}
-
-		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("", "", errors.New("resolve failure"))
-
-		paths, err := s.PrepareTask(ctx, task)
-		require.Error(t, err)
-		assert.Nil(t, paths)
-		assert.Contains(t, err.Error(), domain.ErrToolResolutionFailed.Error())
-		assert.Contains(t, err.Error(), "resolve failure")
-	})
-
-	t.Run("InstallFailed", func(t *testing.T) {
-		task := &domain.Task{
-			Name: domain.NewInternedString("task"),
-			Tools: map[string]string{
-				"go": "go@1.21",
-			},
-		}
-
-		mockDepResolver.EXPECT().Resolve(ctx, "go", "1.21").Return("hash-go", "pkgs.go", nil)
-		mockPkgManager.EXPECT().Install(ctx, "go", "hash-go").Return("", errors.New("install failure"))
-
-		paths, err := s.PrepareTask(ctx, task)
-		require.Error(t, err)
-		assert.Nil(t, paths)
-		assert.Contains(t, err.Error(), domain.ErrToolInstallFailed.Error())
-		assert.Contains(t, err.Error(), "install failure")
-	})
-}
-
 func TestScheduler_Run_EnvHydrationFailure(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -1325,7 +1224,7 @@ func TestScheduler_Run_EnvHydrationFailure(t *testing.T) {
 
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(nil, nil, nil, nil, mockLogger, nil, nil, mockEnvFactory)
+		s := scheduler.NewScheduler(nil, nil, nil, nil, mockLogger, mockEnvFactory)
 
 		// Create a graph with a task that uses tools
 		g := domain.NewGraph()
@@ -1362,7 +1261,7 @@ func TestScheduler_ValidateAndCleanOutputs_Security(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -1422,7 +1321,7 @@ func TestScheduler_ValidateAndCleanOutputs_RemoveError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		g := domain.NewGraph()
 		g.SetRoot(protectedDir) // Root is the protected dir
@@ -1455,7 +1354,7 @@ func TestScheduler_ComputeOutputHash_Failure(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
