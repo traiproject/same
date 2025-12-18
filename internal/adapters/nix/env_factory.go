@@ -138,38 +138,47 @@ func (e *EnvFactory) generateNixExpr(system string, commits map[string][]string)
 	builder.WriteString("let\n")
 	builder.WriteString(fmt.Sprintf("system = %q;\n", system))
 
+	// Get sorted commit hashes for deterministic iteration
+	commitHashes := make([]string, 0, len(commits))
+	for hash := range commits {
+		commitHashes = append(commitHashes, hash)
+	}
+	slices.Sort(commitHashes)
+
 	// Generate flake and pkgs variables for each commit
-	commitIdx := 0
+	// We use the sorted index to ensure stability (flake_0 corresponds to first sorted commit)
 	commitToIdx := make(map[string]int)
 
-	for commitHash := range commits {
+	for i, commitHash := range commitHashes {
 		builder.WriteString(fmt.Sprintf("flake_%d = builtins.getFlake \"github:NixOS/nixpkgs/%s\";\n",
-			commitIdx, commitHash))
+			i, commitHash))
 		builder.WriteString(fmt.Sprintf("pkgs_%d = flake_%d.legacyPackages.${system};\n",
-			commitIdx, commitIdx))
-		commitToIdx[commitHash] = commitIdx
-		commitIdx++
+			i, i))
+		commitToIdx[commitHash] = i
 	}
 
 	// Start mkShell block
 	builder.WriteString("in\n")
 
 	// Use the first pkgs for mkShell (arbitrary choice, all should have mkShell)
-	firstIdx := 0
-	if len(commitToIdx) > 0 {
-		// Get any index from the map
-		for _, idx := range commitToIdx {
-			firstIdx = idx
-			break
-		}
+	// Since we sorted, pkgs_0 is always the first one if any exist
+	firstIdx := 0 // default if empty, though invalid
+	if len(commitHashes) > 0 {
+		// Just use 0 as we always start from 0
+		firstIdx = 0
 	}
 
 	builder.WriteString(fmt.Sprintf("pkgs_%d.mkShell {\n", firstIdx))
 	builder.WriteString("buildInputs = [\n")
 
-	// Add all packages
-	for commitHash, packages := range commits {
+	// Add all packages, iterating over sorted commits first
+	for _, commitHash := range commitHashes {
 		idx := commitToIdx[commitHash]
+		packages := commits[commitHash]
+
+		// Sort packages for determinism
+		slices.Sort(packages)
+
 		for _, pkg := range packages {
 			builder.WriteString(fmt.Sprintf("pkgs_%d.%s\n", idx, pkg))
 		}
