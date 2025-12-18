@@ -1,7 +1,7 @@
 version: "1"
 tools:
   go: go@1.25.4
-  lint: golangci-lint@2.6.2
+  lint: golangci-lint@2.7.2
 tasks:
   # Install dependencies
   install:
@@ -39,7 +39,7 @@ tasks:
     input: ["cmd", "internal"]
     cmd: ["go", "test", "-v", "-race", "./..."]
     tools: ["go"]
-    dependsOn: ["generate", "lint"]
+    dependsOn: ["generate"]
 
   # Build the binary
   build:

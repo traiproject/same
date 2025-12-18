@@ -19,12 +19,8 @@ func TestNewLoader(t *testing.T) {
 	mockLogger := mocks.NewMockLogger(ctrl)
 
 	loader := config.NewLoader(mockLogger)
-	if loader == nil {
-		t.Fatal("NewLoader returned nil")
-	}
-	if loader.Logger != mockLogger {
-		t.Error("NewLoader did not set the logger correctly")
-	}
+	require.NotNil(t, loader)
+	require.Equal(t, mockLogger, loader.Logger)
 }
 
 func TestLoad_Success(t *testing.T) {

@@ -1,3 +1,5 @@
+//go:build wireinject
+
 package app
 
 import (
@@ -40,6 +42,9 @@ var AdapterSet = kessoku.Set(
 
 	// Nix Package Manager
 	kessoku.Bind[ports.PackageManager](kessoku.Provide(nix.NewManager)),
+
+	// Nix Environment Factory
+	kessoku.Bind[ports.EnvironmentFactory](kessoku.Provide(nix.NewEnvFactory)),
 )
 
 // EngineSet groups engine-layer providers.
@@ -53,9 +58,13 @@ var AppSet = kessoku.Set(
 	kessoku.Provide(NewComponents),
 )
 
-//go:generate kessoku $GOFILE
 var _ = kessoku.Inject[*Components]("InitializeApp",
 	AdapterSet,
 	EngineSet,
 	AppSet,
 )
+
+// InitializeApp is a stub for wire generation.
+func InitializeApp() (*Components, error) {
+	panic("wire")
+}

@@ -143,4 +143,7 @@ var (
 
 	// ErrToolInstallFailed is returned when installing a tool fails.
 	ErrToolInstallFailed = zerr.New("failed to install tool")
+
+	// ErrEnvironmentNotCached is returned when an environment should have been cached but wasn't.
+	ErrEnvironmentNotCached = zerr.New("environment not found in cache")
 )

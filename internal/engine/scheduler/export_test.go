@@ -1,3 +1,4 @@
+// Package scheduler exports internal functions for testing.
 package scheduler
 
 import (
@@ -31,4 +32,20 @@ func (s *Scheduler) CheckTaskCache(
 // PrepareTask exports prepareTask for testing purposes.
 func (s *Scheduler) PrepareTask(ctx context.Context, task *domain.Task) ([]string, error) {
 	return s.prepareTask(ctx, task)
+}
+
+// GetTaskEnvIDs exposes the taskEnvIDs map from a run state for testing.
+// This allows tests to verify that environment IDs are correctly pre-calculated.
+func (s *Scheduler) GetTaskEnvIDs(
+	ctx context.Context,
+	graph *domain.Graph,
+	targetNames []string,
+	parallelism int,
+	force bool,
+) (map[domain.InternedString]string, error) {
+	state, err := s.newRunState(ctx, graph, targetNames, parallelism, force)
+	if err != nil {
+		return nil, err
+	}
+	return state.taskEnvIDs, nil
 }

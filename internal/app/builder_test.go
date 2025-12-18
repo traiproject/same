@@ -3,6 +3,7 @@ package app_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"go.trai.ch/bob/internal/app"
 )
 
@@ -14,13 +15,7 @@ func TestNewApp_Success(t *testing.T) {
 	}
 
 	// Verify components are initialized
-	if components == nil {
-		t.Fatal("Expected components to be non-nil")
-	}
-	if components.App == nil {
-		t.Error("Expected App to be initialized")
-	}
-	if components.Logger == nil {
-		t.Error("Expected Logger to be initialized")
-	}
+	require.NotNil(t, components)
+	require.NotNil(t, components.App)
+	require.NotNil(t, components.Logger)
 }

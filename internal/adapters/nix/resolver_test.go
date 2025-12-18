@@ -4,6 +4,7 @@ package nix
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -170,12 +171,17 @@ func TestResolve_FromCache(t *testing.T) {
 
 	// Resolve should return cached value without hitting API
 	ctx := context.Background()
-	got, err := resolver.Resolve(ctx, alias, version)
+	got, gotAttr, err := resolver.Resolve(ctx, alias, version)
 	if err != nil {
 		t.Errorf("Resolve() error = %v", err)
 	}
 	if got != expectedHash {
 		t.Errorf("Resolve() = %v, want %v", got, expectedHash)
+	}
+	if gotAttr != "legacyPackages."+getCurrentSystem()+".go" {
+		// Note: constructing expected attr path dynamically for test portability
+		expectedAttr := "legacyPackages." + getCurrentSystem() + ".go"
+		t.Errorf("Resolve() attr = %v, want %v", gotAttr, expectedAttr)
 	}
 }
 
@@ -189,57 +195,7 @@ func TestResolve_CacheMiss_Success(t *testing.T) {
 			t.Errorf("unexpected query params: %v", r.URL.Query())
 		}
 
-		resp := nixHubResponse{
-			Name:    "go",
-			Version: testVersion,
-			Summary: "The Go programming language",
-			Systems: map[string]SystemResponse{
-				"x86_64-linux": {
-					FlakeInstallable: FlakeInstallable{
-						Ref: FlakeRef{
-							Type:  "github",
-							Owner: "NixOS",
-							Repo:  "nixpkgs",
-							Rev:   expectedHash,
-						},
-						AttrPath: "legacyPackages.x86_64-linux.go",
-					},
-				},
-				"aarch64-linux": {
-					FlakeInstallable: FlakeInstallable{
-						Ref: FlakeRef{
-							Type:  "github",
-							Owner: "NixOS",
-							Repo:  "nixpkgs",
-							Rev:   expectedHash,
-						},
-						AttrPath: "legacyPackages.aarch64-linux.go",
-					},
-				},
-				"x86_64-darwin": {
-					FlakeInstallable: FlakeInstallable{
-						Ref: FlakeRef{
-							Type:  "github",
-							Owner: "NixOS",
-							Repo:  "nixpkgs",
-							Rev:   expectedHash,
-						},
-						AttrPath: "legacyPackages.x86_64-darwin.go",
-					},
-				},
-				"aarch64-darwin": {
-					FlakeInstallable: FlakeInstallable{
-						Ref: FlakeRef{
-							Type:  "github",
-							Owner: "NixOS",
-							Repo:  "nixpkgs",
-							Rev:   expectedHash,
-						},
-						AttrPath: "legacyPackages.aarch64-darwin.go",
-					},
-				},
-			},
-		}
+		resp := buildNixHubResponse("go", testVersion, expectedHash)
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
@@ -257,41 +213,21 @@ func TestResolve_CacheMiss_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	got, err := resolver.Resolve(ctx, "go", testVersion)
+	got, gotAttr, err := resolver.Resolve(ctx, "go", testVersion)
 	if err != nil {
 		t.Errorf("Resolve() error = %v", err)
 	}
 	if got != expectedHash {
 		t.Errorf("Resolve() = %v, want %v", got, expectedHash)
 	}
+	// Check expected attribute path based on current system
+	expectedAttr := "legacyPackages." + getCurrentSystem() + ".go"
+	if gotAttr != expectedAttr {
+		t.Errorf("Resolve() attr = %v, want %v", gotAttr, expectedAttr)
+	}
 
 	// Verify cache was written
-	cachePath := filepath.Join(tmpDir, getHash("go", testVersion)+".json")
-	//nolint:gosec // Test file path is controlled
-	data, err := os.ReadFile(cachePath)
-	if err != nil {
-		t.Errorf("cache file not written: %v", err)
-	}
-
-	var entry cacheEntry
-	if err := json.Unmarshal(data, &entry); err != nil {
-		t.Errorf("invalid cache data: %v", err)
-	}
-
-	// Verify at least one system is cached
-	if len(entry.Systems) == 0 {
-		t.Error("no systems cached")
-	}
-
-	// Verify current system has the expected hash
-	system := getCurrentSystem()
-	sysCache, ok := entry.Systems[system]
-	if !ok {
-		t.Errorf("current system %s not found in cache", system)
-	}
-	if sysCache.FlakeInstallable.Ref.Rev != expectedHash {
-		t.Errorf("cached hash = %v, want %v", sysCache.FlakeInstallable.Ref.Rev, expectedHash)
-	}
+	verifyCacheWasWritten(t, tmpDir, "go", testVersion, expectedHash)
 }
 
 // testTransport is a custom RoundTripper that redirects requests to a test server.
@@ -329,7 +265,7 @@ func TestResolve_PackageNotFound(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "nonexistent", "1.0.0")
+	_, _, err := resolver.Resolve(ctx, "nonexistent", "1.0.0")
 	if err == nil {
 		t.Error("Resolve() expected error for nonexistent package")
 	}
@@ -407,7 +343,7 @@ func TestResolve_InvalidCacheData(t *testing.T) {
 
 	// Should fall back to API when cache is corrupted
 	ctx := context.Background()
-	got, err := resolver.Resolve(ctx, "go", testVersion)
+	got, _, err := resolver.Resolve(ctx, "go", testVersion)
 	if err != nil {
 		t.Errorf("Resolve() error = %v", err)
 	}
@@ -423,7 +359,7 @@ func TestLoadFromCache_NotFound(t *testing.T) {
 		t.Fatalf("newResolverWithPath() error = %v", err)
 	}
 
-	_, err = resolver.loadFromCache(filepath.Join(tmpDir, "nonexistent.json"), "x86_64-linux")
+	_, _, err = resolver.loadFromCache(filepath.Join(tmpDir, "nonexistent.json"), "x86_64-linux")
 	if err == nil {
 		t.Error("loadFromCache() expected error for nonexistent file")
 	}
@@ -509,6 +445,42 @@ func verifyCacheEntry(t *testing.T, cachePath, expectedAlias, expectedVersion, e
 	}
 }
 
+// verifyCacheWasWritten checks that the cache file was written and contains the expected data.
+func verifyCacheWasWritten(t *testing.T, tmpDir, alias, version, expectedHash string) {
+	t.Helper()
+
+	cachePath := filepath.Join(tmpDir, getHash(alias, version)+".json")
+	//nolint:gosec // Test file path is controlled
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Errorf("cache file not written: %v", err)
+		return
+	}
+
+	var entry cacheEntry
+	if err := json.Unmarshal(data, &entry); err != nil {
+		t.Errorf("invalid cache data: %v", err)
+		return
+	}
+
+	// Verify at least one system is cached
+	if len(entry.Systems) == 0 {
+		t.Error("no systems cached")
+		return
+	}
+
+	// Verify current system has the expected hash
+	system := getCurrentSystem()
+	sysCache, ok := entry.Systems[system]
+	if !ok {
+		t.Errorf("current system %s not found in cache", system)
+		return
+	}
+	if sysCache.FlakeInstallable.Ref.Rev != expectedHash {
+		t.Errorf("cached hash = %v, want %v", sysCache.FlakeInstallable.Ref.Rev, expectedHash)
+	}
+}
+
 func TestNewResolver_MkdirAllError(t *testing.T) {
 	// Create a file where the cache directory should be to cause MkdirAll to fail
 	tmpDir := t.TempDir()
@@ -550,7 +522,7 @@ func TestQueryNixHub_NonOKStatusCode(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for non-OK status code")
 	}
@@ -585,7 +557,8 @@ func TestQueryNixHub_EmptySystems(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for empty systems")
 	}
@@ -629,7 +602,8 @@ func TestResolve_UnsupportedSystem(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for unsupported system")
 	}
@@ -658,7 +632,7 @@ func TestLoadFromCache_ReadError(t *testing.T) {
 		_ = os.Chmod(cachePath, filePerm)
 	})
 
-	_, err = resolver.loadFromCache(cachePath, "x86_64-linux")
+	_, _, err = resolver.loadFromCache(cachePath, "x86_64-linux")
 	if err == nil {
 		t.Error("loadFromCache() expected error for unreadable file")
 	}
@@ -696,7 +670,7 @@ func TestLoadFromCache_SystemNotInCache(t *testing.T) {
 	}
 
 	// Try to load with a system not in the cache
-	_, err = resolver.loadFromCache(cachePath, "aarch64-darwin")
+	_, _, err = resolver.loadFromCache(cachePath, "aarch64-darwin")
 	if err == nil {
 		t.Error("loadFromCache() expected error for system not in cache")
 	}
@@ -726,7 +700,7 @@ func TestQueryNixHub_InvalidJSON(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for invalid JSON")
 	}
@@ -783,8 +757,161 @@ func TestQueryNixHub_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := resolver.Resolve(ctx, "go", "1.21")
+	_, _, err := resolver.Resolve(ctx, "go", "1.21")
 	if err == nil {
 		t.Error("Resolve() expected error for canceled context")
 	}
 }
+
+// buildNixHubResponse creates a nixHubResponse for testing with all supported systems.
+func buildNixHubResponse(name, version, commitHash string) nixHubResponse {
+	return nixHubResponse{
+		Name:    name,
+		Version: version,
+		Summary: "The Go programming language",
+		Systems: map[string]SystemResponse{
+			"x86_64-linux": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Type:  "github",
+						Owner: "NixOS",
+						Repo:  "nixpkgs",
+						Rev:   commitHash,
+					},
+					AttrPath: "legacyPackages.x86_64-linux.go",
+				},
+			},
+			"aarch64-linux": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Type:  "github",
+						Owner: "NixOS",
+						Repo:  "nixpkgs",
+						Rev:   commitHash,
+					},
+					AttrPath: "legacyPackages.aarch64-linux.go",
+				},
+			},
+			"x86_64-darwin": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Type:  "github",
+						Owner: "NixOS",
+						Repo:  "nixpkgs",
+						Rev:   commitHash,
+					},
+					AttrPath: "legacyPackages.x86_64-darwin.go",
+				},
+			},
+			"aarch64-darwin": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Type:  "github",
+						Owner: "NixOS",
+						Repo:  "nixpkgs",
+						Rev:   commitHash,
+					},
+					AttrPath: "legacyPackages.aarch64-darwin.go",
+				},
+			},
+		},
+	}
+}
+
+func TestResolve_SaveCacheFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a resolver that uses a read-only directory for cache
+	// causing saveToCache to fail
+	cacheDir := filepath.Join(tmpDir, "cache")
+	if err := os.Mkdir(cacheDir, 0o500); err != nil {
+		t.Fatalf("failed to create cache dir: %v", err)
+	}
+
+	// We need to access internal fields (cacheDir), so we can't use NewResolver
+	// We'll construct it manually since we are in package nix
+	resolver := &Resolver{
+		cacheDir:   cacheDir,
+		httpClient: http.DefaultClient,
+	}
+
+	// Mock server returning success
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		resp := buildNixHubResponse("go", "1.25.4", "test-hash")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	resolver.httpClient = &http.Client{
+		Transport: &testTransport{serverURL: server.URL},
+	}
+
+	// Resolve should succeed even if saving fails
+	ctx := context.Background()
+	hash, _, err := resolver.Resolve(ctx, "go", "1.25.4")
+	if err != nil {
+		t.Errorf("Resolve() failed: %v", err)
+	}
+	if hash != "test-hash" {
+		t.Errorf("Resolve() hash = %s, want test-hash", hash)
+	}
+}
+
+func TestResolver_AtomicWriteFile_Errors(t *testing.T) {
+	tmpDir := t.TempDir()
+	resolver := &Resolver{cacheDir: tmpDir}
+
+	// 1. Mkdir failure (file exists at dir path)
+	filePath := filepath.Join(tmpDir, "file")
+	if err := os.WriteFile(filePath, []byte("content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Try to write to a path where parent is a file
+	err := resolver.atomicWriteFile(filepath.Join(filePath, "foo"), []byte("data"))
+	if err == nil {
+		t.Error("atomicWriteFile expected error when parent is file")
+	}
+
+	// 2. Write failure is harder to simulate without mocks or full disk, skipping strict write fail check
+	// unless we use a very small FS or similar.
+	// But we can check if chmod fails? Hard on standard FS.
+	// We'll skip complex FS errors and rely on the Mkdir check for now.
+}
+
+func TestQueryNixHub_BodyReadError(t *testing.T) {
+	// Mock a server that closes connection to simulate read error?
+	// Or use a custom transport that returns a body that fails on Read.
+
+	tmpDir := t.TempDir()
+	resolver := &Resolver{cacheDir: tmpDir}
+
+	mockClient := &http.Client{
+		Transport: &errorTransport{},
+	}
+	resolver.httpClient = mockClient
+
+	_, err := resolver.queryNixHub(context.Background(), "go", "1.21")
+	if err == nil {
+		t.Error("queryNixHub expected error on body read failure")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixAPIRequestFailed.Error()) {
+		t.Errorf("expected error containing %v, got %v", domain.ErrNixAPIRequestFailed, err)
+	}
+}
+
+type errorTransport struct{}
+
+func (t *errorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       &errorBody{},
+	}, nil
+}
+
+type errorBody struct{}
+
+func (b *errorBody) Read(_ []byte) (n int, err error) {
+	return 0, errors.New("read failed")
+}
+
+func (b *errorBody) Close() error { return nil }
