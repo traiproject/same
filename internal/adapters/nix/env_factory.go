@@ -248,9 +248,37 @@ func SaveEnvToCache(path string, env []string) error {
 		return zerr.Wrap(err, "failed to marshal environment")
 	}
 
-	//nolint:gosec // Path is constructed from trusted cache directory
-	if err := os.WriteFile(path, data, filePerm); err != nil {
+	// Create temp file in the same directory
+	tmpFile, err := os.CreateTemp(dir, "env-cache-*.json")
+	if err != nil {
+		return zerr.Wrap(err, "failed to create temp cache file")
+	}
+	tmpName := tmpFile.Name()
+
+	// Clean up temp file on error
+	defer func() {
+		if _, err := os.Stat(tmpName); err == nil {
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
 		return zerr.Wrap(err, "failed to write cache file")
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return zerr.Wrap(err, "failed to close temp cache file")
+	}
+
+	// Set correct permissions
+	if err := os.Chmod(tmpName, filePerm); err != nil {
+		return zerr.Wrap(err, "failed to chmod cache file")
+	}
+
+	// Atomic rename
+	if err := os.Rename(tmpName, path); err != nil {
+		return zerr.Wrap(err, "failed to rename temp cache file")
 	}
 
 	return nil

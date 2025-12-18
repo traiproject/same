@@ -165,12 +165,47 @@ func (r *Resolver) saveToCache(path, alias, version string, apiResponse *nixHubR
 		return zerr.Wrap(err, domain.ErrNixCacheMarshalFailed.Error())
 	}
 
-	//nolint:gosec // Path is constructed from trusted directory and hashed filename
-	if err := os.WriteFile(path, data, filePerm); err != nil {
+	if err := r.atomicWriteFile(path, data); err != nil {
 		return zerr.Wrap(err, domain.ErrNixCacheWriteFailed.Error())
 	}
 
 	return nil
+}
+
+// atomicWriteFile writes data to a file atomically by writing to a temp file and renaming it.
+func (r *Resolver) atomicWriteFile(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
+		return err
+	}
+
+	tmpFile, err := os.CreateTemp(dir, "resolver-cache-*.json")
+	if err != nil {
+		return err
+	}
+	tmpName := tmpFile.Name()
+
+	// Clean up temp file on error
+	defer func() {
+		if _, statErr := os.Stat(tmpName); statErr == nil {
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Chmod(tmpName, filePerm); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpName, path)
 }
 
 // queryNixHub queries the NixHub API to resolve a package version.
