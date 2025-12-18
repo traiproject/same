@@ -130,6 +130,12 @@ func TestGetEnvironment_InvalidSpec(t *testing.T) {
 }
 
 func TestGetEnvironment_AliasMismatch(t *testing.T) {
+	// This test requires nix to be installed and will actually run nix build
+	// Skip if nix is not available
+	if _, err := exec.LookPath("nix"); err != nil {
+		t.Skip("nix not found in PATH, skipping integration test")
+	}
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -447,7 +453,6 @@ func TestSaveEnvToCache_MkdirError(t *testing.T) {
 }
 
 func TestGetEnvironment_Concurrency(t *testing.T) {
-	t.Skip("Skipping due to race condition with gomock/race detector")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

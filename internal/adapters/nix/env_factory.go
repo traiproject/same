@@ -107,7 +107,7 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 		return nil, err
 	}
 
-	env := result.([]string)
+	env := slices.Clone(result.([]string))
 
 	// Force temporary directories to local system temp to avoid leaking
 	// transient build directories (e.g. from nix-shell).
