@@ -12,7 +12,6 @@ import (
 )
 
 func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
-	t.Skip("Skipping due to test infra issues with concurrent hydration (goroutine not scheduling)")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -58,6 +57,7 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 
 	// 4. Env Factory Resolution
 	expectedEnv := []string{"GO_VERSION=1.22.2", "PATH=/nix/store/go/bin"}
+	mockLogger.EXPECT().Info(gomock.Any())
 	mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), gomock.Any()).Return(expectedEnv, nil)
 
 	// 5. Execution with Env
