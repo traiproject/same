@@ -3,6 +3,8 @@ package scheduler_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -1313,5 +1315,169 @@ func TestScheduler_PrepareTask(t *testing.T) {
 		assert.Nil(t, paths)
 		assert.Contains(t, err.Error(), domain.ErrToolInstallFailed.Error())
 		assert.Contains(t, err.Error(), "install failure")
+	})
+}
+
+func TestScheduler_Run_EnvHydrationFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		s := scheduler.NewScheduler(nil, nil, nil, nil, mockLogger, nil, nil, mockEnvFactory)
+
+		// Create a graph with a task that uses tools
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{
+			Name:  domain.NewInternedString("build"),
+			Tools: map[string]string{"go": "go@1.25.4"},
+		}
+		_ = g.AddTask(task)
+
+		// Mock hydration failure
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+		mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), gomock.Any()).Return(nil, errors.New("hydration failed"))
+		// We expect logging of this failure potentially, but mostly Run should return error
+		// Note: The code wraps error in "failed to hydrate environment"
+
+		err := s.Run(context.Background(), g, []string{"build"}, 1, false)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "hydration failed")
+	})
+}
+
+func TestScheduler_ValidateAndCleanOutputs_Security(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// We need to trigger validateAndCleanOutputs, which happens during execution
+		// But it's a private method. We can trigger it by running a task.
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+
+		// Create task with output outside root
+		task := &domain.Task{
+			Name:    domain.NewInternedString("pwn"),
+			Outputs: []domain.InternedString{domain.NewInternedString("../secret")},
+		}
+		_ = g.AddTask(task)
+
+		// Setup mocks for execution flow
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash", nil)
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil)
+
+		// The executor should NOT be called because validation fails before it
+
+		err := s.Run(context.Background(), g, []string{"pwn"}, 1, false)
+		// Run might return aggregate error, or if we just look at result
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), domain.ErrOutputPathOutsideRoot.Error())
+	})
+}
+
+func TestScheduler_ValidateAndCleanOutputs_RemoveError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		tmpDir := t.TempDir()
+		// Create a directory that we can't remove (e.g. by making parent immutable? Hard on linux user)
+		// Or creating a directory and putting a file in it that is open?
+		// Actually, standard way is to make parent directory read-only.
+
+		protectedDir := filepath.Join(tmpDir, "protected")
+		if err := os.Mkdir(protectedDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a file inside
+		outputFile := filepath.Join(protectedDir, "out")
+		if err := os.WriteFile(outputFile, []byte("data"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		// Make parent read-only so we can't unlink 'out'
+		//nolint:gosec // Need execution permission for directory
+		if err := os.Chmod(protectedDir, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = os.Chmod(protectedDir, 0o700) }() //nolint:gosec // Cleanup
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+
+		g := domain.NewGraph()
+		g.SetRoot(protectedDir) // Root is the protected dir
+
+		// output is "out" relative to root
+		task := &domain.Task{
+			Name:    domain.NewInternedString("build"),
+			Outputs: []domain.InternedString{domain.NewInternedString(filepath.Join(protectedDir, "out"))},
+		}
+		_ = g.AddTask(task)
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash", nil)
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil)
+
+		err := s.Run(context.Background(), g, []string{"build"}, 1, false)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to clean output")
+	})
+}
+
+func TestScheduler_ComputeOutputHash_Failure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockExec := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, nil, nil)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{
+			Name:    domain.NewInternedString("build"),
+			Outputs: []domain.InternedString{domain.NewInternedString("out")},
+		}
+		_ = g.AddTask(task)
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash", nil)
+		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil)
+
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+		// Mock Output Hash Failure
+		mockHasher.EXPECT().ComputeOutputHash(gomock.Any(), gomock.Any()).Return("", errors.New("hash failed"))
+		mockLogger.EXPECT().Error(gomock.Any()) // Should log error
+
+		// Store.Put should NOT be called
+
+		err := s.Run(context.Background(), g, []string{"build"}, 1, false)
+		require.NoError(t, err) // Task succeeded, cache update failure doesn't fail build
 	})
 }

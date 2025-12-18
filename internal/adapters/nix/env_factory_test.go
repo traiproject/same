@@ -2,6 +2,7 @@ package nix_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -495,5 +496,57 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 
 	if atomic.LoadInt32(&callCount) != 1 {
 		t.Errorf("Resolve called %d times, want 1", callCount)
+	}
+}
+
+func TestSaveEnvToCache_WriteError(t *testing.T) {
+	// Use a read-only directory
+	tmpDir := t.TempDir()
+	readOnlyDir := filepath.Join(tmpDir, "readonly")
+	if err := os.Mkdir(readOnlyDir, 0o500); err != nil {
+		t.Fatalf("Failed to create readonly dir: %v", err)
+	}
+
+	// Try to save to a file inside the read-only directory
+	// In Unix, you need write permission on the directory to create files
+	cachePath := filepath.Join(readOnlyDir, "test.json")
+	env := []string{"PATH=/test"}
+
+	err := nix.SaveEnvToCache(cachePath, env)
+	if err == nil {
+		t.Error("SaveEnvToCache() expected error for read-only directory")
+	}
+}
+
+func TestGetEnvironment_PartialResolveFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	resolver := mocks.NewMockDependencyResolver(ctrl)
+	manager := mocks.NewMockPackageManager(ctrl)
+
+	// Mock one success and one failure
+	resolver.EXPECT().
+		Resolve(gomock.Any(), "go", "1.25.4").
+		Return("hash-go", "pkgs.go", nil)
+
+	resolver.EXPECT().
+		Resolve(gomock.Any(), "golangci-lint", "2.6.2").
+		Return("", "", errors.New("resolution failed"))
+
+	factory := nix.NewEnvFactoryWithCache(resolver, manager, "/tmp/cache")
+	ctx := context.Background()
+
+	tools := map[string]string{
+		"go":            "go@1.25.4",
+		"golangci-lint": "golangci-lint@2.6.2",
+	}
+
+	_, err := factory.GetEnvironment(ctx, tools)
+	if err == nil {
+		t.Error("GetEnvironment() expected error when one tool fails resolution")
+	}
+	if !strings.Contains(err.Error(), "resolution failed") {
+		t.Errorf("expected error containing 'resolution failed', got %v", err)
 	}
 }

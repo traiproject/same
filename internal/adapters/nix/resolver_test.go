@@ -4,6 +4,7 @@ package nix
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -816,3 +817,101 @@ func buildNixHubResponse(name, version, commitHash string) nixHubResponse {
 		},
 	}
 }
+
+func TestResolve_SaveCacheFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a resolver that uses a read-only directory for cache
+	// causing saveToCache to fail
+	cacheDir := filepath.Join(tmpDir, "cache")
+	if err := os.Mkdir(cacheDir, 0o500); err != nil {
+		t.Fatalf("failed to create cache dir: %v", err)
+	}
+
+	// We need to access internal fields (cacheDir), so we can't use NewResolver
+	// We'll construct it manually since we are in package nix
+	resolver := &Resolver{
+		cacheDir:   cacheDir,
+		httpClient: http.DefaultClient,
+	}
+
+	// Mock server returning success
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		resp := buildNixHubResponse("go", "1.25.4", "test-hash")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	resolver.httpClient = &http.Client{
+		Transport: &testTransport{serverURL: server.URL},
+	}
+
+	// Resolve should succeed even if saving fails
+	ctx := context.Background()
+	hash, _, err := resolver.Resolve(ctx, "go", "1.25.4")
+	if err != nil {
+		t.Errorf("Resolve() failed: %v", err)
+	}
+	if hash != "test-hash" {
+		t.Errorf("Resolve() hash = %s, want test-hash", hash)
+	}
+}
+
+func TestResolver_AtomicWriteFile_Errors(t *testing.T) {
+	tmpDir := t.TempDir()
+	resolver := &Resolver{cacheDir: tmpDir}
+
+	// 1. Mkdir failure (file exists at dir path)
+	filePath := filepath.Join(tmpDir, "file")
+	if err := os.WriteFile(filePath, []byte("content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Try to write to a path where parent is a file
+	err := resolver.atomicWriteFile(filepath.Join(filePath, "foo"), []byte("data"))
+	if err == nil {
+		t.Error("atomicWriteFile expected error when parent is file")
+	}
+
+	// 2. Write failure is harder to simulate without mocks or full disk, skipping strict write fail check
+	// unless we use a very small FS or similar.
+	// But we can check if chmod fails? Hard on standard FS.
+	// We'll skip complex FS errors and rely on the Mkdir check for now.
+}
+
+func TestQueryNixHub_BodyReadError(t *testing.T) {
+	// Mock a server that closes connection to simulate read error?
+	// Or use a custom transport that returns a body that fails on Read.
+
+	tmpDir := t.TempDir()
+	resolver := &Resolver{cacheDir: tmpDir}
+
+	mockClient := &http.Client{
+		Transport: &errorTransport{},
+	}
+	resolver.httpClient = mockClient
+
+	_, err := resolver.queryNixHub(context.Background(), "go", "1.21")
+	if err == nil {
+		t.Error("queryNixHub expected error on body read failure")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixAPIRequestFailed.Error()) {
+		t.Errorf("expected error containing %v, got %v", domain.ErrNixAPIRequestFailed, err)
+	}
+}
+
+type errorTransport struct{}
+
+func (t *errorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       &errorBody{},
+	}, nil
+}
+
+type errorBody struct{}
+
+func (b *errorBody) Read(_ []byte) (n int, err error) {
+	return 0, errors.New("read failed")
+}
+
+func (b *errorBody) Close() error { return nil }
