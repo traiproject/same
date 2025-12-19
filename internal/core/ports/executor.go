@@ -9,9 +9,13 @@ import (
 
 // Executor defines the interface for executing tasks.
 //
-//go:generate mockgen -source=executor.go -destination=mocks/mock_executor.go -package=mocks
+//go:generate go run go.uber.org/mock/mockgen -source=executor.go -destination=mocks/mock_executor.go -package=mocks
 type Executor interface {
-	// Execute runs the given task.
+	// Execute runs the given task with the specified environment.
+	//
+	// The env parameter contains environment variables in "KEY=VALUE" format,
+	// typically provided by an EnvironmentFactory for hermetic execution.
+	//
 	// It returns an error if the task execution fails.
-	Execute(ctx context.Context, task *domain.Task) error
+	Execute(ctx context.Context, task *domain.Task, env []string) error
 }

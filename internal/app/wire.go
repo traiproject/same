@@ -1,3 +1,5 @@
+//go:build wireinject
+
 package app
 
 import (
@@ -6,6 +8,7 @@ import (
 	"go.trai.ch/bob/internal/adapters/config"
 	"go.trai.ch/bob/internal/adapters/fs"
 	"go.trai.ch/bob/internal/adapters/logger"
+	"go.trai.ch/bob/internal/adapters/nix"
 	"go.trai.ch/bob/internal/adapters/shell"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/bob/internal/engine/scheduler"
@@ -33,6 +36,12 @@ var AdapterSet = kessoku.Set(
 
 	// CAS Store
 	kessoku.Bind[ports.BuildInfoStore](kessoku.Provide(cas.NewStore)),
+
+	// Nix Dependency Resolver
+	kessoku.Bind[ports.DependencyResolver](kessoku.Provide(nix.NewResolver)),
+
+	// Nix Environment Factory
+	kessoku.Bind[ports.EnvironmentFactory](kessoku.Provide(nix.NewEnvFactory)),
 )
 
 // EngineSet groups engine-layer providers.
@@ -46,9 +55,13 @@ var AppSet = kessoku.Set(
 	kessoku.Provide(NewComponents),
 )
 
-//go:generate kessoku $GOFILE
 var _ = kessoku.Inject[*Components]("InitializeApp",
 	AdapterSet,
 	EngineSet,
 	AppSet,
 )
+
+// InitializeApp is a stub for wire generation.
+func InitializeApp() (*Components, error) {
+	panic("wire")
+}

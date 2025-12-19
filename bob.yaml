@@ -1,19 +1,25 @@
 version: "1"
+tools:
+  go: go@1.25.4
+  lint: golangci-lint@2.7.2
 tasks:
   # Install dependencies
   install:
     input: ["go.mod", "go.sum"]
     cmd: ["go", "mod", "download"]
+    tools: ["go"]
 
   # Format code
   fmt:
     input: ["cmd", "internal"]
     cmd: ["go", "fmt", "./..."]
+    tools: ["go"]
 
   # Run linter
   lint:
     input: ["cmd", "internal"]
     cmd: ["golangci-lint", "run"]
+    tools: ["lint"]
     dependsOn: ["generate"]
 
   # Generate mocks
@@ -25,17 +31,20 @@ tasks:
     target:
       - "internal/core/ports/mocks/"
       - "internal/app/wire_band.go"
+    tools: ["go"]
     dependsOn: ["install"]
 
   # Run tests
   test:
     input: ["cmd", "internal"]
     cmd: ["go", "test", "-v", "-race", "./..."]
-    dependsOn: ["generate", "lint"]
+    tools: ["go"]
+    dependsOn: ["generate"]
 
   # Build the binary
   build:
     input: ["cmd", "internal"]
     cmd: ["go", "build", "-o", "bin/bob", "./cmd/bob"]
     target: ["bin/bob"]
+    tools: ["go"]
     dependsOn: ["test"]

@@ -7,6 +7,7 @@ type Task struct {
 	Command      []string
 	Inputs       []InternedString
 	Outputs      []InternedString
+	Tools        map[string]string
 	Dependencies []InternedString
 	Environment  map[string]string
 	WorkingDir   InternedString

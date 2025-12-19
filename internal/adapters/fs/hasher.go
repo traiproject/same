@@ -74,6 +74,22 @@ func (h *Hasher) hashTaskDefinition(task *domain.Task, hasher *xxhash.Digest) {
 	}
 	_, _ = hasher.Write([]byte{0}) // Section separator
 
+	// Tools
+	// Sort keys for determinism
+	toolKeys := make([]string, 0, len(task.Tools))
+	for k := range task.Tools {
+		toolKeys = append(toolKeys, k)
+	}
+	sort.Strings(toolKeys)
+
+	for _, k := range toolKeys {
+		_, _ = hasher.WriteString(k)
+		_, _ = hasher.Write([]byte{0}) // Separator
+		_, _ = hasher.WriteString(task.Tools[k])
+		_, _ = hasher.Write([]byte{0}) // Separator
+	}
+	_, _ = hasher.Write([]byte{0}) // Section separator
+
 	// Inputs
 	for _, input := range task.Inputs {
 		_, _ = hasher.WriteString(input.String())

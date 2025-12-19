@@ -452,3 +452,256 @@ func TestLoad_Workspace_MissingBobfileWarning(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, g)
 }
+
+// TestLoad_Workspace_ToolsInheritance tests that workspace tools are inherited by projects.
+func TestLoad_Workspace_ToolsInheritance(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create workspace config with tools
+	workfileContent := `
+version: "1"
+tools:
+  go: "go@1.23"
+  node: "nodejs@20"
+projects:
+  - "packages/*"
+`
+	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+	require.NoError(t, err)
+
+	// Create packages directory
+	packagesDir := filepath.Join(tmpDir, "packages")
+	err = os.MkdirAll(packagesDir, 0o750)
+	require.NoError(t, err)
+
+	// Create project that uses workspace tools
+	projectDir := filepath.Join(packagesDir, "myapp")
+	err = os.MkdirAll(projectDir, 0o750)
+	require.NoError(t, err)
+
+	bobfileContent := `
+version: "1"
+project: "myapp"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    tools: ["go"]
+  frontend:
+    cmd: ["npm", "run", "build"]
+    tools: ["node"]
+`
+	bobfilePath := filepath.Join(projectDir, "bob.yaml")
+	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	require.NoError(t, err)
+
+	// Load the config
+	ctrl := gomock.NewController(t)
+	mockLogger := mocks.NewMockLogger(ctrl)
+	loader := &config.Loader{Logger: mockLogger}
+
+	g, err := loader.Load(tmpDir)
+	require.NoError(t, err)
+
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Collect tasks and verify tools
+	tasks := make(map[string]map[string]string)
+	for task := range g.Walk() {
+		tasks[task.Name.String()] = task.Tools
+	}
+
+	// Verify build task inherited go tool from workspace
+	require.Contains(t, tasks, "myapp:build")
+	assert.Equal(t, map[string]string{"go": "go@1.23"}, tasks["myapp:build"])
+
+	// Verify frontend task inherited node tool from workspace
+	require.Contains(t, tasks, "myapp:frontend")
+	assert.Equal(t, map[string]string{"node": "nodejs@20"}, tasks["myapp:frontend"])
+}
+
+// TestLoad_Workspace_ToolsOverride tests that project tools override workspace tools.
+func TestLoad_Workspace_ToolsOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create workspace config with go 1.22
+	workfileContent := `
+version: "1"
+tools:
+  go: "go@1.22"
+projects:
+  - "packages/*"
+`
+	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+	require.NoError(t, err)
+
+	// Create packages directory
+	packagesDir := filepath.Join(tmpDir, "packages")
+	err = os.MkdirAll(packagesDir, 0o750)
+	require.NoError(t, err)
+
+	// Create project that overrides go version to 1.23
+	projectDir := filepath.Join(packagesDir, "myapp")
+	err = os.MkdirAll(projectDir, 0o750)
+	require.NoError(t, err)
+
+	bobfileContent := `
+version: "1"
+project: "myapp"
+tools:
+  go: "go@1.23"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    tools: ["go"]
+`
+	bobfilePath := filepath.Join(projectDir, "bob.yaml")
+	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	require.NoError(t, err)
+
+	// Load the config
+	ctrl := gomock.NewController(t)
+	mockLogger := mocks.NewMockLogger(ctrl)
+	loader := &config.Loader{Logger: mockLogger}
+
+	g, err := loader.Load(tmpDir)
+	require.NoError(t, err)
+
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Collect tasks and verify tools
+	tasks := make(map[string]map[string]string)
+	for task := range g.Walk() {
+		tasks[task.Name.String()] = task.Tools
+	}
+
+	// Verify build task uses project's go version (override)
+	require.Contains(t, tasks, "myapp:build")
+	assert.Equal(t, map[string]string{"go": "go@1.23"}, tasks["myapp:build"])
+}
+
+// TestLoad_Workspace_ToolsMerge tests that workspace and project tools are merged.
+func TestLoad_Workspace_ToolsMerge(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create workspace config with go tool
+	workfileContent := `
+version: "1"
+tools:
+  go: "go@1.23"
+projects:
+  - "packages/*"
+`
+	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+	require.NoError(t, err)
+
+	// Create packages directory
+	packagesDir := filepath.Join(tmpDir, "packages")
+	err = os.MkdirAll(packagesDir, 0o750)
+	require.NoError(t, err)
+
+	// Create project with additional node tool
+	projectDir := filepath.Join(packagesDir, "myapp")
+	err = os.MkdirAll(projectDir, 0o750)
+	require.NoError(t, err)
+
+	bobfileContent := `
+version: "1"
+project: "myapp"
+tools:
+  node: "nodejs@20"
+tasks:
+  fullstack:
+    cmd: ["make", "build"]
+    tools: ["go", "node"]
+`
+	bobfilePath := filepath.Join(projectDir, "bob.yaml")
+	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	require.NoError(t, err)
+
+	// Load the config
+	ctrl := gomock.NewController(t)
+	mockLogger := mocks.NewMockLogger(ctrl)
+	loader := &config.Loader{Logger: mockLogger}
+
+	g, err := loader.Load(tmpDir)
+	require.NoError(t, err)
+
+	err = g.Validate()
+	require.NoError(t, err)
+
+	// Collect tasks and verify tools
+	tasks := make(map[string]map[string]string)
+	for task := range g.Walk() {
+		tasks[task.Name.String()] = task.Tools
+	}
+
+	// Verify fullstack task has both workspace (go) and project (node) tools
+	require.Contains(t, tasks, "myapp:fullstack")
+	assert.Equal(t, map[string]string{
+		"go":   "go@1.23",
+		"node": "nodejs@20",
+	}, tasks["myapp:fullstack"])
+}
+
+// TestLoad_Workspace_MissingTool tests error handling when a tool is not defined.
+func TestLoad_Workspace_MissingTool(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create workspace config with go tool only
+	workfileContent := `
+version: "1"
+tools:
+  go: "go@1.23"
+projects:
+  - "packages/*"
+`
+	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+	require.NoError(t, err)
+
+	// Create packages directory
+	packagesDir := filepath.Join(tmpDir, "packages")
+	err = os.MkdirAll(packagesDir, 0o750)
+	require.NoError(t, err)
+
+	// Create project that uses undefined tool
+	projectDir := filepath.Join(packagesDir, "myapp")
+	err = os.MkdirAll(projectDir, 0o750)
+	require.NoError(t, err)
+
+	bobfileContent := `
+version: "1"
+project: "myapp"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    tools: ["go", "rust"]
+`
+	bobfilePath := filepath.Join(projectDir, "bob.yaml")
+	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	require.NoError(t, err)
+
+	// Load the config
+	ctrl := gomock.NewController(t)
+	mockLogger := mocks.NewMockLogger(ctrl)
+	loader := &config.Loader{Logger: mockLogger}
+
+	_, err = loader.Load(tmpDir)
+	require.Error(t, err)
+
+	// Verify error message
+	assert.Contains(t, err.Error(), "tool not found")
+
+	// Verify error metadata
+	zErr, ok := err.(*zerr.Error)
+	require.True(t, ok, "expected *zerr.Error, got %T", err)
+
+	meta := zErr.Metadata()
+	assert.Equal(t, "rust", meta["tool_alias"])
+	assert.Equal(t, "myapp:build", meta["task"])
+}

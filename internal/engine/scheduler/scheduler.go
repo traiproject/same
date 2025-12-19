@@ -1,4 +1,3 @@
-// Package scheduler implements the task execution scheduler.
 package scheduler
 
 import (
@@ -15,6 +14,7 @@ import (
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
+	"golang.org/x/sync/errgroup"
 )
 
 // TaskStatus represents the status of a task.
@@ -33,23 +33,26 @@ const (
 
 // Scheduler manages the execution of tasks in the dependency graph.
 type Scheduler struct {
-	executor ports.Executor
-	store    ports.BuildInfoStore
-	hasher   ports.Hasher
-	resolver ports.InputResolver
-	logger   ports.Logger
+	executor   ports.Executor
+	store      ports.BuildInfoStore
+	hasher     ports.Hasher
+	resolver   ports.InputResolver
+	logger     ports.Logger
+	envFactory ports.EnvironmentFactory
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
+	envCache   sync.Map // map[string][]string - EnvID -> environment variables
 }
 
-// NewScheduler creates a new Scheduler with the given executor, store, hasher, and logger.
+// NewScheduler creates a new Scheduler with the given dependencies.
 func NewScheduler(
 	executor ports.Executor,
 	store ports.BuildInfoStore,
 	hasher ports.Hasher,
 	resolver ports.InputResolver,
 	logger ports.Logger,
+	envFactory ports.EnvironmentFactory,
 ) *Scheduler {
 	s := &Scheduler{
 		executor:   executor,
@@ -57,7 +60,9 @@ func NewScheduler(
 		hasher:     hasher,
 		resolver:   resolver,
 		logger:     logger,
+		envFactory: envFactory,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
+		envCache:   sync.Map{},
 	}
 	return s
 }
@@ -100,31 +105,15 @@ func (s *Scheduler) Run(
 		return err
 	}
 
+	// Phase 1: Batch Environment Hydration
+	// Resolve all unique environments concurrently before execution starts
+	if err := state.prepareEnvironments(); err != nil {
+		return err
+	}
+
 	s.initTaskStatuses(state.allTasks)
 
-	for !state.isDone() {
-		state.schedule()
-
-		if state.isDone() {
-			break
-		}
-
-		if state.ctx.Err() != nil && state.active == 0 {
-			return errors.Join(state.errs, state.ctx.Err())
-		}
-
-		select {
-		case res := <-state.resultsCh:
-			state.handleResult(res)
-		case <-state.ctx.Done():
-		}
-	}
-
-	if state.ctx.Err() != nil {
-		state.errs = errors.Join(state.errs, state.ctx.Err())
-	}
-
-	return state.errs
+	return state.runExecutionLoop()
 }
 
 type result struct {
@@ -148,6 +137,7 @@ type schedulerRunState struct {
 	s           *Scheduler
 	allTasks    []domain.InternedString
 	force       bool
+	taskEnvIDs  map[domain.InternedString]string // task name -> environment ID
 }
 
 func (s *Scheduler) newRunState(
@@ -187,6 +177,16 @@ func (s *Scheduler) newRunState(
 		}
 	}
 
+	// Pre-calculate environment IDs for all tasks with tools
+	taskEnvIDs := make(map[domain.InternedString]string)
+	for name := range tasks {
+		task := tasks[name]
+		if len(task.Tools) > 0 {
+			envID := domain.GenerateEnvID(task.Tools)
+			taskEnvIDs[name] = envID
+		}
+	}
+
 	return &schedulerRunState{
 		graph:       graph,
 		inDegree:    inDegree,
@@ -198,7 +198,93 @@ func (s *Scheduler) newRunState(
 		s:           s,
 		allTasks:    allTasks,
 		force:       force,
+		taskEnvIDs:  taskEnvIDs,
 	}, nil
+}
+
+func (state *schedulerRunState) runExecutionLoop() error {
+	for !state.isDone() {
+		state.schedule()
+
+		if state.isDone() {
+			break
+		}
+
+		if state.ctx.Err() != nil && state.active == 0 {
+			return errors.Join(state.errs, state.ctx.Err())
+		}
+
+		select {
+		case res := <-state.resultsCh:
+			state.handleResult(res)
+		case <-state.ctx.Done():
+		}
+	}
+
+	if state.ctx.Err() != nil {
+		state.errs = errors.Join(state.errs, state.ctx.Err())
+	}
+
+	return state.errs
+}
+
+// prepareEnvironments resolves all required environments concurrently.
+func (state *schedulerRunState) prepareEnvironments() error {
+	// Identify unique environment IDs needed for this run
+	neededEnvIDs := make(map[string]map[string]string) // envID -> tools map (sample)
+
+	for taskName, envID := range state.taskEnvIDs {
+		if _, exists := neededEnvIDs[envID]; !exists {
+			// Find a sample task to get the tools map
+			// We can use the current task since it has the correct tools for this EnvID
+			if task, ok := state.tasks[taskName]; ok {
+				neededEnvIDs[envID] = task.Tools
+			}
+		}
+	}
+
+	// Check which environments are not yet cached
+	var envsToResolve []struct {
+		id    string
+		tools map[string]string
+	}
+
+	for id, tools := range neededEnvIDs {
+		if _, cached := state.s.envCache.Load(id); !cached {
+			envsToResolve = append(envsToResolve, struct {
+				id    string
+				tools map[string]string
+			}{id, tools})
+		}
+	}
+
+	if len(envsToResolve) == 0 {
+		return nil
+	}
+
+	state.s.logger.Info(fmt.Sprintf("Hydrating %d unique environments...", len(envsToResolve)))
+
+	g, ctx := errgroup.WithContext(state.ctx)
+
+	for _, item := range envsToResolve {
+		item := item // capture loop var
+		g.Go(func() error {
+			// Double check cache in case another parallel run hydrated it (optimistic)
+			if _, cached := state.s.envCache.Load(item.id); cached {
+				return nil
+			}
+
+			env, err := state.s.envFactory.GetEnvironment(ctx, item.tools)
+			if err != nil {
+				return zerr.Wrap(err, "failed to hydrate environment")
+			}
+
+			state.s.envCache.Store(item.id, env)
+			return nil
+		})
+	}
+
+	return g.Wait()
 }
 
 func (s *Scheduler) resolveTasksToRun(
@@ -297,6 +383,7 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
+	// Step 1: Compute Input Hash (Check Cache)
 	hash, err := state.computeInputHash(t)
 	if err != nil {
 		state.resultsCh <- result{task: t.Name, err: err}
@@ -308,6 +395,7 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		return
 	}
 
+	// Step 2: Clean Outputs
 	// Clean outputs before building to prevent stale artifacts
 	if err := state.validateAndCleanOutputs(t); err != nil {
 		state.resultsCh <- result{task: t.Name, err: err}
@@ -320,9 +408,27 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		outputs[i] = out.String()
 	}
 
+	// Step 3: Prepare Environment (Phase 1 Hydration)
+	var env []string
+	if len(t.Tools) > 0 {
+		// Environment is already hydrated in Phase 1
+		envID := state.taskEnvIDs[t.Name]
+		cachedEnv, ok := state.s.envCache.Load(envID)
+		if !ok {
+			// This should theoretically never happen if prepareEnvironments worked correctly
+			state.resultsCh <- result{
+				task: t.Name,
+				err:  zerr.With(domain.ErrEnvironmentNotCached, "env_id", envID),
+			}
+			return
+		}
+		env = cachedEnv.([]string)
+	}
+
+	// Step 4: Execute
 	state.resultsCh <- result{
 		task:        t.Name,
-		err:         state.s.executor.Execute(state.ctx, t),
+		err:         state.s.executor.Execute(state.ctx, t, env),
 		inputHash:   hash,
 		taskOutputs: outputs,
 	}

@@ -104,4 +104,46 @@ var (
 
 	// ErrWriteHashFailed is returned when writing the hash to the digest fails.
 	ErrWriteHashFailed = zerr.New("failed to write hash to digest")
+
+	// ErrNixCacheCreateFailed is returned when the Nix cache directory cannot be created.
+	ErrNixCacheCreateFailed = zerr.New("failed to create Nix cache directory")
+
+	// ErrNixCacheReadFailed is returned when reading from the Nix cache fails.
+	ErrNixCacheReadFailed = zerr.New("failed to read from Nix cache")
+
+	// ErrNixCacheWriteFailed is returned when writing to the Nix cache fails.
+	ErrNixCacheWriteFailed = zerr.New("failed to write to Nix cache")
+
+	// ErrNixCacheMarshalFailed is returned when marshaling Nix cache data fails.
+	ErrNixCacheMarshalFailed = zerr.New("failed to marshal Nix cache data")
+
+	// ErrNixCacheUnmarshalFailed is returned when unmarshaling Nix cache data fails.
+	ErrNixCacheUnmarshalFailed = zerr.New("failed to unmarshal Nix cache data")
+
+	// ErrNixAPIRequestFailed is returned when a NixHub API request fails.
+	ErrNixAPIRequestFailed = zerr.New("failed to make NixHub API request")
+
+	// ErrNixAPIParseFailed is returned when parsing a NixHub API response fails.
+	ErrNixAPIParseFailed = zerr.New("failed to parse NixHub API response")
+
+	// ErrNixPackageNotFound is returned when a package version is not found in NixHub.
+	ErrNixPackageNotFound = zerr.New("package version not found in NixHub")
+
+	// ErrNixInstallFailed is returned when installing a package via Nix CLI fails.
+	ErrNixInstallFailed = zerr.New("failed to install package via Nix")
+
+	// ErrMissingTool is returned when a task references a tool alias that is not defined.
+	ErrMissingTool = zerr.New("tool not found")
+
+	// ErrInvalidToolSpec is returned when a tool specification is missing the @ symbol.
+	ErrInvalidToolSpec = zerr.New("invalid tool specification, expected format: package@version")
+
+	// ErrToolResolutionFailed is returned when resolving a tool version fails.
+	ErrToolResolutionFailed = zerr.New("failed to resolve tool version")
+
+	// ErrToolInstallFailed is returned when installing a tool fails.
+	ErrToolInstallFailed = zerr.New("failed to install tool")
+
+	// ErrEnvironmentNotCached is returned when an environment should have been cached but wasn't.
+	ErrEnvironmentNotCached = zerr.New("environment not found in cache")
 )
