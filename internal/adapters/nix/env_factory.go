@@ -160,11 +160,7 @@ func (e *EnvFactory) generateNixExpr(system string, commits map[string][]string)
 
 	// Use the first pkgs for mkShell (arbitrary choice, all should have mkShell)
 	// Since we sorted, pkgs_0 is always the first one if any exist
-	firstIdx := 0 // default if empty, though invalid
-	if len(commitHashes) > 0 {
-		// Just use 0 as we always start from 0
-		firstIdx = 0
-	}
+	firstIdx := 0
 
 	builder.WriteString(fmt.Sprintf("pkgs_%d.mkShell {\n", firstIdx))
 	builder.WriteString("buildInputs = [\n")
