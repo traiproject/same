@@ -17,11 +17,18 @@ func TestResolveEnvironment(t *testing.T) {
 		expected []string
 	}{
 		{
-			name:     "System Only",
-			sysEnv:   []string{"USER=test", "PATH=/bin"},
+			name:     "System Only (Allowed)",
+			sysEnv:   []string{"USER=test", "PATH=/bin", "HOME=/home/test"},
 			nixEnv:   nil,
 			taskEnv:  nil,
-			expected: []string{"USER=test", "PATH=/bin"},
+			expected: []string{"USER=test", "PATH=/bin", "HOME=/home/test"},
+		},
+		{
+			name:     "System Only (Filtered)",
+			sysEnv:   []string{"USER=test", "SSH_AUTH_SOCK=/tmp/ssh", "SECRET=key"},
+			nixEnv:   nil,
+			taskEnv:  nil,
+			expected: []string{"USER=test"},
 		},
 		{
 			name:     "System + Nix (No PATH)",

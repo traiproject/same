@@ -120,18 +120,51 @@ func (w *logWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// allowListedEnvVars are the system environment variables that are allowed to be
+// inherited by the task. This ensures the build environment is hermetic and
+// reproducible, while still allowing basic system tools to function.
+var allowListedEnvVars = map[string]struct{}{
+	"HOME": {},
+	"TERM": {},
+	"USER": {},
+	"PATH": {},
+}
+
 // resolveEnvironment merges environment variables with the defined priority.
 func resolveEnvironment(sysEnv, nixEnv []string, taskEnv map[string]string) []string {
-	// 1. Start with System Environment
+	// 1. Start with System Environment (Allow-list only)
+	envMap := filterSystemEnv(sysEnv)
+
+	// 2. Apply Nix Environment (Prepend PATH)
+	applyNixEnv(envMap, nixEnv)
+
+	// 3. Apply Task Environment Overrides
+	for k, v := range taskEnv {
+		envMap[k] = v
+	}
+
+	// Convert to slice
+	result := make([]string, 0, len(envMap))
+	for k, v := range envMap {
+		result = append(result, k+"="+v)
+	}
+	return result
+}
+
+func filterSystemEnv(sysEnv []string) map[string]string {
 	envMap := make(map[string]string)
 	for _, entry := range sysEnv {
 		k, v, ok := strings.Cut(entry, "=")
 		if ok {
-			envMap[k] = v
+			if _, allowed := allowListedEnvVars[k]; allowed {
+				envMap[k] = v
+			}
 		}
 	}
+	return envMap
+}
 
-	// 2. Apply Nix Environment (Prepend PATH)
+func applyNixEnv(envMap map[string]string, nixEnv []string) {
 	for _, entry := range nixEnv {
 		k, v, ok := strings.Cut(entry, "=")
 		if ok {
@@ -146,18 +179,6 @@ func resolveEnvironment(sysEnv, nixEnv []string, taskEnv map[string]string) []st
 			}
 		}
 	}
-
-	// 3. Apply Task Environment Overrides
-	for k, v := range taskEnv {
-		envMap[k] = v
-	}
-
-	// Convert to slice
-	result := make([]string, 0, len(envMap))
-	for k, v := range envMap {
-		result = append(result, k+"="+v)
-	}
-	return result
 }
 
 // lookPath searches for an executable in the directories named by the PATH environment variable.

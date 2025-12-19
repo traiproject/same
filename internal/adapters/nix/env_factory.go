@@ -362,14 +362,7 @@ func ShouldIncludeVar(key string) bool {
 		"NIX_LOG_FD",
 	}
 
-	for _, excluded := range exclude {
-		if key == excluded {
-			return false
-		}
-	}
-
-	// Include everything else provided by Nix (PATH, GO*, CGO*, NIX_*, etc.)
-	return true
+	return !slices.Contains(exclude, key)
 }
 
 // resolveTools resolves all tools to their commit hashes and attribute paths.
