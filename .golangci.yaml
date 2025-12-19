@@ -52,6 +52,12 @@ linters:
       severity: medium
       confidence: medium
 
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(go.trai.ch/bob)
+
     godot:
       scope: toplevel
       exclude:
@@ -118,6 +124,7 @@ linters:
           deny:
             - pkg: "go.trai.ch/bob/internal/adapters"
               desc: "CLI should go through app layer, not adapters directly"
+            # Note: internal/wiring is allowed to be imported by cmd to trigger side-effects.
 
 formatters:
   enable:

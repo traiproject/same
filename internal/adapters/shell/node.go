@@ -8,6 +8,7 @@ import (
 	"go.trai.ch/bob/internal/core/ports"
 )
 
+// NodeID is the unique identifier for the executor Graft node.
 const NodeID graft.ID = "adapter.executor"
 
 func init() {

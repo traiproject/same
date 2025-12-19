@@ -7,13 +7,14 @@ import (
 	"go.trai.ch/bob/internal/core/ports"
 )
 
+// NodeID is the unique identifier for the build info store Graft node.
 const NodeID graft.ID = "adapter.build_info_store"
 
 func init() {
 	graft.Register(graft.Node[ports.BuildInfoStore]{
 		ID:        NodeID,
 		Cacheable: true,
-		Run: func(ctx context.Context) (ports.BuildInfoStore, error) {
+		Run: func(_ context.Context) (ports.BuildInfoStore, error) {
 			store, err := NewStore()
 			if err != nil {
 				return nil, err

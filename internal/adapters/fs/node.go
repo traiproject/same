@@ -8,9 +8,12 @@ import (
 )
 
 const (
-	WalkerNodeID   graft.ID = "adapter.fs.walker"
+	// WalkerNodeID is the unique identifier for the FS walker Graft node.
+	WalkerNodeID graft.ID = "adapter.fs.walker"
+	// ResolverNodeID is the unique identifier for the FS input resolver Graft node.
 	ResolverNodeID graft.ID = "adapter.fs.resolver"
-	HasherNodeID   graft.ID = "adapter.fs.hasher"
+	// HasherNodeID is the unique identifier for the FS hasher Graft node.
+	HasherNodeID graft.ID = "adapter.fs.hasher"
 )
 
 func init() {
@@ -18,7 +21,7 @@ func init() {
 	graft.Register(graft.Node[*Walker]{
 		ID:        WalkerNodeID,
 		Cacheable: true,
-		Run: func(ctx context.Context) (*Walker, error) {
+		Run: func(_ context.Context) (*Walker, error) {
 			return NewWalker(), nil
 		},
 	})
@@ -27,7 +30,7 @@ func init() {
 	graft.Register(graft.Node[ports.InputResolver]{
 		ID:        ResolverNodeID,
 		Cacheable: true,
-		Run: func(ctx context.Context) (ports.InputResolver, error) {
+		Run: func(_ context.Context) (ports.InputResolver, error) {
 			return NewResolver(), nil
 		},
 	})

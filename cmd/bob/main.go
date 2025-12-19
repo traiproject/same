@@ -9,6 +9,7 @@ import (
 
 	"go.trai.ch/bob/cmd/bob/commands"
 	"go.trai.ch/bob/internal/app"
+	_ "go.trai.ch/bob/internal/wiring"
 )
 
 func main() {

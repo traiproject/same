@@ -4,14 +4,15 @@ import (
 	"context"
 
 	"github.com/grindlemire/graft"
-	"go.trai.ch/bob/internal/adapters/cas"
-	"go.trai.ch/bob/internal/adapters/fs"
-	"go.trai.ch/bob/internal/adapters/logger"
-	"go.trai.ch/bob/internal/adapters/nix"
-	"go.trai.ch/bob/internal/adapters/shell"
+	"go.trai.ch/bob/internal/adapters/cas"    //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/fs"     //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/nix"    //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/shell"  //nolint:depguard // Wired in engine wiring
 	"go.trai.ch/bob/internal/core/ports"
 )
 
+// NodeID is the unique identifier for the scheduler Graft node.
 const NodeID graft.ID = "engine.scheduler"
 
 func init() {

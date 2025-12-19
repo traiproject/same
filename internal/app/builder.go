@@ -2,14 +2,14 @@
 package app
 
 import (
-	"go.trai.ch/bob/internal/adapters/cas"
-	"go.trai.ch/bob/internal/adapters/config"
-	"go.trai.ch/bob/internal/adapters/fs"
-	"go.trai.ch/bob/internal/adapters/logger"
-	"go.trai.ch/bob/internal/adapters/nix"
-	"go.trai.ch/bob/internal/adapters/shell"
-	"go.trai.ch/bob/internal/engine/scheduler"
+	"go.trai.ch/bob/internal/adapters/cas"    //nolint:depguard // Builders need to wire concrete adapters
+	"go.trai.ch/bob/internal/adapters/config" //nolint:depguard // Builders need to wire concrete adapters
+	"go.trai.ch/bob/internal/adapters/fs"     //nolint:depguard // Builders need to wire concrete adapters
+	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // Builders need to wire concrete adapters
+	"go.trai.ch/bob/internal/adapters/nix"    //nolint:depguard // Builders need to wire concrete adapters
+	"go.trai.ch/bob/internal/adapters/shell"  //nolint:depguard // Builders need to wire concrete adapters
 	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/bob/internal/engine/scheduler"
 )
 
 // Components contains all the initialized application components.
@@ -22,10 +22,10 @@ type Components struct {
 
 // NewComponents creates a new Components struct from dependencies.
 // This is used by the kessoku-generated injector.
-func NewComponents(app *App, logger ports.Logger, loader *config.Loader) *Components {
+func NewComponents(app *App, log ports.Logger, loader *config.Loader) *Components {
 	return &Components{
 		App:          app,
-		Logger:       logger,
+		Logger:       log,
 		configLoader: loader,
 	}
 }
@@ -38,16 +38,16 @@ func NewComponents(app *App, logger ports.Logger, loader *config.Loader) *Compon
 func NewApp() (*Components, error) {
 	// 1. Core Adapters
 	loggerAdapter := logger.New()
-	
+
 	walker := fs.NewWalker()
 	hasher := fs.NewHasher(walker)
-	
+
 	configLoader := config.NewLoader(loggerAdapter)
 
 	shellExecutor := shell.NewExecutor(loggerAdapter)
-	
+
 	fsResolver := fs.NewResolver()
-	
+
 	casStore, err := cas.NewStore()
 	if err != nil {
 		return nil, err

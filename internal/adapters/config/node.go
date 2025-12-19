@@ -8,6 +8,7 @@ import (
 	"go.trai.ch/bob/internal/core/ports"
 )
 
+// NodeID is the unique identifier for the config loader Graft node.
 const NodeID graft.ID = "adapter.config_loader"
 
 func init() {

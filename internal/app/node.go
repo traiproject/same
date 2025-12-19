@@ -4,14 +4,16 @@ import (
 	"context"
 
 	"github.com/grindlemire/graft"
-	"go.trai.ch/bob/internal/adapters/config"
-	"go.trai.ch/bob/internal/adapters/logger"
+	"go.trai.ch/bob/internal/adapters/config" //nolint:depguard // Wired in app layer
+	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // Wired in app layer
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/bob/internal/engine/scheduler"
 )
 
 const (
-	AppNodeID        graft.ID = "app.main"
+	// AppNodeID is the unique identifier for the main App Graft node.
+	AppNodeID graft.ID = "app.main"
+	// ComponentsNodeID is the unique identifier for the App components Graft node.
 	ComponentsNodeID graft.ID = "app.components"
 )
 
