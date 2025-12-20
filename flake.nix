@@ -36,7 +36,6 @@
           gofumpt
         ];
 
-
       in
       rec {
         packages.default = pkgs.buildGoModule {
@@ -44,7 +43,7 @@
           inherit version;
 
           src = ./.;
-          vendorHash = "sha256-g4NqbMucp+Ua6+D/3TaEt6soyhsECY8GRtT4OsVankY=";
+          vendorHash = "sha256-E6tStFs9Tgn8JhciD8ti3Gq68wZmPYL65z+5Vfkkgzs=";
 
           env.CGO_ENABLED = 1;
 
