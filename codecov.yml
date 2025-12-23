@@ -22,6 +22,7 @@ ignore:
     - "**/mocks/**"
     - "**/mock_*.go"
     - "**/*_mock.go"
+    - "**/node.go"
 
 comment:
   layout: "reach, diff, flags, files"
