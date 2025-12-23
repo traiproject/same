@@ -16,6 +16,7 @@ wire_band.go
 
 # Binaries
 bin/
+bob
 *.exe
 *.exe~
 *.dll

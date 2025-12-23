@@ -2,7 +2,7 @@
 package app
 
 import (
-	"go.trai.ch/bob/internal/adapters/config"
+	"go.trai.ch/bob/internal/adapters/config" //nolint:depguard // Builders need to wire concrete adapters
 	"go.trai.ch/bob/internal/core/ports"
 )
 
@@ -16,17 +16,10 @@ type Components struct {
 
 // NewComponents creates a new Components struct from dependencies.
 // This is used by the kessoku-generated injector.
-func NewComponents(app *App, logger ports.Logger, loader *config.Loader) *Components {
+func NewComponents(app *App, log ports.Logger, loader *config.Loader) *Components {
 	return &Components{
 		App:          app,
-		Logger:       logger,
+		Logger:       log,
 		configLoader: loader,
 	}
-}
-
-// NewApp creates and configures a new App instance with all required dependencies.
-// It uses the kessoku-generated InitializeApp function in wire_band.go.
-// Returns the configured Components and any initialization error.
-func NewApp() (*Components, error) {
-	return InitializeApp()
 }
