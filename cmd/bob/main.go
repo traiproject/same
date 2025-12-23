@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/grindlemire/graft"
 	"go.trai.ch/bob/cmd/bob/commands"
 	"go.trai.ch/bob/internal/app"
 	_ "go.trai.ch/bob/internal/wiring"
@@ -22,7 +23,7 @@ func run() int {
 	defer cancel()
 
 	// 1. Initialize application components
-	components, err := app.NewApp()
+	components, _, err := graft.ExecuteFor[*app.Components](ctx)
 	if err != nil {
 		// Logger is not available yet if initialization failed
 		// Write directly to stderr
