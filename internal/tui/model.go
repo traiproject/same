@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -87,6 +88,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSpinnerTick(msg)
 	case MsgTapeUpdate:
 		return m.handleTapeUpdate(msg)
+	case MsgVertexStarted:
+		return m.handleVertexStarted(msg)
+	case MsgVertexCompleted:
+		return m.handleVertexCompleted(msg)
 	case MsgLogReceived:
 		return m.handleLogReceived(msg)
 	case MsgTapeEnded:
@@ -119,8 +124,28 @@ func (m *Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 
 // handleTapeUpdate handles tape update messages.
 func (m *Model) handleTapeUpdate(msg MsgTapeUpdate) (tea.Model, tea.Cmd) {
-	m.processVertexUpdates(msg.Update)
-	return m, WaitForTape(m.tape)
+	cmds := make([]tea.Cmd, 0, len(msg.Update.Vertexes)+len(msg.Update.Logs)+1)
+
+	// Process vertex updates
+	for _, v := range msg.Update.Vertexes {
+		if cmd := m.updateOrAddVertex(v); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	// Process logs
+	for _, l := range msg.Update.Logs {
+		cmds = append(cmds, func() tea.Msg {
+			return MsgLogReceived{
+				VertexID: l.Vertex,
+				Stream:   l.Stream,
+				Text:     string(l.Data),
+			}
+		})
+	}
+
+	cmds = append(cmds, WaitForTape(m.tape))
+	return m, tea.Batch(cmds...)
 }
 
 // handleLogReceived stores received logs.
@@ -129,19 +154,41 @@ func (m *Model) handleLogReceived(msg MsgLogReceived) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// processVertexUpdates processes vertex updates from the tape.
-func (m *Model) processVertexUpdates(update *progrock.StatusUpdate) {
-	for _, v := range update.Vertexes {
-		m.updateOrAddVertex(v)
+func (m *Model) handleVertexStarted(msg MsgVertexStarted) (tea.Model, tea.Cmd) {
+	// Auto-Focus Strategy: Expand new, collapse others
+	for i := range m.vertices {
+		if m.vertices[i].ID == msg.ID {
+			m.vertices[i].Expanded = true
+		} else {
+			m.vertices[i].Expanded = false
+		}
 	}
+	return m, nil
+}
+
+func (m *Model) handleVertexCompleted(msg MsgVertexCompleted) (tea.Model, tea.Cmd) {
+	// Auto-Collapse Strategy: Collapse on success, keep expanded on failure
+	for i := range m.vertices {
+		if m.vertices[i].ID == msg.ID {
+			if msg.Err == nil {
+				// Success
+				m.vertices[i].Expanded = false
+			} else {
+				// Failure
+				m.vertices[i].Expanded = true
+			}
+			break
+		}
+	}
+	return m, nil
 }
 
 // updateOrAddVertex updates an existing vertex or adds a new one.
-func (m *Model) updateOrAddVertex(v *progrock.Vertex) {
+// Returns a command if an event occurred (Started, Completed).
+func (m *Model) updateOrAddVertex(v *progrock.Vertex) tea.Cmd {
 	for i, existing := range m.vertices {
 		if existing.ID == v.Id {
-			m.updateVertexStatus(i, v)
-			return
+			return m.updateVertexStatus(i, v)
 		}
 	}
 	// Vertex not found, add it
@@ -150,17 +197,42 @@ func (m *Model) updateOrAddVertex(v *progrock.Vertex) {
 		Name:   v.Name,
 		Status: statusRunning,
 	})
+
+	return func() tea.Msg {
+		return MsgVertexStarted{
+			ID:   v.Id,
+			Name: v.Name,
+		}
+	}
 }
 
 // updateVertexStatus updates the status of an existing vertex.
-func (m *Model) updateVertexStatus(index int, v *progrock.Vertex) {
+// Returns a command if the vertex completed.
+func (m *Model) updateVertexStatus(index int, v *progrock.Vertex) tea.Cmd {
+	vState := &m.vertices[index]
+
+	// Check if already completed to avoid duplicate events
+	if vState.Status == statusCompleted || vState.Status == statusFailed {
+		return nil
+	}
+
 	if v.Completed != nil {
+		var err error
 		if v.Error != nil {
-			m.vertices[index].Status = statusFailed
+			vState.Status = statusFailed
+			err = errors.New(*v.Error)
 		} else {
-			m.vertices[index].Status = statusCompleted
+			vState.Status = statusCompleted
+		}
+
+		return func() tea.Msg {
+			return MsgVertexCompleted{
+				ID:  v.Id,
+				Err: err,
+			}
 		}
 	}
+	return nil
 }
 
 // View renders the current state of the model as a string.
