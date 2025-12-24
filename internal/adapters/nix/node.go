@@ -32,13 +32,19 @@ func init() {
 	graft.Register(graft.Node[ports.EnvironmentFactory]{
 		ID:        EnvFactoryNodeID,
 		Cacheable: true,
-		DependsOn: []graft.ID{ResolverNodeID},
+		DependsOn: []graft.ID{ResolverNodeID, "adapter.telemetry"},
 		Run: func(ctx context.Context) (ports.EnvironmentFactory, error) {
 			resolver, err := graft.Dep[ports.DependencyResolver](ctx)
 			if err != nil {
 				return nil, err
 			}
-			return NewEnvFactory(resolver), nil
+
+			telemetry, err := graft.Dep[ports.Telemetry](ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			return NewEnvFactory(resolver, telemetry), nil
 		},
 	})
 }

@@ -4,8 +4,11 @@ import "go.trai.ch/bob/internal/core/ports"
 
 // NewEnvFactory creates a new EnvironmentFactory with the default cache directory.
 // This is a convenience wrapper for dependency injection that uses the standard cache path.
+// NewEnvFactory creates a new EnvironmentFactory with the default cache directory.
+// This is a convenience wrapper for dependency injection that uses the standard cache path.
 func NewEnvFactory(
 	resolver ports.DependencyResolver,
+	telemetry ports.Telemetry,
 ) *EnvFactory {
-	return NewEnvFactoryWithCache(resolver, ".bob/cache/environments")
+	return NewEnvFactoryWithCache(resolver, telemetry, ".bob/cache/environments")
 }

@@ -1,14 +1,35 @@
 package nix_test
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
 
 	"go.trai.ch/bob/internal/adapters/nix"
+	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.uber.org/mock/gomock"
 )
 
 func TestGenerateNixExpr_Deterministic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
+	vertex := mocks.NewMockVertex(ctrl)
+
+	telemetry.EXPECT().Record(gomock.Any(), "Setup Environment").Return(context.Background(), vertex).AnyTimes()
+	vertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+	vertex.EXPECT().Stderr().Return(nil).AnyTimes()
+	vertex.EXPECT().Cached().AnyTimes()
+
+	// Mock resolver behaving deterministically (rereturning same values)
+	resolver.EXPECT().
+		Resolve(gomock.Any(), "go", "1.25.4").
+		Return("hash1", "pkgs.go", nil).
+		AnyTimes()
+
 	// Create a commit-to-packages map with multiple entries to trigger map iteration randomness
 	commits := map[string][]string{
 		"commit_A": {"pkg3", "pkg1", "pkg2"},
@@ -16,7 +37,7 @@ func TestGenerateNixExpr_Deterministic(t *testing.T) {
 		"commit_C": {"pkg6"},
 	}
 
-	factory := nix.NewEnvFactoryWithCache(nil, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, telemetry, "/tmp/cache")
 	system := "x86_64-darwin"
 
 	// Run multiple times and ensure output is identical

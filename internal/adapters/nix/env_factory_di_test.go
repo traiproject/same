@@ -13,15 +13,16 @@ func TestNewEnvFactory_DefaultCache(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
 
-	factory := nix.NewEnvFactory(resolver)
+	factory := nix.NewEnvFactory(resolver, telemetry)
 
 	if factory == nil {
 		t.Fatal("NewEnvFactory() returned nil")
 	}
 
 	// Verify it creates the same as NewEnvFactoryWithCache with default path
-	expectedFactory := nix.NewEnvFactoryWithCache(resolver, ".bob/cache/environments")
+	expectedFactory := nix.NewEnvFactoryWithCache(resolver, telemetry, ".bob/cache/environments")
 
 	// Both should be non-nil and of the same type
 	if factory == nil || expectedFactory == nil {

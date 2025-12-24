@@ -24,8 +24,9 @@ func TestNewEnvFactory(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
 
-	factory := nix.NewEnvFactoryWithCache(resolver, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, telemetry, "/tmp/cache")
 	if factory == nil {
 		t.Fatal("NewEnvFactory() returned nil")
 	}
@@ -43,6 +44,13 @@ func TestGetEnvironment_Success(t *testing.T) {
 	ctx := context.Background()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
+	vertex := mocks.NewMockVertex(ctrl)
+
+	// Expect telemetry recording
+	telemetry.EXPECT().Record(gomock.Any(), "Setup Environment").Return(ctx, vertex)
+	vertex.EXPECT().Stderr().Return(nil) // Discard output for test
+	vertex.EXPECT().Complete(nil)
 
 	// Use a real nixpkgs commit that should work
 	resolver.EXPECT().
@@ -50,7 +58,7 @@ func TestGetEnvironment_Success(t *testing.T) {
 		Return("2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.hello", nil)
 
 	tmpDir := t.TempDir()
-	factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
+	factory := nix.NewEnvFactoryWithCache(resolver, telemetry, tmpDir)
 
 	tools := map[string]string{
 		"hello": "hello@2.12.1",
@@ -109,8 +117,15 @@ func TestGetEnvironment_InvalidSpec(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
+	vertex := mocks.NewMockVertex(ctrl)
 
-	factory := nix.NewEnvFactoryWithCache(resolver, "/tmp/cache")
+	// Expect telemetry recording (since it starts before validation inside Do)
+	telemetry.EXPECT().Record(gomock.Any(), "Setup Environment").Return(context.Background(), vertex)
+	// We expect Complete with error because resolving tools fails
+	vertex.EXPECT().Complete(gomock.Any())
+
+	factory := nix.NewEnvFactoryWithCache(resolver, telemetry, "/tmp/cache")
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -138,6 +153,14 @@ func TestGetEnvironment_AliasMismatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
+	vertex := mocks.NewMockVertex(ctrl)
+
+	// Expect telemetry recording
+	telemetry.EXPECT().Record(gomock.Any(), "Setup Environment").Return(context.Background(), vertex)
+	vertex.EXPECT().Stderr().Return(nil)
+	// Expect failure or success depending on test, but likely failure due to bug or success
+	vertex.EXPECT().Complete(gomock.Any())
 
 	// Expect resolution with the PACKAGE NAME "golangci-lint", not the alias "lint"
 	resolver.EXPECT().
@@ -145,7 +168,7 @@ func TestGetEnvironment_AliasMismatch(t *testing.T) {
 		Return("2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.hello", nil)
 
 	tmpDir := t.TempDir()
-	factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
+	factory := nix.NewEnvFactoryWithCache(resolver, telemetry, tmpDir)
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -176,13 +199,19 @@ func TestGetEnvironment_ResolverError(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
+	vertex := mocks.NewMockVertex(ctrl)
+
+	// Expect telemetry recording
+	telemetry.EXPECT().Record(gomock.Any(), "Setup Environment").Return(context.Background(), vertex)
+	vertex.EXPECT().Complete(gomock.Any())
 
 	// Mock resolver to return error
 	resolver.EXPECT().
 		Resolve(gomock.Any(), "go", "1.25.4").
 		Return("", "", fmt.Errorf("resolver error"))
 
-	factory := nix.NewEnvFactoryWithCache(resolver, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, telemetry, "/tmp/cache")
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -453,6 +482,18 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
+	vertex := mocks.NewMockVertex(ctrl)
+
+	// Since we are running twice concurrently, we might get one or two telemetry records
+	// because singleflight dedupes calls.
+	// However, one of them will perform the work and record telemetry.
+	// The other waits. The singleflight wrapper returns the result to both.
+	// The current implementation calls Record INSIDE the singleflight Do.
+	// So it should only be called ONCE.
+	telemetry.EXPECT().Record(gomock.Any(), "Setup Environment").Return(context.Background(), vertex).Times(1)
+	vertex.EXPECT().Complete(nil).Times(1)
+	vertex.EXPECT().Stderr().Return(nil).Times(1)
 
 	// Use atomic counter to verify single execution
 	var callCount int32
@@ -468,7 +509,7 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 		Times(1)
 
 	tmpDir := t.TempDir()
-	factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
+	factory := nix.NewEnvFactoryWithCache(resolver, telemetry, tmpDir)
 	ctx := context.Background()
 
 	tools := map[string]string{
@@ -517,6 +558,12 @@ func TestGetEnvironment_PartialResolveFailure(t *testing.T) {
 	defer ctrl.Finish()
 
 	resolver := mocks.NewMockDependencyResolver(ctrl)
+	telemetry := mocks.NewMockTelemetry(ctrl)
+	vertex := mocks.NewMockVertex(ctrl)
+
+	// Expect telemetry recording
+	telemetry.EXPECT().Record(gomock.Any(), "Setup Environment").Return(context.Background(), vertex)
+	vertex.EXPECT().Complete(gomock.Any())
 
 	// Mock one success and one failure
 	resolver.EXPECT().
@@ -527,7 +574,7 @@ func TestGetEnvironment_PartialResolveFailure(t *testing.T) {
 		Resolve(gomock.Any(), "golangci-lint", "2.6.2").
 		Return("", "", errors.New("resolution failed"))
 
-	factory := nix.NewEnvFactoryWithCache(resolver, "/tmp/cache")
+	factory := nix.NewEnvFactoryWithCache(resolver, telemetry, "/tmp/cache")
 	ctx := context.Background()
 
 	tools := map[string]string{

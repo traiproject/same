@@ -23,7 +23,8 @@ import (
 
 // EnvFactory implements ports.EnvironmentFactory using Nix.
 type EnvFactory struct {
-	resolver ports.DependencyResolver
+	resolver  ports.DependencyResolver
+	telemetry ports.Telemetry
 
 	cacheDir     string
 	requestGroup singleflight.Group
@@ -32,11 +33,13 @@ type EnvFactory struct {
 // NewEnvFactoryWithCache creates a new EnvironmentFactory backed by Nix with a specific cache directory.
 func NewEnvFactoryWithCache(
 	resolver ports.DependencyResolver,
+	telemetry ports.Telemetry,
 	cacheDir string,
 ) *EnvFactory {
 	return &EnvFactory{
-		resolver: resolver,
-		cacheDir: cacheDir,
+		resolver:  resolver,
+		telemetry: telemetry,
+		cacheDir:  cacheDir,
 	}
 }
 
@@ -49,16 +52,22 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 
 	// Wrap the entire expensive operation in singleflight to prevent cache stampedes
 	result, err, _ := e.requestGroup.Do(envID, func() (any, error) {
+		// Start telemetry vertex
+		vCtx, vertex := e.telemetry.Record(ctx, "Setup Environment")
+
 		// Step A: Check cache first (fast path)
 		cachePath := filepath.Join(e.cacheDir, "environments", envID+".json")
 		if cachedEnv, err := LoadEnvFromCache(cachePath); err == nil {
+			vertex.Cached()
+			vertex.Complete(nil)
 			return cachedEnv, nil
 		}
 
 		// Step B: Resolve all tools to commit hashes
-		commitToPackages, err := e.resolveTools(ctx, tools)
-		if err != nil {
-			return nil, err
+		commitToPackages, osErr := e.resolveTools(vCtx, tools)
+		if osErr != nil {
+			vertex.Complete(osErr)
+			return nil, osErr
 		}
 
 		// Step C: Generate and execute Nix expression
@@ -68,22 +77,32 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 		// Write to temporary file
 		tmpPath, cleanupFn, err := createNixTempFile(nixExpr)
 		if err != nil {
+			vertex.Complete(err)
 			return nil, err
 		}
 		defer cleanupFn()
 
 		// Execute nix print-dev-env
 		//nolint:gosec // tmpPath is a trusted temp file created by us
-		cmd := exec.CommandContext(ctx, "nix", "print-dev-env", "--json", "--file", tmpPath)
+		cmd := exec.CommandContext(vCtx, "nix", "print-dev-env", "--json", "--file", tmpPath)
+
+		// Redirect output to vertex
+		cmd.Stderr = vertex.Stderr()
+
 		output, err := cmd.Output()
 		if err != nil {
-			return nil, zerr.Wrap(err, "failed to execute nix print-dev-env")
+			// Use With to attach context, but original error is key
+			wrapped := zerr.Wrap(err, "failed to execute nix print-dev-env")
+			vertex.Complete(wrapped)
+			return nil, wrapped
 		}
 
 		// Parse JSON output
 		env, err := ParseNixDevEnv(output)
 		if err != nil {
-			return nil, zerr.Wrap(err, "failed to parse nix output")
+			wrapped := zerr.Wrap(err, "failed to parse nix output")
+			vertex.Complete(wrapped)
+			return nil, wrapped
 		}
 		// Step D: Persist to cache
 
@@ -98,6 +117,7 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 			_ = err
 		}
 
+		vertex.Complete(nil)
 		return env, nil
 	})
 
