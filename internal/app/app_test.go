@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -16,6 +17,22 @@ import (
 
 func TestApp_Build(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		// Use a temporary directory for the test
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -45,7 +62,7 @@ func TestApp_Build(t *testing.T) {
 		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
 
 		// Run
-		err := a.Run(context.Background(), []string{"task1"}, false)
+		err = a.Run(context.Background(), []string{"task1"}, false)
 		// Assert
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
@@ -55,6 +72,22 @@ func TestApp_Build(t *testing.T) {
 
 func TestApp_Run_NoTargets(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		// Use a temporary directory for the test
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -73,7 +106,7 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
 
 		// Execute
-		err := a.Run(context.Background(), nil, false)
+		err = a.Run(context.Background(), nil, false)
 		if err == nil {
 			t.Error("Expected error, got nil")
 		}
@@ -85,6 +118,22 @@ func TestApp_Run_NoTargets(t *testing.T) {
 
 func TestApp_Run_ConfigLoaderError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		// Use a temporary directory for the test
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -103,7 +152,7 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))
 
 		// Execute
-		err := a.Run(context.Background(), []string{"task1"}, false)
+		err = a.Run(context.Background(), []string{"task1"}, false)
 		if err == nil {
 			t.Error("Expected error, got nil")
 		}
