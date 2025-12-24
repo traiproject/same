@@ -21,8 +21,18 @@ func TestScheduler_EnvironmentIDGeneration(t *testing.T) {
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+	mockTelemetry := mocks.NewMockTelemetry(ctrl)
+	mockVertex := mocks.NewMockVertex(ctrl)
+	mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+	mockVertex.EXPECT().Cached().AnyTimes()
+	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(context.Background(), mockVertex).AnyTimes()
 
-	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+	s := scheduler.NewScheduler(
+		mockExec, mockStore, mockHasher, mockResolver, mockLogger,
+		mockEnvFactory, mockTelemetry,
+	)
 
 	t.Run("IdenticalToolsSameEnvID", func(t *testing.T) {
 		// Two tasks with identical tools should get the same EnvID

@@ -60,7 +60,13 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		// Channels for synchronization
 		dStarted := make(chan struct{})
@@ -178,7 +184,13 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		// Mock Expectations
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -233,7 +245,13 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		// Expect all three tasks to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -286,7 +304,13 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		// Expect all three tasks to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -339,7 +363,13 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		// Expect no tasks to execute
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -374,7 +404,13 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		// Expect only A and B to execute
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(2)
@@ -425,7 +461,13 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		// Expect no execution
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -445,8 +487,14 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
+	mockTelemetry := mocks.NewMockTelemetry(ctrl)
+	mockVertex := mocks.NewMockVertex(ctrl)
+	mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+	mockVertex.EXPECT().Cached().AnyTimes()
+	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(context.Background(), mockVertex).AnyTimes()
 
-	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 	task := &domain.Task{
 		Name:    domain.NewInternedString("test-task"),
 		Outputs: []domain.InternedString{domain.NewInternedString("out.txt")},
@@ -566,8 +614,14 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -634,7 +688,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 			InputHash:  hash1,
 			OutputHash: outputHash,
 		}, nil)
-		// Executor runs
+		// Hash mismatch -> Executor runs
 		mockExec.EXPECT().Execute(ctx, task, gomock.Any()).Return(nil)
 		// Output hasher runs after execution
 		mockHasher.EXPECT().ComputeOutputHash([]string{"out"}, ".").Return(outputHash, nil)
@@ -661,8 +715,14 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -751,8 +811,14 @@ func TestScheduler_Run_ContextCancellation(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -818,8 +884,14 @@ func TestScheduler_Run_ForceModeHasherError(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -854,8 +926,14 @@ func TestScheduler_Run_StorePutError(t *testing.T) {
 		mockLogger := mocks.NewMockLogger(ctrl)
 
 		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -898,8 +976,14 @@ func TestScheduler_Run_EnvironmentCacheInvalidation(t *testing.T) {
 		mockLogger := mocks.NewMockLogger(ctrl)
 
 		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
@@ -1012,8 +1096,14 @@ func TestScheduler_Run_ResolverError(t *testing.T) {
 				mockHasher := mocks.NewMockHasher(ctrl)
 				mockResolver := mocks.NewMockInputResolver(ctrl)
 				mockLogger := mocks.NewMockLogger(ctrl)
+				mockTelemetry := mocks.NewMockTelemetry(ctrl)
+				mockVertex := mocks.NewMockVertex(ctrl)
+				mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+				mockVertex.EXPECT().Cached().AnyTimes()
+				mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(context.Background(), mockVertex).AnyTimes()
 
-				s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+				s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 				g := domain.NewGraph()
 				g.SetRoot(".")
 				task := &domain.Task{
@@ -1049,7 +1139,13 @@ func TestScheduler_Run_OutputHashComputationError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{
@@ -1093,7 +1189,13 @@ func TestScheduler_Run_ContextCancelledDuringScheduling(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
@@ -1162,7 +1264,13 @@ func TestScheduler_Run_ContextCancelledAfterCompletion(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("build")}
@@ -1193,7 +1301,13 @@ func TestScheduler_Run_UnsafeOutputPath(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
@@ -1224,7 +1338,8 @@ func TestScheduler_Run_EnvHydrationFailure(t *testing.T) {
 
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
-		s := scheduler.NewScheduler(nil, nil, nil, nil, mockLogger, mockEnvFactory)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		s := scheduler.NewScheduler(nil, nil, nil, nil, mockLogger, mockEnvFactory, mockTelemetry)
 
 		// Create a graph with a task that uses tools
 		g := domain.NewGraph()
@@ -1261,7 +1376,13 @@ func TestScheduler_ValidateAndCleanOutputs_Security(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -1321,7 +1442,13 @@ func TestScheduler_ValidateAndCleanOutputs_RemoveError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		g := domain.NewGraph()
 		g.SetRoot(protectedDir) // Root is the protected dir
@@ -1354,7 +1481,13 @@ func TestScheduler_ComputeOutputHash_Failure(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Cached().AnyTimes()
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")

@@ -32,6 +32,7 @@ const (
 )
 
 // Scheduler manages the execution of tasks in the dependency graph.
+// Scheduler manages the execution of tasks in the dependency graph.
 type Scheduler struct {
 	executor   ports.Executor
 	store      ports.BuildInfoStore
@@ -39,6 +40,7 @@ type Scheduler struct {
 	resolver   ports.InputResolver
 	logger     ports.Logger
 	envFactory ports.EnvironmentFactory
+	telemetry  ports.Telemetry
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
@@ -53,6 +55,7 @@ func NewScheduler(
 	resolver ports.InputResolver,
 	logger ports.Logger,
 	envFactory ports.EnvironmentFactory,
+	telemetry ports.Telemetry,
 ) *Scheduler {
 	s := &Scheduler{
 		executor:   executor,
@@ -61,11 +64,19 @@ func NewScheduler(
 		resolver:   resolver,
 		logger:     logger,
 		envFactory: envFactory,
+		telemetry:  telemetry,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 		envCache:   sync.Map{},
 	}
 	return s
 }
+
+// To allow replace_file_content to work best, let's keep the struct and New.
+// But wait, the tool requires StartLine and EndLine to be contiguous.
+// I should split this if `executeTask` is far away.
+// Struct is lines 35-68.
+// executeTask is lines 385-435.
+// So I will make TWO replace calls using multi_replace_file_content.
 
 // initTaskStatuses initializes the status of tasks in the graph to Pending.
 func (s *Scheduler) initTaskStatuses(tasks []domain.InternedString) {
@@ -383,21 +394,32 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
+	ctx, vertex := state.s.telemetry.Record(state.ctx, t.Name.String())
+
+	var finalErr error
+	defer func() {
+		vertex.Complete(finalErr)
+	}()
+
 	// Step 1: Compute Input Hash (Check Cache)
-	hash, err := state.computeInputHash(t)
+	hash, skipped, err := state.computeInputHash(t)
 	if err != nil {
+		finalErr = err
 		state.resultsCh <- result{task: t.Name, err: err}
 		return
 	}
 
-	// If hash is empty, task was skipped (cached)
-	if hash == "" {
+	// If skipped, task was cached
+	if skipped {
+		vertex.Cached()
+		state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
 		return
 	}
 
 	// Step 2: Clean Outputs
 	// Clean outputs before building to prevent stale artifacts
-	if err := state.validateAndCleanOutputs(t); err != nil {
+	if err = state.validateAndCleanOutputs(t); err != nil {
+		finalErr = err
 		state.resultsCh <- result{task: t.Name, err: err}
 		return
 	}
@@ -416,9 +438,10 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		cachedEnv, ok := state.s.envCache.Load(envID)
 		if !ok {
 			// This should theoretically never happen if prepareEnvironments worked correctly
+			finalErr = zerr.With(domain.ErrEnvironmentNotCached, "env_id", envID)
 			state.resultsCh <- result{
 				task: t.Name,
-				err:  zerr.With(domain.ErrEnvironmentNotCached, "env_id", envID),
+				err:  finalErr,
 			}
 			return
 		}
@@ -426,31 +449,30 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 	}
 
 	// Step 4: Execute
+	err = state.s.executor.Execute(ctx, t, env)
+	finalErr = err
 	state.resultsCh <- result{
 		task:        t.Name,
-		err:         state.s.executor.Execute(state.ctx, t, env),
+		err:         err,
 		inputHash:   hash,
 		taskOutputs: outputs,
 	}
 }
 
-func (state *schedulerRunState) computeInputHash(t *domain.Task) (string, error) {
+func (state *schedulerRunState) computeInputHash(t *domain.Task) (hash string, skipped bool, err error) {
 	if state.force {
-		return state.s.computeHashForce(t, state.graph.Root())
+		var h string
+		h, err = state.s.computeHashForce(t, state.graph.Root())
+		return h, false, err
 	}
 
 	// Normal mode: check cache
-	skipped, hash, err := state.s.checkTaskCache(state.ctx, t, state.graph.Root())
+	skipped, hash, err = state.s.checkTaskCache(state.ctx, t, state.graph.Root())
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
-	if skipped {
-		state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
-		return "", nil
-	}
-
-	return hash, nil
+	return hash, skipped, nil
 }
 
 func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {

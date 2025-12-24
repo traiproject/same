@@ -30,7 +30,13 @@ func TestRun_Success(t *testing.T) {
 
 	// Setup scheduler and app
 	mockResolver := mocks.NewMockInputResolver(ctrl)
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
+	mockTelemetry := mocks.NewMockTelemetry(ctrl)
+	mockVertex := mocks.NewMockVertex(ctrl)
+	mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+	mockVertex.EXPECT().Cached().AnyTimes()
+	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(context.Background(), mockVertex).AnyTimes()
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -77,7 +83,13 @@ func TestRun_NoTargets(t *testing.T) {
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
+	mockTelemetry := mocks.NewMockTelemetry(ctrl)
+	mockVertex := mocks.NewMockVertex(ctrl)
+	mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+	mockVertex.EXPECT().Cached().AnyTimes()
+	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(context.Background(), mockVertex).AnyTimes()
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -108,7 +120,13 @@ func TestRoot_Help(t *testing.T) {
 
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
+	mockTelemetry := mocks.NewMockTelemetry(ctrl)
+	mockVertex := mocks.NewMockVertex(ctrl)
+	mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+	mockVertex.EXPECT().Cached().AnyTimes()
+	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(context.Background(), mockVertex).AnyTimes()
+	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
 	a := app.New(mockLoader, sched)
 
 	// Initialize CLI
@@ -118,6 +136,7 @@ func TestRoot_Help(t *testing.T) {
 	cli.SetArgs([]string{"--help"})
 
 	// Execute
+	t.Log("Executing help command")
 	err := cli.Execute(context.Background())
 	// Assert no error (Cobra handles help automatically)
 	if err != nil {

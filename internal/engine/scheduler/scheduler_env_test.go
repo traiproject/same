@@ -21,10 +21,17 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+	mockTelemetry := mocks.NewMockTelemetry(ctrl)
+	mockVertex := mocks.NewMockVertex(ctrl)
+	mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
+	mockVertex.EXPECT().Cached().AnyTimes()
+	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(context.Background(), mockVertex).AnyTimes()
 
 	s := scheduler.NewScheduler(
 		mockExec, mockStore, mockHasher, mockResolver, mockLogger,
 		mockEnvFactory,
+		mockTelemetry,
 	)
 
 	g := domain.NewGraph()
