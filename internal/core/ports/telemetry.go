@@ -22,6 +22,19 @@ type Vertex interface {
 	Cached()
 }
 
+type vertexKey struct{}
+
+// ContextWithVertex returns a new context with the given Vertex embedded.
+func ContextWithVertex(ctx context.Context, v Vertex) context.Context {
+	return context.WithValue(ctx, vertexKey{}, v)
+}
+
+// VertexFromContext retrieves the Vertex from the context, if present.
+func VertexFromContext(ctx context.Context) (Vertex, bool) {
+	v, ok := ctx.Value(vertexKey{}).(Vertex)
+	return v, ok
+}
+
 // VertexOption is a configuration function for creating a Vertex.
 type VertexOption func(Vertex)
 

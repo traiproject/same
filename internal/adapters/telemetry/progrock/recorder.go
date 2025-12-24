@@ -31,7 +31,8 @@ func (r *Recorder) Record(ctx context.Context, name string, _ ...ports.VertexOpt
 	// For now, we just create a basic vertex on the tape.
 	d := digest.FromString(name)
 	v := r.rec.Vertex(d, name)
-	return ctx, &Vertex{vertex: v}
+	vertex := &Vertex{vertex: v}
+	return ports.ContextWithVertex(ctx, vertex), vertex
 }
 
 // Close flushes and closes the recording session.

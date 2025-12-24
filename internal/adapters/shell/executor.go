@@ -70,8 +70,15 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string)
 	cmd.Env = cmdEnv
 
 	// Wire Stdout/Stderr to logger
-	cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
-	cmd.Stderr = &logWriter{logger: e.logger, level: "error"}
+	// If a Vertex is found in the context, use it for output redirection.
+	// Otherwise, fallback to the global logger.
+	if v, ok := ports.VertexFromContext(ctx); ok {
+		cmd.Stdout = v.Stdout()
+		cmd.Stderr = v.Stderr()
+	} else {
+		cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
+		cmd.Stderr = &logWriter{logger: e.logger, level: "error"}
+	}
 
 	if err := cmd.Run(); err != nil {
 		// Capture exit code if possible
