@@ -1,3 +1,4 @@
+// Package progrock provides the Progrock implementation of the telemetry adapter.
 package progrock
 
 import (
