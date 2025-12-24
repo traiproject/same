@@ -10,12 +10,12 @@ import (
 
 // CLI represents the command line interface for bob.
 type CLI struct {
-	app     *app.App
-	rootCmd *cobra.Command
+	components *app.Components
+	rootCmd    *cobra.Command
 }
 
-// New creates a new CLI instance with the given app.
-func New(a *app.App) *CLI {
+// New creates a new CLI instance with the given components.
+func New(components *app.Components) *CLI {
 	rootCmd := &cobra.Command{
 		Use:           "bob",
 		Short:         "A modern build tool for monorepos",
@@ -24,8 +24,8 @@ func New(a *app.App) *CLI {
 	}
 
 	c := &CLI{
-		app:     a,
-		rootCmd: rootCmd,
+		components: components,
+		rootCmd:    rootCmd,
 	}
 
 	rootCmd.AddCommand(c.newRunCmd())

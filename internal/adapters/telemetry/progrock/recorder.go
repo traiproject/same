@@ -11,17 +11,22 @@ import (
 
 // Recorder implements the ports.Telemetry interface using the apps/progrock library.
 type Recorder struct {
-	tape *progrock.Tape
-	rec  *progrock.Recorder
+	w   progrock.Writer
+	rec *progrock.Recorder
 }
 
 // New creates a new Recorder with a default tape.
 func New() ports.Telemetry {
 	tape := progrock.NewTape()
-	rec := progrock.NewRecorder(tape)
+	return NewRecorder(tape)
+}
+
+// NewRecorder creates a new Recorder with the given writer.
+func NewRecorder(w progrock.Writer) *Recorder {
+	rec := progrock.NewRecorder(w)
 	return &Recorder{
-		tape: tape,
-		rec:  rec,
+		w:   w,
+		rec: rec,
 	}
 }
 
@@ -37,10 +42,9 @@ func (r *Recorder) Record(ctx context.Context, name string, _ ...ports.VertexOpt
 
 // Close flushes and closes the recording session.
 func (r *Recorder) Close() error {
-	// Close the recorder first? Or just the tape?
-	// The user requested: "Call r.tape.Close() to flush events."
-	// We also probably want to close the recorder if it has any internal state flushing.
-	// But minimal compliance is tape.Close().
-	// Let's call basic tape.Close() as requested.
-	return r.tape.Close()
+	// If the writer implements Close, call it.
+	if c, ok := r.w.(interface{ Close() error }); ok {
+		return c.Close()
+	}
+	return nil
 }

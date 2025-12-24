@@ -31,16 +31,36 @@ func TestRun_Success(t *testing.T) {
 	// Setup scheduler and app
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockTelemetry := mocks.NewMockTelemetry(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 	mockVertex := mocks.NewMockVertex(ctrl)
 	mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 	mockVertex.EXPECT().Cached().AnyTimes()
 	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(context.Background(), mockVertex).AnyTimes()
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
-	a := app.New(mockLoader, sched)
+	sched := scheduler.NewScheduler(
+		mockExecutor,
+		mockStore,
+		mockHasher,
+		mockResolver,
+		mockLogger,
+		mockEnvFactory,
+		mockTelemetry,
+	)
+	a := app.New(mockLoader, sched, mockTelemetry)
+
+	components := &app.Components{
+		App:          a,
+		Logger:       mockLogger,
+		ConfigLoader: mockLoader,
+		Executor:     mockExecutor,
+		Store:        mockStore,
+		Hasher:       mockHasher,
+		Resolver:     mockResolver,
+		EnvFactory:   mockEnvFactory,
+	}
 
 	// Initialize CLI
-	cli := commands.New(a)
+	cli := commands.New(components)
 
 	// Setup strict expectations in the correct sequence
 	// 1. Loader.Load is called first
@@ -81,6 +101,7 @@ func TestRun_NoTargets(t *testing.T) {
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
 	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 	// Setup scheduler and app
 	mockTelemetry := mocks.NewMockTelemetry(ctrl)
@@ -89,11 +110,30 @@ func TestRun_NoTargets(t *testing.T) {
 	mockVertex.EXPECT().Cached().AnyTimes()
 	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(context.Background(), mockVertex).AnyTimes()
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
-	a := app.New(mockLoader, sched)
+	sched := scheduler.NewScheduler(
+		mockExecutor,
+		mockStore,
+		mockHasher,
+		mockResolver,
+		mockLogger,
+		mockEnvFactory,
+		mockTelemetry,
+	)
+	a := app.New(mockLoader, sched, mockTelemetry)
+
+	components := &app.Components{
+		App:          a,
+		Logger:       mockLogger,
+		ConfigLoader: mockLoader,
+		Executor:     mockExecutor,
+		Store:        mockStore,
+		Hasher:       mockHasher,
+		Resolver:     mockResolver,
+		EnvFactory:   mockEnvFactory,
+	}
 
 	// Initialize CLI
-	cli := commands.New(a)
+	cli := commands.New(components)
 
 	// Set command args (no targets)
 	cli.SetArgs([]string{"run"})
@@ -119,6 +159,7 @@ func TestRoot_Help(t *testing.T) {
 	mockLogger := mocks.NewMockLogger(ctrl)
 
 	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 	// Setup scheduler and app
 	mockTelemetry := mocks.NewMockTelemetry(ctrl)
 	mockVertex := mocks.NewMockVertex(ctrl)
@@ -126,11 +167,30 @@ func TestRoot_Help(t *testing.T) {
 	mockVertex.EXPECT().Cached().AnyTimes()
 	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(context.Background(), mockVertex).AnyTimes()
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
-	a := app.New(mockLoader, sched)
+	sched := scheduler.NewScheduler(
+		mockExecutor,
+		mockStore,
+		mockHasher,
+		mockResolver,
+		mockLogger,
+		mockEnvFactory,
+		mockTelemetry,
+	)
+	a := app.New(mockLoader, sched, mockTelemetry)
+
+	components := &app.Components{
+		App:          a,
+		Logger:       mockLogger,
+		ConfigLoader: mockLoader,
+		Executor:     mockExecutor,
+		Store:        mockStore,
+		Hasher:       mockHasher,
+		Resolver:     mockResolver,
+		EnvFactory:   mockEnvFactory,
+	}
 
 	// Initialize CLI
-	cli := commands.New(a)
+	cli := commands.New(components)
 
 	// Set command args to help
 	cli.SetArgs([]string{"--help"})

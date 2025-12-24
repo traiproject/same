@@ -32,7 +32,7 @@ func run() int {
 	}
 
 	// 2. Interface - CLI
-	cli := commands.New(components.App)
+	cli := commands.New(components)
 
 	// 4. Execution
 	if err := cli.Execute(ctx); err != nil {

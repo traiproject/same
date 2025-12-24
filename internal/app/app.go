@@ -15,13 +15,15 @@ import (
 type App struct {
 	configLoader ports.ConfigLoader
 	scheduler    *scheduler.Scheduler
+	telemetry    ports.Telemetry
 }
 
 // New creates a new App instance.
-func New(loader ports.ConfigLoader, sched *scheduler.Scheduler) *App {
+func New(loader ports.ConfigLoader, sched *scheduler.Scheduler, telemetry ports.Telemetry) *App {
 	return &App{
 		configLoader: loader,
 		scheduler:    sched,
+		telemetry:    telemetry,
 	}
 }
 

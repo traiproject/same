@@ -57,7 +57,7 @@ func TestApp_Build(t *testing.T) {
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
-		a := app.New(mockLoader, sched)
+		a := app.New(mockLoader, sched, mockTelemetry)
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		// Expectations
@@ -112,7 +112,7 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
-		a := app.New(mockLoader, sched)
+		a := app.New(mockLoader, sched, mockTelemetry)
 
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
@@ -164,7 +164,7 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
-		a := app.New(mockLoader, sched)
+		a := app.New(mockLoader, sched, mockTelemetry)
 
 		// Expectations - loader fails
 		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))

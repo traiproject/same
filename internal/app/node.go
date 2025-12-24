@@ -37,7 +37,12 @@ func init() {
 				return nil, err
 			}
 
-			return New(loader, sched), nil
+			telemetry, err := graft.Dep[ports.Telemetry](ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			return New(loader, sched, telemetry), nil
 		},
 	})
 
@@ -50,29 +55,61 @@ func init() {
 			logger.NodeID,
 			config.NodeID,
 		},
-		Run: func(ctx context.Context) (*Components, error) {
-			app, err := graft.Dep[*App](ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			log, err := graft.Dep[ports.Logger](ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			loader, err := graft.Dep[ports.ConfigLoader](ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			// Manually construct Components to avoid casting issues with NewComponents
-			// if it requires a concrete type.
-			return &Components{
-				App:          app,
-				Logger:       log,
-				configLoader: loader,
-			}, nil
-		},
+		Run: runComponentsNode,
 	})
+}
+
+func runComponentsNode(ctx context.Context) (*Components, error) {
+	app, err := graft.Dep[*App](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	log, err := graft.Dep[ports.Logger](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	loader, err := graft.Dep[ports.ConfigLoader](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	executor, err := graft.Dep[ports.Executor](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	store, err := graft.Dep[ports.BuildInfoStore](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	hasher, err := graft.Dep[ports.Hasher](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	resolver, err := graft.Dep[ports.InputResolver](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	envFactory, err := graft.Dep[ports.EnvironmentFactory](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Manually construct Components to avoid casting issues with NewComponents
+	// if it requires a concrete type.
+	return &Components{
+		App:          app,
+		Logger:       log,
+		ConfigLoader: loader,
+		Executor:     executor,
+		Store:        store,
+		Hasher:       hasher,
+		Resolver:     resolver,
+		EnvFactory:   envFactory,
+	}, nil
 }
