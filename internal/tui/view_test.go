@@ -42,3 +42,55 @@ func TestModel_View(t *testing.T) {
 		t.Errorf("Expected output to contain cross for failed task")
 	}
 }
+
+func TestModel_View_ExpandedLogs(t *testing.T) {
+	m := NewModel(nil)
+	m.width = 80
+	m.height = 20
+
+	vID := "task-1"
+	m.vertices = []VertexState{
+		{ID: vID, Name: "Task with Logs", Status: statusRunning, Expanded: true},
+	}
+
+	m.logs[vID] = []string{
+		"Log line 1",
+		"Log line 2",
+		"Log line 3",
+	}
+
+	output := m.View()
+	t.Logf("View Output with Logs:\n%s", output)
+
+	// Check for logs
+	if !strings.Contains(output, "Log line 1") {
+		t.Errorf("Expected output to contain 'Log line 1'")
+	}
+	if !strings.Contains(output, "Log line 3") {
+		t.Errorf("Expected output to contain 'Log line 3'")
+	}
+
+	// Verify tailing: Add more logs than limit (5)
+	m.logs[vID] = []string{"1", "2", "3", "4", "5", "6", "7"}
+	output = m.View()
+	if strings.Contains(output, "1") {
+		t.Error("Expected log '1' to be truncated")
+	}
+	if !strings.Contains(output, "7") {
+		t.Error("Expected log '7' to be present")
+	}
+
+	m.logs[vID] = []string{
+		"older_log",
+		"log_A", "log_B", "log_C", "log_D", "log_E",
+	}
+	// limit is 5, so "older_log" should be gone
+
+	output = m.View()
+	if strings.Contains(output, "older_log") {
+		t.Error("Expected older log to be truncated")
+	}
+	if !strings.Contains(output, "log_E") {
+		t.Error("Expected new log to be present")
+	}
+}

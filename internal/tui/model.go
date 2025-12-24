@@ -15,6 +15,8 @@ const (
 	statusCompleted = "completed"
 	statusFailed    = "failed"
 	statusPending   = "pending"
+
+	maxLogLines = 5
 )
 
 // VertexState represents the current state of a task vertex in the TUI.
@@ -24,6 +26,7 @@ type VertexState struct {
 	Name             string
 	Status           string // statusRunning, statusCompleted, statusFailed, statusPending
 	IndentationLevel int
+	Expanded         bool
 }
 
 type styles struct {
@@ -31,12 +34,14 @@ type styles struct {
 	completed lipgloss.Style
 	failed    lipgloss.Style
 	pending   lipgloss.Style
+	log       lipgloss.Style
 }
 
 // Model is the Bubble Tea model for the TUI, managing vertices and tape updates.
 type Model struct {
 	tape     TapeSource
 	vertices []VertexState
+	logs     map[string][]string
 	width    int
 	height   int
 	spinner  spinner.Model
@@ -51,12 +56,14 @@ func NewModel(tape TapeSource) *Model {
 
 	return &Model{
 		tape:    tape,
+		logs:    make(map[string][]string),
 		spinner: s,
 		styles: styles{
 			running:   lipgloss.NewStyle().Foreground(lipgloss.Color("yellow")),
 			completed: lipgloss.NewStyle().Foreground(lipgloss.Color("42")),  // Green
 			failed:    lipgloss.NewStyle().Foreground(lipgloss.Color("160")), // Red
 			pending:   lipgloss.NewStyle().Foreground(lipgloss.Color("240")), // Gray
+			log:       lipgloss.NewStyle().Foreground(lipgloss.Color("245")), // Light Gray
 		},
 	}
 }
@@ -80,6 +87,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSpinnerTick(msg)
 	case MsgTapeUpdate:
 		return m.handleTapeUpdate(msg)
+	case MsgLogReceived:
+		return m.handleLogReceived(msg)
 	case MsgTapeEnded:
 		return m, tea.Quit
 	}
@@ -112,6 +121,12 @@ func (m *Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 func (m *Model) handleTapeUpdate(msg MsgTapeUpdate) (tea.Model, tea.Cmd) {
 	m.processVertexUpdates(msg.Update)
 	return m, WaitForTape(m.tape)
+}
+
+// handleLogReceived stores received logs.
+func (m *Model) handleLogReceived(msg MsgLogReceived) (tea.Model, tea.Cmd) {
+	m.logs[msg.VertexID] = append(m.logs[msg.VertexID], msg.Text)
+	return m, nil
 }
 
 // processVertexUpdates processes vertex updates from the tape.
@@ -184,7 +199,39 @@ func (m *Model) View() string {
 		// Line: [Indent][Icon] [Name]
 		line := fmt.Sprintf("%s%s %s\n", indent, style.Render(icon), v.Name)
 		s.WriteString(line)
+
+		// Render logs if expanded
+		if v.Expanded {
+			s.WriteString(m.renderLogs(v.ID, indent))
+		}
 	}
 
 	return s.String()
+}
+
+func (m *Model) renderLogs(vertexID, indent string) string {
+	logs, ok := m.logs[vertexID]
+	if !ok || len(logs) == 0 {
+		return ""
+	}
+
+	// Show last N lines
+	tailLines := logs
+	if len(logs) > maxLogLines {
+		tailLines = logs[len(logs)-maxLogLines:]
+	}
+
+	logBlock := strings.Join(tailLines, "\n")
+	logStyle := m.styles.log.
+		PaddingLeft(2).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		BorderLeft(true)
+
+	// Indent the log block to match vertex
+	var sb strings.Builder
+	for _, l := range strings.Split(logStyle.Render(logBlock), "\n") {
+		sb.WriteString(indent + "  " + l + "\n")
+	}
+	return sb.String()
 }
