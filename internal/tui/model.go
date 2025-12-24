@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/vito/progrock"
+	"go.trai.ch/bob/internal/core/domain"
 )
 
 const (
@@ -47,6 +48,10 @@ type Model struct {
 	height   int
 	spinner  spinner.Model
 	styles   styles
+
+	// Interactivity
+	SelectedIdx int
+	MinLogLevel domain.LogLevel
 }
 
 // NewModel creates a new TUI model with the given tape source.
@@ -102,10 +107,53 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKeyMsg handles keyboard input messages.
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.Type == tea.KeyCtrlC {
+	switch msg.String() {
+	case "ctrl+c":
 		return m, tea.Quit
+	case "up", "k", "down", "j":
+		m.handleNavigation(msg.String())
+	case "enter", " ":
+		m.handleToggle()
+	case "+", "-":
+		m.handleVerbosity(msg.String())
 	}
 	return m, nil
+}
+
+func (m *Model) handleNavigation(key string) {
+	if key == "up" || key == "k" {
+		if m.SelectedIdx > 0 {
+			m.SelectedIdx--
+		} else {
+			m.SelectedIdx = len(m.vertices) - 1
+		}
+	} else { // down or j
+		if m.SelectedIdx < len(m.vertices)-1 {
+			m.SelectedIdx++
+		} else {
+			m.SelectedIdx = 0
+		}
+	}
+}
+
+func (m *Model) handleToggle() {
+	if len(m.vertices) > 0 {
+		m.vertices[m.SelectedIdx].Expanded = !m.vertices[m.SelectedIdx].Expanded
+	}
+}
+
+func (m *Model) handleVerbosity(key string) {
+	if key == "+" {
+		// Decrease min level (show more verbose/debug logs)
+		if m.MinLogLevel > domain.LogLevelDebug {
+			m.MinLogLevel -= 4
+		}
+	} else { // "-"
+		// Increase min level (show only errors/warns)
+		if m.MinLogLevel < domain.LogLevelError {
+			m.MinLogLevel += 4
+		}
+	}
 }
 
 // handleWindowSizeMsg handles window resize messages.
@@ -239,46 +287,70 @@ func (m *Model) updateVertexStatus(index int, v *progrock.Vertex) tea.Cmd {
 func (m *Model) View() string {
 	var s strings.Builder
 
-	// Determine start index to handle overflow
+	// Determine start index to keep SelectedIdx in view
+	// Center the selected index in the window roughly
 	start := 0
-	if len(m.vertices) > m.height && m.height > 0 {
-		start = len(m.vertices) - m.height
+	if m.SelectedIdx > m.height/2 {
+		start = m.SelectedIdx - (m.height / 2)
 	}
 
+	linesRendered := 0
 	for i := start; i < len(m.vertices); i++ {
-		v := m.vertices[i]
-		// Icon
-		var icon string
-		var style lipgloss.Style
-		switch v.Status {
-		case statusRunning:
-			icon = m.spinner.View()
-			style = m.styles.running
-		case statusCompleted:
-			icon = "✓"
-			style = m.styles.completed
-		case statusFailed:
-			icon = "✗"
-			style = m.styles.failed
-		default:
-			icon = "•"
-			style = m.styles.pending
+		// Stop if we've filled the screen
+		if m.height > 0 && linesRendered >= m.height {
+			break
 		}
 
-		// Indentation
-		indent := strings.Repeat("  ", v.IndentationLevel)
-
-		// Line: [Indent][Icon] [Name]
-		line := fmt.Sprintf("%s%s %s\n", indent, style.Render(icon), v.Name)
+		line, logs := m.renderVertex(i, &m.vertices[i])
 		s.WriteString(line)
+		linesRendered++
 
-		// Render logs if expanded
-		if v.Expanded {
-			s.WriteString(m.renderLogs(v.ID, indent))
+		if logs != "" {
+			s.WriteString(logs)
+			linesRendered += strings.Count(logs, "\n")
 		}
 	}
 
 	return s.String()
+}
+
+func (m *Model) renderVertex(i int, v *VertexState) (line, logs string) {
+	// Icon
+	var icon string
+	var style lipgloss.Style
+	switch v.Status {
+	case statusRunning:
+		icon = m.spinner.View()
+		style = m.styles.running
+	case statusCompleted:
+		icon = "✓"
+		style = m.styles.completed
+	case statusFailed:
+		icon = "✗"
+		style = m.styles.failed
+	default:
+		icon = "•"
+		style = m.styles.pending
+	}
+
+	// Cursor
+	cursor := "  "
+	if i == m.SelectedIdx {
+		cursor = "> "
+	}
+
+	// Indentation
+	indent := strings.Repeat("  ", v.IndentationLevel)
+
+	// Line: [Cursor][Indent][Icon] [Name]
+	line = fmt.Sprintf("%s%s%s %s\n", cursor, indent, style.Render(icon), v.Name)
+
+	// Render logs if expanded
+	if v.Expanded {
+		logs = m.renderLogs(v.ID, cursor+indent)
+	}
+
+	return line, logs
 }
 
 func (m *Model) renderLogs(vertexID, indent string) string {
@@ -287,10 +359,23 @@ func (m *Model) renderLogs(vertexID, indent string) string {
 		return ""
 	}
 
-	// Show last N lines
-	tailLines := logs
-	if len(logs) > maxLogLines {
-		tailLines = logs[len(logs)-maxLogLines:]
+	// Filter logs by level and collect the tail
+	var filteredLogs []string
+	for _, l := range logs {
+		level := parseLogLevel(l)
+		if level >= m.MinLogLevel {
+			filteredLogs = append(filteredLogs, l)
+		}
+	}
+
+	if len(filteredLogs) == 0 {
+		return ""
+	}
+
+	// Show last N lines of FILTERED logs
+	tailLines := filteredLogs
+	if len(filteredLogs) > maxLogLines {
+		tailLines = filteredLogs[len(filteredLogs)-maxLogLines:]
 	}
 
 	logBlock := strings.Join(tailLines, "\n")
@@ -306,4 +391,18 @@ func (m *Model) renderLogs(vertexID, indent string) string {
 		sb.WriteString(indent + "  " + l + "\n")
 	}
 	return sb.String()
+}
+
+func parseLogLevel(line string) domain.LogLevel {
+	switch {
+	case strings.Contains(line, "[DEBUG]"):
+		return domain.LogLevelDebug
+	case strings.Contains(line, "[INFO]"):
+		return domain.LogLevelInfo
+	case strings.Contains(line, "[WARN]"):
+		return domain.LogLevelWarn
+	case strings.Contains(line, "[ERROR]"):
+		return domain.LogLevelError
+	}
+	return domain.LogLevelInfo
 }
