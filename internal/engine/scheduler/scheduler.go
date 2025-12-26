@@ -136,19 +136,21 @@ type result struct {
 }
 
 type schedulerRunState struct {
-	graph       *domain.Graph
-	inDegree    map[domain.InternedString]int
-	tasks       map[domain.InternedString]domain.Task
-	ready       []domain.InternedString
-	active      int
-	resultsCh   chan result
-	errs        error
-	ctx         context.Context
-	parallelism int
-	s           *Scheduler
-	allTasks    []domain.InternedString
-	force       bool
-	taskEnvIDs  map[domain.InternedString]string // task name -> environment ID
+	graph        *domain.Graph
+	inDegree     map[domain.InternedString]int
+	tasks        map[domain.InternedString]domain.Task
+	ready        []domain.InternedString
+	active       int
+	resultsCh    chan result
+	errs         error
+	ctx          context.Context
+	parallelism  int
+	s            *Scheduler
+	allTasks     []domain.InternedString
+	force        bool
+	taskEnvIDs   map[domain.InternedString]string // task name -> environment ID
+	vertices     map[domain.InternedString]ports.Vertex
+	taskContexts map[domain.InternedString]context.Context
 }
 
 func (s *Scheduler) newRunState(
@@ -198,19 +200,31 @@ func (s *Scheduler) newRunState(
 		}
 	}
 
-	return &schedulerRunState{
-		graph:       graph,
-		inDegree:    inDegree,
-		tasks:       tasks,
-		ready:       ready,
-		resultsCh:   make(chan result, parallelism),
-		ctx:         ctx,
-		parallelism: parallelism,
-		s:           s,
-		allTasks:    allTasks,
-		force:       force,
-		taskEnvIDs:  taskEnvIDs,
-	}, nil
+	state := &schedulerRunState{
+		graph:        graph,
+		inDegree:     inDegree,
+		tasks:        tasks,
+		ready:        ready,
+		resultsCh:    make(chan result, parallelism),
+		ctx:          ctx,
+		parallelism:  parallelism,
+		s:            s,
+		allTasks:     allTasks,
+		force:        force,
+		taskEnvIDs:   taskEnvIDs,
+		vertices:     make(map[domain.InternedString]ports.Vertex, len(allTasks)),
+		taskContexts: make(map[domain.InternedString]context.Context, len(allTasks)),
+	}
+
+	// Pre-register all tasks in telemetry to ensure they appear in the UI immediately
+	for _, name := range allTasks {
+		// We use the run state context as the parent
+		tCtx, vertex := s.telemetry.Record(ctx, name.String())
+		state.vertices[name] = vertex
+		state.taskContexts[name] = tCtx
+	}
+
+	return state, nil
 }
 
 func (state *schedulerRunState) runExecutionLoop() error {
@@ -358,11 +372,7 @@ func (s *Scheduler) collectDependencies(
 		currentName := queue[0]
 		queue = queue[1:]
 
-		// Add to tasks to run
-		if !tasksToRun[currentName] {
-			tasksToRun[currentName] = true
-			allTasks = append(allTasks, currentName)
-		}
+		tasksToRun[currentName] = true
 
 		task, _ := graph.GetTask(currentName)
 		for _, dep := range task.Dependencies {
@@ -370,6 +380,14 @@ func (s *Scheduler) collectDependencies(
 				visited[dep] = true
 				queue = append(queue, dep)
 			}
+		}
+	}
+
+	// Iterate over the graph in topological order and filter tasksToRun
+	// This ensures deterministic execution order (dependencies first)
+	for task := range graph.Walk() {
+		if tasksToRun[task.Name] {
+			allTasks = append(allTasks, task.Name)
 		}
 	}
 
@@ -394,7 +412,9 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
-	ctx, vertex := state.s.telemetry.Record(state.ctx, t.Name.String())
+	vertex := state.vertices[t.Name]
+	ctx := state.taskContexts[t.Name]
+	vertex.Log(domain.LogLevelInfo, "Task started.")
 
 	var finalErr error
 	defer func() {

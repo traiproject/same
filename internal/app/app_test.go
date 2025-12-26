@@ -54,6 +54,7 @@ func TestApp_Build(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -109,6 +110,7 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -161,6 +163,7 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)

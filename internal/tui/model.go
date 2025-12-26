@@ -199,6 +199,18 @@ func (m *Model) handleTapeUpdate(msg MsgTapeUpdate) (tea.Model, tea.Cmd) {
 // handleLogReceived stores received logs.
 func (m *Model) handleLogReceived(msg MsgLogReceived) (tea.Model, tea.Cmd) {
 	m.logs[msg.VertexID] = append(m.logs[msg.VertexID], msg.Text)
+
+	// Auto-expand on "Task started." log
+	if strings.Contains(msg.Text, "Task started.") {
+		for i := range m.vertices {
+			if m.vertices[i].ID == msg.VertexID {
+				m.vertices[i].Expanded = true
+			} else {
+				m.vertices[i].Expanded = false
+			}
+		}
+	}
+
 	return m, nil
 }
 

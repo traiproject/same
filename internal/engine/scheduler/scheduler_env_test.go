@@ -25,6 +25,7 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	mockVertex := mocks.NewMockVertex(ctrl)
 	mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 	mockVertex.EXPECT().Cached().AnyTimes()
+	mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 	mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(context.Background(), mockVertex).AnyTimes()
 

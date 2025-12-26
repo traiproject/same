@@ -64,6 +64,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -188,6 +189,7 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -249,6 +251,7 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -308,6 +311,7 @@ func TestScheduler_Run_AllWithOtherTargets(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -367,6 +371,7 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -408,6 +413,7 @@ func TestScheduler_Run_SpecificTargets(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -465,6 +471,7 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -618,6 +625,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 
@@ -719,6 +727,8 @@ func TestScheduler_Run_ForceBypassesCache(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 
@@ -815,6 +825,7 @@ func TestScheduler_Run_ContextCancellation(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 
@@ -888,6 +899,7 @@ func TestScheduler_Run_ForceModeHasherError(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 
@@ -930,6 +942,7 @@ func TestScheduler_Run_StorePutError(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 
@@ -980,6 +993,7 @@ func TestScheduler_Run_EnvironmentCacheInvalidation(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 
@@ -1100,6 +1114,7 @@ func TestScheduler_Run_ResolverError(t *testing.T) {
 				mockVertex := mocks.NewMockVertex(ctrl)
 				mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 				mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 				mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(context.Background(), mockVertex).AnyTimes()
 
@@ -1143,6 +1158,7 @@ func TestScheduler_Run_OutputHashComputationError(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -1193,6 +1209,7 @@ func TestScheduler_Run_ContextCancelledDuringScheduling(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -1268,6 +1285,7 @@ func TestScheduler_Run_ContextCancelledAfterCompletion(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -1305,6 +1323,7 @@ func TestScheduler_Run_UnsafeOutputPath(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -1339,6 +1358,10 @@ func TestScheduler_Run_EnvHydrationFailure(t *testing.T) {
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 		mockTelemetry := mocks.NewMockTelemetry(ctrl)
+		mockVertex := mocks.NewMockVertex(ctrl)
+		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(context.Background(), mockVertex).AnyTimes()
+
 		s := scheduler.NewScheduler(nil, nil, nil, nil, mockLogger, mockEnvFactory, mockTelemetry)
 
 		// Create a graph with a task that uses tools
@@ -1380,6 +1403,7 @@ func TestScheduler_ValidateAndCleanOutputs_Security(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -1446,6 +1470,7 @@ func TestScheduler_ValidateAndCleanOutputs_RemoveError(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
@@ -1485,6 +1510,7 @@ func TestScheduler_ComputeOutputHash_Failure(t *testing.T) {
 		mockVertex := mocks.NewMockVertex(ctrl)
 		mockVertex.EXPECT().Complete(gomock.Any()).AnyTimes()
 		mockVertex.EXPECT().Cached().AnyTimes()
+		mockVertex.EXPECT().Log(gomock.Any(), gomock.Any()).AnyTimes()
 		mockTelemetry.EXPECT().Record(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(context.Background(), mockVertex).AnyTimes()
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil, mockTelemetry)
