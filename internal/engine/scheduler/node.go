@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/grindlemire/graft"
-	"go.trai.ch/bob/internal/adapters/cas"    //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/adapters/fs"     //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/adapters/nix"    //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/adapters/shell"  //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/cas"       //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/fs"        //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/nix"       //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/shell"     //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/bob/internal/adapters/telemetry" //nolint:depguard // Wired in engine wiring
 	"go.trai.ch/bob/internal/core/ports"
 )
 
@@ -24,7 +24,7 @@ func init() {
 			cas.NodeID,
 			fs.HasherNodeID,
 			fs.ResolverNodeID,
-			logger.NodeID,
+			telemetry.TracerNodeID,
 			nix.EnvFactoryNodeID,
 		},
 		Run: func(ctx context.Context) (*Scheduler, error) {
@@ -48,7 +48,7 @@ func init() {
 				return nil, err
 			}
 
-			log, err := graft.Dep[ports.Logger](ctx)
+			tracer, err := graft.Dep[ports.Tracer](ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -63,7 +63,7 @@ func init() {
 				store,
 				hasher,
 				resolver,
-				log,
+				tracer,
 				envFactory,
 			), nil
 		},

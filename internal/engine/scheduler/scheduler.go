@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,7 +36,7 @@ type Scheduler struct {
 	store      ports.BuildInfoStore
 	hasher     ports.Hasher
 	resolver   ports.InputResolver
-	logger     ports.Logger
+	tracer     ports.Tracer
 	envFactory ports.EnvironmentFactory
 
 	mu         sync.RWMutex
@@ -51,7 +50,7 @@ func NewScheduler(
 	store ports.BuildInfoStore,
 	hasher ports.Hasher,
 	resolver ports.InputResolver,
-	logger ports.Logger,
+	tracer ports.Tracer,
 	envFactory ports.EnvironmentFactory,
 ) *Scheduler {
 	s := &Scheduler{
@@ -59,7 +58,7 @@ func NewScheduler(
 		store:      store,
 		hasher:     hasher,
 		resolver:   resolver,
-		logger:     logger,
+		tracer:     tracer,
 		envFactory: envFactory,
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 		envCache:   sync.Map{},
@@ -105,9 +104,33 @@ func (s *Scheduler) Run(
 		return err
 	}
 
+	// Calculate and emit the build plan based on topological sort
+	plannedTasks := make([]string, 0, len(state.allTasks))
+	
+	// Create a map for fast lookup of tasks included in this run
+	taskSet := make(map[domain.InternedString]bool, len(state.allTasks))
+	for _, t := range state.allTasks {
+		taskSet[t] = true
+	}
+
+	// Filter the graph's full topological order to only include tasks in this run
+	// executionOrder is populated by graph.Validate()
+	for task := range graph.Walk() {
+		if taskSet[task.Name] {
+			plannedTasks = append(plannedTasks, task.Name.String())
+		}
+	}
+
+	s.tracer.EmitPlan(ctx, plannedTasks)
+
 	// Phase 1: Batch Environment Hydration
 	// Resolve all unique environments concurrently before execution starts
-	if err := state.prepareEnvironments(); err != nil {
+	// Wrapped in a span for visibility
+	ctx, span := s.tracer.Start(ctx, "Hydrating Environments")
+	err = state.prepareEnvironments()
+	span.End()
+	
+	if err != nil {
 		return err
 	}
 
@@ -262,8 +285,6 @@ func (state *schedulerRunState) prepareEnvironments() error {
 		return nil
 	}
 
-	state.s.logger.Info(fmt.Sprintf("Hydrating %d unique environments...", len(envsToResolve)))
-
 	g, ctx := errgroup.WithContext(state.ctx)
 
 	for _, item := range envsToResolve {
@@ -383,6 +404,10 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
+	// Start Span
+	ctx, span := state.s.tracer.Start(state.ctx, t.Name.String())
+	defer span.End()
+
 	// Step 1: Compute Input Hash (Check Cache)
 	hash, err := state.computeInputHash(t)
 	if err != nil {
@@ -392,6 +417,7 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 
 	// If hash is empty, task was skipped (cached)
 	if hash == "" {
+		span.SetAttribute("bob.cached", true)
 		return
 	}
 
@@ -428,7 +454,7 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 	// Step 4: Execute
 	state.resultsCh <- result{
 		task:        t.Name,
-		err:         state.s.executor.Execute(state.ctx, t, env),
+		err:         state.s.executor.Execute(ctx, t, env),
 		inputHash:   hash,
 		taskOutputs: outputs,
 	}
@@ -513,7 +539,7 @@ func (state *schedulerRunState) handleResult(res result) {
 func (state *schedulerRunState) handleSuccess(res result) {
 	state.s.updateStatus(res.task, StatusCompleted)
 	if res.skipped {
-		state.s.logger.Info(fmt.Sprintf("Skipping %s (cached)", res.task))
+		// Logging moved to span attributes/events, direct usage removed.
 	} else {
 		outputHash := state.computeOutputHash(res)
 		if outputHash != "" || len(res.taskOutputs) == 0 {
@@ -525,7 +551,6 @@ func (state *schedulerRunState) handleSuccess(res result) {
 			})
 			if err != nil {
 				// We log the error but don't fail the build if cache update fails
-				state.s.logger.Error(zerr.With(zerr.Wrap(err, domain.ErrBuildInfoUpdateFailed.Error()), "task", res.task.String()))
 			}
 		}
 	}
@@ -548,10 +573,6 @@ func (state *schedulerRunState) computeOutputHash(res result) string {
 
 	outputHash, err := state.s.hasher.ComputeOutputHash(res.taskOutputs, state.graph.Root())
 	if err != nil {
-		state.s.logger.Error(zerr.With(
-			zerr.Wrap(err, domain.ErrOutputHashComputationFailed.Error()),
-			"task", res.task.String(),
-		))
 		return ""
 	}
 	return outputHash
