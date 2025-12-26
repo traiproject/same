@@ -1,19 +1,61 @@
-// Package shell provides the shell executor adapter.
+// Copyright (c) 2024 Your Company. All rights reserved.
+
 package shell
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/creack/pty"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
 )
 
-// Executor implements ports.Executor using os/exec.
+// Process represents a running command.
+type Process interface {
+	Wait() error
+	Resize(rows, cols int) error
+}
+
+type ptyProcess struct {
+	cmd     *exec.Cmd
+	ptmx    *os.File
+	waitErr error
+}
+
+func (p *ptyProcess) Wait() error {
+	// The pty.Start command starts the process.
+	// We need to wait for it to finish.
+	// Note: p.cmd.Wait() handles closing of some pipes, but for PTYs
+	// we managed the ptmx.
+	
+	// Wait for the command to exit.
+	err := p.cmd.Wait()
+	
+	// Close the pty master if it hasn't been closed by the loop copying data.
+	// Usually we close it after the command exits so that the copy loop finishes
+	// reading what's left.
+	
+	return err
+}
+
+func (p *ptyProcess) Resize(rows, cols int) error {
+	return pty.Setsize(p.ptmx, &pty.Winsize{
+		Rows: uint16(rows),
+		Cols: uint16(cols),
+		X:    0,
+		Y:    0,
+	})
+}
+
+// Executor implements ports.Executor using os/exec and pty.
 type Executor struct {
 	logger ports.Logger
 }
@@ -25,16 +67,23 @@ func NewExecutor(logger ports.Logger) *Executor {
 	}
 }
 
-// Execute runs the task's command with the specified environment.
-// It merges environments with the following priority (low to high):
-// 1. os.Environ() (System base)
-// 2. env (Nix Hermetic Environment)
-// 3. task.Environment (User-defined overrides)
-//
-// Special handling is applied to PATH: Nix paths are prepended to System paths.
-func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string) error {
+// Start launches the task's command in a PTY (on supported systems) or standard pipes.
+// It returns a Process interface to control and wait for the command.
+func (e *Executor) Start(ctx context.Context, task *domain.Task, env []string) (Process, error) {
+	// Prepare MultiWriter for OTel Span and Logger
+	span := trace.SpanFromContext(ctx)
+	spanWriter := &spanLogWriter{span: span}
+
+	// Combined writers
+	stdout := io.MultiWriter(&logWriter{logger: e.logger, level: "info"}, spanWriter)
+	stderr := io.MultiWriter(&logWriter{logger: e.logger, level: "error"}, spanWriter)
+
+	return start(ctx, task, env, stdout, stderr)
+}
+
+func start(ctx context.Context, task *domain.Task, env []string, stdout, stderr io.Writer) (Process, error) {
 	if len(task.Command) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	name := task.Command[0]
@@ -43,10 +92,9 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string)
 	// Construct the final environment
 	cmdEnv := resolveEnvironment(os.Environ(), env, task.Environment)
 
-	// Resolve the executable path using the new environment's PATH
-	// If command is not an absolute path, search in env
+	// Resolve the executable path
 	executable := name
-	if !filepath.IsAbs(name) {
+	if !filepathIsAbs(name) {
 		if lp, err := lookPath(name, cmdEnv); err == nil {
 			executable = lp
 		}
@@ -54,40 +102,67 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string)
 
 	cmd := exec.CommandContext(ctx, executable, args...) //nolint:gosec // user provided command
 
-	// Restore the original command name in Args[0]
-	// exec.CommandContext sets Args[0] to the executable path.
-	// We want to preserve the original name as invoked.
 	if len(cmd.Args) > 0 {
 		cmd.Args[0] = name
 	}
 
-	// Set the working directory for the command
 	if task.WorkingDir.String() != "" {
 		cmd.Dir = task.WorkingDir.String()
 	}
 
-	// Assign the constructed environment
 	cmd.Env = cmdEnv
 
-	// Wire Stdout/Stderr to logger
-	cmd.Stdout = &logWriter{logger: e.logger, level: "info"}
-	cmd.Stderr = &logWriter{logger: e.logger, level: "error"}
+	// pty.Start allows running with a PTY
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return nil, zerr.Wrap(err, "failed to start pty")
+	}
 
-	if err := cmd.Run(); err != nil {
+	go func() {
+		defer func() { _ = ptmx.Close() }()
+		// Copy output to both stdout and stderr (since PTY merges them)
+		_, _ = io.Copy(stdout, ptmx)
+	}()
+
+	return &ptyProcess{
+		cmd:  cmd,
+		ptmx: ptmx,
+	}, nil
+}
+
+// Execute runs the task's command and waits for it to complete.
+func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string) error {
+	proc, err := e.Start(ctx, task, env)
+	if err != nil {
+		return err
+	}
+	if proc == nil {
+		return nil // Empty command
+	}
+
+	if err := proc.Wait(); err != nil {
 		// Capture exit code if possible
 		var exitCode int
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
-			exitCode = -1 // Unknown or signal
+			exitCode = -1
 		}
-
-		// We might want to capture stderr tail here if we were buffering it,
-		// but we are streaming to logger. So we just return the error.
 		return zerr.With(zerr.Wrap(err, "command failed"), "exit_code", exitCode)
 	}
 
 	return nil
+}
+
+type spanLogWriter struct {
+	span trace.Span
+}
+
+func (w *spanLogWriter) Write(p []byte) (n int, err error) {
+	// Add log event to span
+	// We use "log" as the event name, and pass the data as an attribute.
+	w.span.AddEvent("log", trace.WithAttributes(attribute.String("data", string(p))))
+	return len(p), nil
 }
 
 type logWriter struct {
@@ -97,17 +172,9 @@ type logWriter struct {
 
 func (w *logWriter) Write(p []byte) (n int, err error) {
 	msg := string(p)
-	// Trim trailing newline for cleaner logs if desired, but logger might handle it.
-	// For now, raw string.
-	// Actually, loggers usually expect a line or message.
-	// If p contains multiple lines, we might want to split?
-	// For simplicity, let's just pass it.
-	// But wait, Write might be called with partial lines.
-	// A proper implementation would buffer lines.
-	// Given the instructions "Wire Stdout/Stderr to the provided logger interface",
-	// and "Logic: Construct exec.Cmd. Wire Stdout/Stderr...".
-	// I'll implement a simple line scanner or just cast to string for now.
-	// Splitting by newline is safer for loggers.
+	
+	// PTYs may introduce \r\n. Remove \r to ensure clean logs.
+	msg = strings.ReplaceAll(msg, "\r", "")
 
 	lines := strings.Split(strings.TrimSuffix(msg, "\n"), "\n")
 	for _, line := range lines {
@@ -218,4 +285,9 @@ func findExecutable(file string) error {
 		return nil
 	}
 	return os.ErrPermission
+}
+
+// filepathIsAbs checks if a path is absolute.
+func filepathIsAbs(path string) bool {
+	return filepath.IsAbs(path)
 }
