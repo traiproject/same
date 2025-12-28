@@ -404,79 +404,82 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
-	// Start Span
-	ctx, span := state.s.tracer.Start(state.ctx, t.Name.String())
-	defer span.End()
+	// Execute the task logic within a function to ensure the span is ended
+	// BEFORE we send the result to the channel. This prevents race conditions
+	// in tests where the scheduler loop finishes before the span is recorded.
+	res := func() result {
+		// Start Span
+		ctx, span := state.s.tracer.Start(state.ctx, t.Name.String())
+		defer span.End()
 
-	// Step 1: Compute Input Hash (Check Cache)
-	hash, err := state.computeInputHash(t)
-	if err != nil {
-		state.resultsCh <- result{task: t.Name, err: err}
-		return
-	}
-
-	// If hash is empty, task was skipped (cached)
-	if hash == "" {
-		span.SetAttribute("bob.cached", true)
-		return
-	}
-
-	// Step 2: Clean Outputs
-	// Clean outputs before building to prevent stale artifacts
-	if err := state.validateAndCleanOutputs(t); err != nil {
-		state.resultsCh <- result{task: t.Name, err: err}
-		return
-	}
-
-	// Convert outputs to string slice for result
-	outputs := make([]string, len(t.Outputs))
-	for i, out := range t.Outputs {
-		outputs[i] = out.String()
-	}
-
-	// Step 3: Prepare Environment (Phase 1 Hydration)
-	var env []string
-	if len(t.Tools) > 0 {
-		// Environment is already hydrated in Phase 1
-		envID := state.taskEnvIDs[t.Name]
-		cachedEnv, ok := state.s.envCache.Load(envID)
-		if !ok {
-			// This should theoretically never happen if prepareEnvironments worked correctly
-			state.resultsCh <- result{
-				task: t.Name,
-				err:  zerr.With(domain.ErrEnvironmentNotCached, "env_id", envID),
-			}
-			return
+		// Step 1: Compute Input Hash (Check Cache)
+		skipped, hash, err := state.computeInputHash(t)
+		if err != nil {
+			return result{task: t.Name, err: err}
 		}
-		env = cachedEnv.([]string)
-	}
 
-	// Step 4: Execute
-	state.resultsCh <- result{
-		task:        t.Name,
-		err:         state.s.executor.Execute(ctx, t, env),
-		inputHash:   hash,
-		taskOutputs: outputs,
-	}
+		// If skipped (cached)
+		if skipped {
+			span.SetAttribute("bob.cached", true)
+			return result{task: t.Name, skipped: true, inputHash: hash}
+		}
+
+		// Step 2: Clean Outputs
+		// Clean outputs before building to prevent stale artifacts
+		if err := state.validateAndCleanOutputs(t); err != nil {
+			return result{task: t.Name, err: err}
+		}
+
+		// Convert outputs to string slice for result
+		outputs := make([]string, len(t.Outputs))
+		for i, out := range t.Outputs {
+			outputs[i] = out.String()
+		}
+
+		// Step 3: Prepare Environment (Phase 1 Hydration)
+		var env []string
+		if len(t.Tools) > 0 {
+			// Environment is already hydrated in Phase 1
+			envID := state.taskEnvIDs[t.Name]
+			cachedEnv, ok := state.s.envCache.Load(envID)
+			if !ok {
+				return result{
+					task: t.Name,
+					err:  zerr.With(domain.ErrEnvironmentNotCached, "env_id", envID),
+				}
+			}
+			env = cachedEnv.([]string)
+		}
+
+		// Step 4: Execute
+		return result{
+			task:        t.Name,
+			err:         state.s.executor.Execute(ctx, t, env, span, span),
+			inputHash:   hash,
+			taskOutputs: outputs,
+		}
+	}()
+
+	state.resultsCh <- res
 }
 
-func (state *schedulerRunState) computeInputHash(t *domain.Task) (string, error) {
+func (state *schedulerRunState) computeInputHash(t *domain.Task) (bool, string, error) {
 	if state.force {
-		return state.s.computeHashForce(t, state.graph.Root())
+		h, err := state.s.computeHashForce(t, state.graph.Root())
+		return false, h, err
 	}
 
 	// Normal mode: check cache
 	skipped, hash, err := state.s.checkTaskCache(state.ctx, t, state.graph.Root())
 	if err != nil {
-		return "", err
+		return false, "", err
 	}
 
 	if skipped {
-		state.resultsCh <- result{task: t.Name, skipped: true, inputHash: hash}
-		return "", nil
+		return true, hash, nil
 	}
 
-	return hash, nil
+	return false, hash, nil
 }
 
 func (state *schedulerRunState) validateAndCleanOutputs(t *domain.Task) error {

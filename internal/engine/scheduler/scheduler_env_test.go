@@ -65,7 +65,7 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	mockStore.EXPECT().Get("build").Return(nil, nil)
 
 	// 5. Execution with Env
-	mockExec.EXPECT().Execute(ctx, task, expectedEnv).Return(nil)
+	mockExec.EXPECT().Execute(ctx, task, expectedEnv, gomock.Any(), gomock.Any()).Return(nil)
 
 	// 6. Output Hashing & Store Put
 	mockHasher.EXPECT().ComputeOutputHash(gomock.Any(), ".").Return("outHash", nil)

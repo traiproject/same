@@ -11,8 +11,7 @@ import (
 	"strings"
 
 	"github.com/creack/pty"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
@@ -69,16 +68,14 @@ func NewExecutor(logger ports.Logger) *Executor {
 
 // Start launches the task's command in a PTY (on supported systems) or standard pipes.
 // It returns a Process interface to control and wait for the command.
-func (e *Executor) Start(ctx context.Context, task *domain.Task, env []string) (Process, error) {
-	// Prepare MultiWriter for OTel Span and Logger
-	span := trace.SpanFromContext(ctx)
-	spanWriter := &spanLogWriter{span: span}
+func (e *Executor) Start(ctx context.Context, task *domain.Task, env []string, stdout, stderr io.Writer) (Process, error) {
+	// Combined writers:
+	// 1. Structural Logger (info/error)
+	// 2. Output Writers (Span, etc.)
+	finalStdout := io.MultiWriter(&logWriter{logger: e.logger, level: "info"}, stdout)
+	finalStderr := io.MultiWriter(&logWriter{logger: e.logger, level: "error"}, stderr)
 
-	// Combined writers
-	stdout := io.MultiWriter(&logWriter{logger: e.logger, level: "info"}, spanWriter)
-	stderr := io.MultiWriter(&logWriter{logger: e.logger, level: "error"}, spanWriter)
-
-	return start(ctx, task, env, stdout, stderr)
+	return start(ctx, task, env, finalStdout, finalStderr)
 }
 
 func start(ctx context.Context, task *domain.Task, env []string, stdout, stderr io.Writer) (Process, error) {
@@ -121,6 +118,8 @@ func start(ctx context.Context, task *domain.Task, env []string, stdout, stderr 
 	go func() {
 		defer func() { _ = ptmx.Close() }()
 		// Copy output to both stdout and stderr (since PTY merges them)
+		// We use io.Copy which creates a 32k buffer. This is efficient enough.
+		// The MultiWriter will ensure it goes to both logic logger and Span.
 		_, _ = io.Copy(stdout, ptmx)
 	}()
 
@@ -131,8 +130,8 @@ func start(ctx context.Context, task *domain.Task, env []string, stdout, stderr 
 }
 
 // Execute runs the task's command and waits for it to complete.
-func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string) error {
-	proc, err := e.Start(ctx, task, env)
+func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string, stdout, stderr io.Writer) error {
+	proc, err := e.Start(ctx, task, env, stdout, stderr)
 	if err != nil {
 		return err
 	}
@@ -154,16 +153,7 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string)
 	return nil
 }
 
-type spanLogWriter struct {
-	span trace.Span
-}
 
-func (w *spanLogWriter) Write(p []byte) (n int, err error) {
-	// Add log event to span
-	// We use "log" as the event name, and pass the data as an attribute.
-	w.span.AddEvent("log", trace.WithAttributes(attribute.String("data", string(p))))
-	return len(p), nil
-}
 
 type logWriter struct {
 	logger ports.Logger

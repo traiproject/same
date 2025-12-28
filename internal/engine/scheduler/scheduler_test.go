@@ -3,6 +3,7 @@ package scheduler_test
 import (
 	"context"
 	"errors"
+	"io"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -81,8 +82,8 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
 		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
 
-		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, task *domain.Task, _ []string) error {
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, task *domain.Task, _ []string, _, _ io.Writer) error {
 				switch task.Name.String() {
 				case "D":
 					close(dStarted)
@@ -183,8 +184,8 @@ func TestScheduler_Run_Partial(t *testing.T) {
 
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
-		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, task *domain.Task, _ []string) error {
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, task *domain.Task, _ []string, _, _ io.Writer) error {
 				mu.Lock()
 				defer mu.Unlock()
 				executedTasks[task.Name.String()] = true
@@ -238,7 +239,7 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
 		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(3)
 
-		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(3)
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(3)
 
 		err := s.Run(context.Background(), g, []string{"all"}, 2, false)
 		if err != nil {
@@ -271,7 +272,7 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
 		mockSpan.EXPECT().End()
 
-		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 		err := s.Run(context.Background(), g, []string{}, 2, false)
 		if err != nil {
@@ -391,7 +392,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(hash1, nil)
 		mockStore.EXPECT().Get("build").Return(nil, nil)
-		mockExec.EXPECT().Execute(ctx, task, gomock.Any()).Return(nil)
+		mockExec.EXPECT().Execute(ctx, task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mockHasher.EXPECT().ComputeOutputHash([]string{"out"}, ".").Return(outputHash, nil)
 		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
 

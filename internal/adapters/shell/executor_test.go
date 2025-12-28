@@ -1,7 +1,9 @@
 package shell_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 
@@ -35,7 +37,7 @@ func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task, nil)
+	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
 	require.NoError(t, err)
 }
 
@@ -62,7 +64,7 @@ func TestExecutor_Execute_EnvironmentVariables(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task, nil)
+	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
 	require.NoError(t, err)
 }
 
@@ -84,7 +86,7 @@ func TestExecutor_Execute_InvalidCommand(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task, nil)
+	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
 	if err == nil {
 		t.Error("Execute() expected error for invalid command")
 	}
@@ -108,7 +110,7 @@ func TestExecutor_Execute_CommandFailure(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task, nil)
+	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
 	if err == nil {
 		t.Error("Execute() expected error for failed command")
 	}
@@ -134,7 +136,7 @@ func TestExecutor_Execute_EmptyCommand(t *testing.T) {
 	}
 
 	// Empty command should return nil without error
-	err := executor.Execute(context.Background(), task, nil)
+	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
 	if err != nil {
 		t.Errorf("Execute() unexpected error for empty command: %v", err)
 	}
@@ -156,7 +158,7 @@ func TestExecutor_Execute_AbsolutePath(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task, nil)
+	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
 	require.NoError(t, err)
 }
 
@@ -177,6 +179,46 @@ func TestExecutor_Execute_WithNixEnv(t *testing.T) {
 	}
 
 	nixEnv := []string{"NIX_VAR=nix-value"}
-	err := executor.Execute(context.Background(), task, nixEnv)
+	err := executor.Execute(context.Background(), task, nixEnv, io.Discard, io.Discard)
 	require.NoError(t, err)
+}
+
+func TestExecutor_Execute_StreamsOutput(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := mocks.NewMockLogger(ctrl)
+	// We expect the logger to still be called via the logWriter, which strips ANSI
+	// The exact number of calls might vary depending on buffering/lines, but we expect at least one
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+
+	executor := shell.NewExecutor(mockLogger)
+	tmpDir := t.TempDir()
+
+	// Command outputting ANSI red color
+	ansiRed := "\033[31m"
+	ansiReset := "\033[0m"
+	msg := "Hello Red World"
+	// Ensure we echo without newline handling complications if possible, but basic echo works.
+	// We use 'printf' if available or just echo with codes.
+	// Sh usually supports printf.
+	task := &domain.Task{
+		Name:       domain.NewInternedString("test-ansi"),
+		Command:    []string{"sh", "-c", "printf '" + ansiRed + msg + ansiReset + "'"},
+		WorkingDir: domain.NewInternedString(tmpDir),
+	}
+
+	var stdout bytes.Buffer
+	err := executor.Execute(context.Background(), task, nil, &stdout, io.Discard)
+	require.NoError(t, err)
+
+	output := stdout.String()
+	// Verify ANSI codes are present
+	if !strings.Contains(output, ansiRed) {
+		t.Errorf("Expected output to contain ANSI red code, got: %q", output)
+	}
+	if !strings.Contains(output, msg) {
+		t.Errorf("Expected output to contain message %q, got: %q", msg, output)
+	}
+	// Note: PTY execution might add \r\n, so exact match is hard, but contains check is good.
 }

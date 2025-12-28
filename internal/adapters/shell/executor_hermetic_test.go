@@ -2,6 +2,7 @@ package shell_test
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -45,6 +46,6 @@ func TestExecutor_Execute_HermeticBinaryOnly(t *testing.T) {
 	// Provide the hermetic PATH in env
 	nixEnv := []string{"PATH=" + hermeticDir}
 
-	err = executor.Execute(context.Background(), task, nixEnv)
+	err = executor.Execute(context.Background(), task, nixEnv, io.Discard, io.Discard)
 	require.NoError(t, err)
 }

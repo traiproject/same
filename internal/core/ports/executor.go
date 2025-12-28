@@ -3,6 +3,7 @@ package ports
 
 import (
 	"context"
+	"io"
 
 	"go.trai.ch/bob/internal/core/domain"
 )
@@ -17,5 +18,5 @@ type Executor interface {
 	// typically provided by an EnvironmentFactory for hermetic execution.
 	//
 	// It returns an error if the task execution fails.
-	Execute(ctx context.Context, task *domain.Task, env []string) error
+	Execute(ctx context.Context, task *domain.Task, env []string, stdout, stderr io.Writer) error
 }
