@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -12,7 +13,8 @@ import (
 
 // OTelTracer is a concrete implementation of ports.Tracer using OpenTelemetry.
 type OTelTracer struct {
-	tracer trace.Tracer
+	tracer  trace.Tracer
+	program *tea.Program
 }
 
 // NewOTelTracer creates a new OTelTracer with the given instrumentation name.
@@ -20,6 +22,12 @@ func NewOTelTracer(name string) *OTelTracer {
 	return &OTelTracer{
 		tracer: otel.Tracer(name),
 	}
+}
+
+// WithProgram sets the tea.Program to send logs to.
+func (t *OTelTracer) WithProgram(p *tea.Program) *OTelTracer {
+	t.program = p
+	return t
 }
 
 // Start creates a new span.
@@ -33,7 +41,20 @@ func (t *OTelTracer) Start(ctx context.Context, name string, opts ...ports.SpanO
 	// Start OTel span
 	ctx, span := t.tracer.Start(ctx, name)
 
-	return ctx, &OTelSpan{span: span}
+	var batcher *BatchProcessor
+	if t.program != nil {
+		spanID := span.SpanContext().SpanID().String()
+		cb := func(data []byte) {
+			t.program.Send(MsgTaskLog{
+				SpanID: spanID,
+				Data:   data,
+			})
+		}
+		// Use generic defaults or smaller limits for UI responsiveness?
+		batcher = NewBatchProcessor(0, 0, cb)
+	}
+
+	return ctx, &OTelSpan{span: span, batcher: batcher}
 }
 
 // EmitPlan signals that a set of tasks is planned for execution by adding an event to the current span.
@@ -44,15 +65,25 @@ func (t *OTelTracer) EmitPlan(ctx context.Context, taskNames []string) {
 			attribute.StringSlice("tasks", taskNames),
 		))
 	}
+
+	if t.program != nil {
+		t.program.Send(MsgInitTasks{
+			Tasks: taskNames,
+		})
+	}
 }
 
 // OTelSpan is a concrete implementation of ports.Span using OpenTelemetry.
 type OTelSpan struct {
-	span trace.Span
+	span    trace.Span
+	batcher *BatchProcessor
 }
 
 // End completes the span.
 func (s *OTelSpan) End() {
+	if s.batcher != nil {
+		s.batcher.Close()
+	}
 	s.span.End()
 }
 
@@ -76,8 +107,11 @@ func (s *OTelSpan) SetAttribute(key string, value any) {
 	}
 }
 
-// Write satisfies io.Writer by adding a log event to the span.
+// Write satisfies io.Writer by adding a log event to the span or writing to the batcher.
 func (s *OTelSpan) Write(p []byte) (n int, err error) {
+	if s.batcher != nil {
+		return s.batcher.Write(p)
+	}
 	s.span.AddEvent("log", trace.WithAttributes(attribute.String("message", string(p))))
 	return len(p), nil
 }
