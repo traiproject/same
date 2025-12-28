@@ -28,8 +28,9 @@ type Model struct {
 	Tasks      []TaskNode
 	TaskMap    map[string]*TaskNode
 	SpanMap    map[string]*TaskNode
-	Viewport   viewport.Model
-	AutoScroll bool
+	Viewport       viewport.Model
+	AutoScroll     bool
+	ActiveTaskName string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -45,6 +46,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
+
+	case tea.WindowSizeMsg:
+		// Split screen: 30% for task list, 70% for logs
+		listWidth := int(float64(msg.Width) * 0.3)
+		logWidth := msg.Width - listWidth - 4 // minus margins/borders
+
+		m.Viewport.Width = logWidth
+		m.Viewport.Height = msg.Height - 2 // minus header/footer space if any
 
 	case telemetry.MsgInitTasks:
 		m.Tasks = make([]TaskNode, len(msg.Tasks))
@@ -62,13 +71,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if node, ok := m.TaskMap[msg.Name]; ok {
 			node.Status = StatusRunning
 			m.SpanMap[msg.SpanID] = node
+
+			// Focus follows activity
+			m.ActiveTaskName = msg.Name
+			m.Viewport.SetContent(node.Logs.String())
+			if m.AutoScroll {
+				m.Viewport.GotoBottom()
+			}
 		}
 
 	case telemetry.MsgTaskLog:
 		if node, ok := m.SpanMap[msg.SpanID]; ok {
 			node.Logs.Write(msg.Data)
-			if m.AutoScroll {
-				m.Viewport.GotoBottom()
+
+			// Update viewport if we are looking at this task
+			if node.Name == m.ActiveTaskName {
+				// We append properly by setting content again.
+				// Optimization: In a real app we might append line by line, but SetContent is safe.
+				m.Viewport.SetContent(node.Logs.String())
+				if m.AutoScroll {
+					m.Viewport.GotoBottom()
+				}
 			}
 		}
 
@@ -85,6 +108,4 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) View() string {
-	return ""
-}
+
