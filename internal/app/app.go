@@ -3,25 +3,47 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.trai.ch/bob/internal/adapters/telemetry"
+	"go.trai.ch/bob/internal/adapters/tui"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/bob/internal/engine/scheduler"
 	"go.trai.ch/zerr"
+	"golang.org/x/sync/errgroup"
 )
 
 // App represents the main application logic.
 type App struct {
 	configLoader ports.ConfigLoader
-	scheduler    *scheduler.Scheduler
+	executor     ports.Executor
+	store        ports.BuildInfoStore
+	hasher       ports.Hasher
+	resolver     ports.InputResolver
+	envFactory   ports.EnvironmentFactory
 }
 
 // New creates a new App instance.
-func New(loader ports.ConfigLoader, sched *scheduler.Scheduler) *App {
+func New(
+	loader ports.ConfigLoader,
+	executor ports.Executor,
+	store ports.BuildInfoStore,
+	hasher ports.Hasher,
+	resolver ports.InputResolver,
+	envFactory ports.EnvironmentFactory,
+) *App {
 	return &App{
 		configLoader: loader,
-		scheduler:    sched,
+		executor:     executor,
+		store:        store,
+		hasher:       hasher,
+		resolver:     resolver,
+		envFactory:   envFactory,
 	}
 }
 
@@ -38,10 +60,84 @@ func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
 		return domain.ErrNoTargetsSpecified
 	}
 
-	// 3. Run the scheduler
-	if err := a.scheduler.Run(ctx, graph, targetNames, runtime.NumCPU(), force); err != nil {
-		return zerr.Wrap(err, "build execution failed")
-	}
+	// 3. Initialize TUI
+	// The TUI model holds the state of the UI.
+	tuiModel := tui.NewModel()
+	// The Program manages the TUI lifecycle.
+	// We capture the program to clean it up if needed.
+	program := tea.NewProgram(tuiModel, tea.WithContext(ctx))
 
-	return nil
+	// 4. Initialize Telemetry
+	// Create a bridge that sends OTel spans to the TUI program.
+	bridge := telemetry.NewTUIBridge(program)
+
+	// Configure the global OTel SDK to usage our bridge for spans.
+	// This ensures that when OTelTracer uses otel.Tracer(), it uses a provider
+	// that forwards events to our bridge.
+	setupOTel(bridge)
+
+	// Create and configure the OTel Tracer adapter.
+	// We inject the program so it can stream logs directly via the batcher.
+	tracer := telemetry.NewOTelTracer("bob").WithProgram(program)
+
+	// 5. Initialize Scheduler
+	sched := scheduler.NewScheduler(
+		a.executor,
+		a.store,
+		a.hasher,
+		a.resolver,
+		tracer,
+		a.envFactory,
+	)
+
+	// 6. Run TUI and Scheduler concurrently
+	// Use a cancelable context to coordinate shutdown.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	// TUI Routine
+	g.Go(func() error {
+		// Program.Run blocks until the program exits.
+		if _, err := program.Run(); err != nil {
+			return err
+		}
+		// If TUI quits first (e.g. user triggers quit), ensure we cancel the scheduler.
+		cancel()
+		return nil
+	})
+
+	// Scheduler Routine
+	g.Go(func() error {
+		defer func() {
+			// Handle panic recovery for the scheduler goroutine
+			if r := recover(); r != nil {
+				// We can't log easily here as TUI is running, but we should ensure quit.
+				// Program shutdown will restore terminal.
+				fmt.Printf("Scheduler panic: %v\n", r)
+			}
+			// Ensure TUI hits tea.Quit when scheduler finishes.
+			program.Quit()
+		}()
+
+		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), force); err != nil {
+			return zerr.Wrap(err, "build execution failed")
+		}
+		return nil
+	})
+
+	return g.Wait()
+}
+
+// setupOTel configures the OpenTelemetry SDK with the TUI bridge.
+func setupOTel(bridge *telemetry.TUIBridge) {
+	// Create a new TracerProvider with the TUI bridge as a SpanProcessor.
+	// This ensures that all started spans are reported to the TUI.
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSpanProcessor(bridge),
+	)
+
+	// Register it as the global provider.
+	otel.SetTracerProvider(tp)
 }
