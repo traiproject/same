@@ -41,6 +41,31 @@ func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestExecutor_Execute_FragmentedOutput(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := mocks.NewMockLogger(ctrl)
+
+	// Expect concatenated "part1part2"
+	mockLogger.EXPECT().Info("part1part2").Times(1)
+
+	executor := shell.NewExecutor(mockLogger)
+	tmpDir := t.TempDir()
+
+	// Simulate fragmented write: "part1" then short sleep then "part2", then newline
+	// This ensures we test that the writer buffers until newline (or implicit close/flush)
+	// We use python or sh for this. Sh is simpler.
+	task := &domain.Task{
+		Name:       domain.NewInternedString("test-fragmented"),
+		Command:    []string{"sh", "-c", "printf part1; sleep 0.1; echo part2"},
+		WorkingDir: domain.NewInternedString(tmpDir),
+	}
+
+	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
+	require.NoError(t, err)
+}
+
 func TestExecutor_Execute_EnvironmentVariables(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

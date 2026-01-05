@@ -2,6 +2,7 @@
 package shell
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -84,13 +85,22 @@ func (e *Executor) Start(
 	// Combined writers:
 	// 1. Structural Logger (info/error)
 	// 2. Output Writers (Span, etc.)
-	finalStdout := io.MultiWriter(&logWriter{logger: e.logger, level: "info"}, stdout)
-	finalStderr := io.MultiWriter(&logWriter{logger: e.logger, level: "error"}, stderr)
+	stdoutLog := &logWriter{logger: e.logger, level: "info"}
+	stderrLog := &logWriter{logger: e.logger, level: "error"}
 
-	return start(ctx, task, env, finalStdout, finalStderr)
+	finalStdout := io.MultiWriter(stdoutLog, stdout)
+	finalStderr := io.MultiWriter(stderrLog, stderr)
+
+	return start(ctx, task, env, finalStdout, finalStderr, stdoutLog, stderrLog)
 }
 
-func start(ctx context.Context, task *domain.Task, env []string, stdout, _ io.Writer) (Process, error) {
+func start(
+	ctx context.Context,
+	task *domain.Task,
+	env []string,
+	stdout, _ io.Writer,
+	stdoutLog, stderrLog *logWriter,
+) (Process, error) {
 	if len(task.Command) == 0 {
 		return nil, nil
 	}
@@ -131,6 +141,12 @@ func start(ctx context.Context, task *domain.Task, env []string, stdout, _ io.Wr
 	go func() {
 		defer close(ioDone)
 		defer func() { _ = ptmx.Close() }()
+		// Ensure any remaining buffered logs are flushed when IO is done
+		defer func() {
+			_ = stdoutLog.Close()
+			_ = stderrLog.Close()
+		}()
+
 		// Copy output to both stdout and stderr (since PTY merges them)
 		// We use io.Copy which creates a 32k buffer. This is efficient enough.
 		// The MultiWriter will ensure it goes to both logic logger and Span.
@@ -171,23 +187,47 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string,
 type logWriter struct {
 	logger ports.Logger
 	level  string
+	buf    []byte
 }
 
 func (w *logWriter) Write(p []byte) (n int, err error) {
-	msg := string(p)
+	w.buf = append(w.buf, p...)
 
-	// PTYs may introduce \r\n. Remove \r to ensure clean logs.
-	msg = strings.ReplaceAll(msg, "\r", "")
-
-	lines := strings.Split(strings.TrimSuffix(msg, "\n"), "\n")
-	for _, line := range lines {
-		if w.level == "info" {
-			w.logger.Info(line)
-		} else {
-			w.logger.Error(zerr.New(line))
+	// Scan for newlines
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
 		}
+
+		line := w.buf[:i]
+		w.logLine(line)
+
+		// Advance buffer
+		w.buf = w.buf[i+1:]
 	}
+
 	return len(p), nil
+}
+
+func (w *logWriter) Close() error {
+	if len(w.buf) > 0 {
+		w.logLine(w.buf)
+		w.buf = nil
+	}
+	return nil
+}
+
+func (w *logWriter) logLine(line []byte) {
+	msg := string(line)
+	// PTYs may introduce \r. Remove it.
+	msg = strings.TrimSuffix(msg, "\r")
+
+	if w.level == "info" {
+		w.logger.Info(msg)
+	} else {
+		w.logger.Error(zerr.New(msg))
+	}
 }
 
 // allowListedEnvVars are the system environment variables that are allowed to be
