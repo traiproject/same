@@ -26,6 +26,7 @@ type App struct {
 	hasher       ports.Hasher
 	resolver     ports.InputResolver
 	envFactory   ports.EnvironmentFactory
+	teaOptions   []tea.ProgramOption
 }
 
 // New creates a new App instance.
@@ -47,6 +48,13 @@ func New(
 	}
 }
 
+// WithTeaOptions adds bubbletea program options to the App.
+// This is primarily used for testing to disable input/output.
+func (a *App) WithTeaOptions(opts ...tea.ProgramOption) *App {
+	a.teaOptions = append(a.teaOptions, opts...)
+	return a
+}
+
 // Run executes the build process for the specified targets.
 func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
 	// 1. Load the graph
@@ -65,7 +73,8 @@ func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
 	tuiModel := tui.NewModel()
 	// The Program manages the TUI lifecycle.
 	// We capture the program to clean it up if needed.
-	program := tea.NewProgram(tuiModel, tea.WithContext(ctx))
+	opts := append([]tea.ProgramOption{tea.WithContext(ctx)}, a.teaOptions...)
+	program := tea.NewProgram(tuiModel, opts...)
 
 	// 4. Initialize Telemetry
 	// Create a bridge that sends OTel spans to the TUI program.

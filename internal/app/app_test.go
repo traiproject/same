@@ -3,11 +3,13 @@ package app_test
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
 	"testing/synctest"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"go.trai.ch/bob/internal/app"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports/mocks"
@@ -48,8 +50,14 @@ func TestApp_Build(t *testing.T) {
 		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
+
 		// Setup App
-		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
+		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+			)
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		// Expectations
@@ -97,7 +105,12 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 		// Setup App
-		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
+		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+			)
 
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
@@ -142,7 +155,12 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 		// Setup App
-		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
+		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+			)
 
 		// Expectations - loader fails
 		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))
