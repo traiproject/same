@@ -24,8 +24,9 @@ type Process interface {
 }
 
 type ptyProcess struct {
-	cmd  *exec.Cmd
-	ptmx *os.File
+	cmd    *exec.Cmd
+	ptmx   *os.File
+	ioDone <-chan struct{}
 }
 
 func (p *ptyProcess) Wait() error {
@@ -36,6 +37,9 @@ func (p *ptyProcess) Wait() error {
 
 	// Wait for the command to exit.
 	err := p.cmd.Wait()
+
+	// Wait for the IO copy loop to finish
+	<-p.ioDone
 
 	// Close the pty master if it hasn't been closed by the loop copying data.
 	// Usually we close it after the command exits so that the copy loop finishes
@@ -123,7 +127,9 @@ func start(ctx context.Context, task *domain.Task, env []string, stdout, _ io.Wr
 		return nil, zerr.Wrap(err, "failed to start pty")
 	}
 
+	ioDone := make(chan struct{})
 	go func() {
+		defer close(ioDone)
 		defer func() { _ = ptmx.Close() }()
 		// Copy output to both stdout and stderr (since PTY merges them)
 		// We use io.Copy which creates a 32k buffer. This is efficient enough.
@@ -132,8 +138,9 @@ func start(ctx context.Context, task *domain.Task, env []string, stdout, _ io.Wr
 	}()
 
 	return &ptyProcess{
-		cmd:  cmd,
-		ptmx: ptmx,
+		cmd:    cmd,
+		ptmx:   ptmx,
+		ioDone: ioDone,
 	}, nil
 }
 

@@ -50,7 +50,6 @@ func TestApp_Build(t *testing.T) {
 		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
-
 		// Setup App
 		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
 			WithTeaOptions(
