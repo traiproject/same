@@ -52,7 +52,7 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	// mockLogger.EXPECT().Info removed
 	mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), gomock.Any()).Return(expectedEnv, nil)
 	mockSpan.EXPECT().End() // Hydration end
-	
+
 	// Task Execution
 	mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
 	mockSpan.EXPECT().End() // Task end

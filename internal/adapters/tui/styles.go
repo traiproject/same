@@ -3,7 +3,7 @@ package tui
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	// Pane Styles
+	// Pane Styles.
 	listStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, true, false, false).
 			MarginRight(1).
@@ -12,7 +12,7 @@ var (
 	logStyle = lipgloss.NewStyle().
 			PaddingLeft(1)
 
-	// Task Status Styles
+	// Task Status Styles.
 	taskPendingStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("246")) // Gray
 
@@ -30,7 +30,7 @@ var (
 			Foreground(lipgloss.Color("240")). // Dimmed Gray
 			Faint(true)
 
-	// Header Styles
+	// Header Styles.
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Padding(0, 1).

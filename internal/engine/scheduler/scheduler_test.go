@@ -169,12 +169,12 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		// Expectations
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C"}))
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
-		
+
 		// Tasks C, B, A run
 		mockTracer.EXPECT().Start(gomock.Any(), "C").Return(context.Background(), mockSpan)
 		mockTracer.EXPECT().Start(gomock.Any(), "B").Return(context.Background(), mockSpan)
 		mockTracer.EXPECT().Start(gomock.Any(), "A").Return(context.Background(), mockSpan)
-		
+
 		mockSpan.EXPECT().End().Times(4)
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -228,7 +228,7 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C"}))
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
-		
+
 		mockTracer.EXPECT().Start(gomock.Any(), "A").Return(context.Background(), mockSpan)
 		mockTracer.EXPECT().Start(gomock.Any(), "B").Return(context.Background(), mockSpan)
 		mockTracer.EXPECT().Start(gomock.Any(), "C").Return(context.Background(), mockSpan)
@@ -264,9 +264,9 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockTracer := mocks.NewMockTracer(ctrl)
-		
+
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
-		
+
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{})
 		mockSpan := mocks.NewMockSpan(ctrl)
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
@@ -299,7 +299,7 @@ func TestScheduler_Run_TaskNotFound(t *testing.T) {
 		// Expect failure before EmitPlan happens technically, OR depending on implementation.
 		// Current impl: Validate -> newRunState (resolves tasks) -> EmitPlan.
 		// ResolveTargetTasks returns error if task not found. So EmitPlan NOT called.
-		
+
 		err := s.Run(context.Background(), g, []string{"B"}, 1, false)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "task not found")

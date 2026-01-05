@@ -8,7 +8,6 @@ import (
 	"go.trai.ch/bob/internal/app"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports/mocks"
-	"go.trai.ch/bob/internal/engine/scheduler"
 	"go.uber.org/mock/gomock"
 )
 
@@ -21,17 +20,16 @@ func TestRun_Success(t *testing.T) {
 	mockExecutor := mocks.NewMockExecutor(ctrl)
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
-	mockLogger := mocks.NewMockLogger(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 	// Create a graph with one task named "build"
 	g := domain.NewGraph()
 	buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
 	_ = g.AddTask(buildTask)
 
-	// Setup scheduler and app
-	mockResolver := mocks.NewMockInputResolver(ctrl)
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
-	a := app.New(mockLoader, sched)
+	// Setup app
+	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
 
 	// Initialize CLI
 	cli := commands.New(a)
@@ -48,7 +46,9 @@ func TestRun_Success(t *testing.T) {
 	mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
 
 	// 4. Executor.Execute is called once to run the task (since it's a cache miss)
-	mockExecutor.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	mockExecutor.EXPECT().Execute(
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+	).Return(nil).Times(1)
 
 	// 5. Store.Put is called once to save the new build result
 	mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
@@ -73,12 +73,11 @@ func TestRun_NoTargets(t *testing.T) {
 	mockExecutor := mocks.NewMockExecutor(ctrl)
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
-	mockLogger := mocks.NewMockLogger(ctrl)
 	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
-	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
-	a := app.New(mockLoader, sched)
+	// Setup app
+	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
 
 	// Initialize CLI
 	cli := commands.New(a)
@@ -104,12 +103,11 @@ func TestRoot_Help(t *testing.T) {
 	mockExecutor := mocks.NewMockExecutor(ctrl)
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
-	mockLogger := mocks.NewMockLogger(ctrl)
-
 	mockResolver := mocks.NewMockInputResolver(ctrl)
-	// Setup scheduler and app
-	sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
-	a := app.New(mockLoader, sched)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+
+	// Setup app
+	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
 
 	// Initialize CLI
 	cli := commands.New(a)

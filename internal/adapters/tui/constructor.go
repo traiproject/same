@@ -1,3 +1,4 @@
+// Package tui provides a textual user interface for the build system.
 package tui
 
 import "github.com/charmbracelet/bubbles/viewport"

@@ -15,12 +15,13 @@ func NewNoOpTracer() *NoOpTracer {
 }
 
 // Start creates a new no-op span.
-func (t *NoOpTracer) Start(ctx context.Context, name string, opts ...ports.SpanOption) (context.Context, ports.Span) {
+// Start creates a new no-op span.
+func (t *NoOpTracer) Start(ctx context.Context, _ string, _ ...ports.SpanOption) (context.Context, ports.Span) {
 	return ctx, &NoOpSpan{}
 }
 
 // EmitPlan does nothing.
-func (t *NoOpTracer) EmitPlan(ctx context.Context, taskNames []string) {}
+func (t *NoOpTracer) EmitPlan(_ context.Context, _ []string) {}
 
 // NoOpSpan is a no-op implementation of ports.Span.
 type NoOpSpan struct{}
@@ -29,7 +30,7 @@ type NoOpSpan struct{}
 func (s *NoOpSpan) End() {}
 
 // SetAttribute does nothing.
-func (s *NoOpSpan) SetAttribute(key string, value any) {}
+func (s *NoOpSpan) SetAttribute(_ string, _ any) {}
 
 // Write does nothing and returns the length of p.
 func (s *NoOpSpan) Write(p []byte) (n int, err error) {

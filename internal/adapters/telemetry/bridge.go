@@ -74,11 +74,12 @@ func (b *TUIBridge) OnEnd(s sdktrace.ReadOnlySpan) {
 }
 
 // ForceFlush does nothing.
-func (b *TUIBridge) ForceFlush(ctx context.Context) error {
+// ForceFlush does nothing.
+func (b *TUIBridge) ForceFlush(_ context.Context) error {
 	return nil
 }
 
 // Shutdown does nothing.
-func (b *TUIBridge) Shutdown(ctx context.Context) error {
+func (b *TUIBridge) Shutdown(_ context.Context) error {
 	return nil
 }

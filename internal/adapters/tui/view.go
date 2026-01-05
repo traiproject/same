@@ -7,6 +7,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// View renders the UI.
+//
+//nolint:gocritic // hugeParam ignored
 func (m Model) View() string {
 	if m.Viewport.Height == 0 {
 		return "Initializing..."
@@ -19,6 +22,7 @@ func (m Model) View() string {
 	)
 }
 
+//nolint:gocritic // hugeParam ignored
 func (m Model) taskList() string {
 	var s strings.Builder
 
@@ -66,6 +70,7 @@ func (m Model) taskList() string {
 	return listStyle.Render(s.String())
 }
 
+//nolint:gocritic // hugeParam ignored
 func (m Model) logPane() string {
 	var header string
 	if m.ActiveTaskName != "" {

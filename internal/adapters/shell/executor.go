@@ -1,17 +1,17 @@
-// Copyright (c) 2024 Your Company. All rights reserved.
-
+// Package shell provides a shell-based executor for running tasks.
 package shell
 
 import (
 	"context"
+	"errors"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/creack/pty"
-
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports"
 	"go.trai.ch/zerr"
@@ -24,9 +24,8 @@ type Process interface {
 }
 
 type ptyProcess struct {
-	cmd     *exec.Cmd
-	ptmx    *os.File
-	waitErr error
+	cmd  *exec.Cmd
+	ptmx *os.File
 }
 
 func (p *ptyProcess) Wait() error {
@@ -34,18 +33,22 @@ func (p *ptyProcess) Wait() error {
 	// We need to wait for it to finish.
 	// Note: p.cmd.Wait() handles closing of some pipes, but for PTYs
 	// we managed the ptmx.
-	
+
 	// Wait for the command to exit.
 	err := p.cmd.Wait()
-	
+
 	// Close the pty master if it hasn't been closed by the loop copying data.
 	// Usually we close it after the command exits so that the copy loop finishes
 	// reading what's left.
-	
+
 	return err
 }
 
 func (p *ptyProcess) Resize(rows, cols int) error {
+	if rows > math.MaxUint16 || cols > math.MaxUint16 || rows < 0 || cols < 0 {
+		return errors.New("terminal size out of bounds")
+	}
+
 	return pty.Setsize(p.ptmx, &pty.Winsize{
 		Rows: uint16(rows),
 		Cols: uint16(cols),
@@ -68,7 +71,12 @@ func NewExecutor(logger ports.Logger) *Executor {
 
 // Start launches the task's command in a PTY (on supported systems) or standard pipes.
 // It returns a Process interface to control and wait for the command.
-func (e *Executor) Start(ctx context.Context, task *domain.Task, env []string, stdout, stderr io.Writer) (Process, error) {
+func (e *Executor) Start(
+	ctx context.Context,
+	task *domain.Task,
+	env []string,
+	stdout, stderr io.Writer,
+) (Process, error) {
 	// Combined writers:
 	// 1. Structural Logger (info/error)
 	// 2. Output Writers (Span, etc.)
@@ -78,7 +86,7 @@ func (e *Executor) Start(ctx context.Context, task *domain.Task, env []string, s
 	return start(ctx, task, env, finalStdout, finalStderr)
 }
 
-func start(ctx context.Context, task *domain.Task, env []string, stdout, stderr io.Writer) (Process, error) {
+func start(ctx context.Context, task *domain.Task, env []string, stdout, _ io.Writer) (Process, error) {
 	if len(task.Command) == 0 {
 		return nil, nil
 	}
@@ -153,8 +161,6 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string,
 	return nil
 }
 
-
-
 type logWriter struct {
 	logger ports.Logger
 	level  string
@@ -162,7 +168,7 @@ type logWriter struct {
 
 func (w *logWriter) Write(p []byte) (n int, err error) {
 	msg := string(p)
-	
+
 	// PTYs may introduce \r\n. Remove \r to ensure clean logs.
 	msg = strings.ReplaceAll(msg, "\r", "")
 

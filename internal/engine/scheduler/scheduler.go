@@ -106,7 +106,7 @@ func (s *Scheduler) Run(
 
 	// Calculate and emit the build plan based on topological sort
 	plannedTasks := make([]string, 0, len(state.allTasks))
-	
+
 	// Create a map for fast lookup of tasks included in this run
 	taskSet := make(map[domain.InternedString]bool, len(state.allTasks))
 	for _, t := range state.allTasks {
@@ -127,9 +127,9 @@ func (s *Scheduler) Run(
 	// Resolve all unique environments concurrently before execution starts
 	// Wrapped in a span for visibility
 	ctx, span := s.tracer.Start(ctx, "Hydrating Environments")
-	err = state.prepareEnvironments()
+	err = state.prepareEnvironments(ctx)
 	span.End()
-	
+
 	if err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func (state *schedulerRunState) runExecutionLoop() error {
 }
 
 // prepareEnvironments resolves all required environments concurrently.
-func (state *schedulerRunState) prepareEnvironments() error {
+func (state *schedulerRunState) prepareEnvironments(ctx context.Context) error {
 	// Identify unique environment IDs needed for this run
 	neededEnvIDs := make(map[string]map[string]string) // envID -> tools map (sample)
 
@@ -285,7 +285,7 @@ func (state *schedulerRunState) prepareEnvironments() error {
 		return nil
 	}
 
-	g, ctx := errgroup.WithContext(state.ctx)
+	g, ctx := errgroup.WithContext(ctx)
 
 	for _, item := range envsToResolve {
 		item := item // capture loop var
@@ -463,14 +463,14 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 	state.resultsCh <- res
 }
 
-func (state *schedulerRunState) computeInputHash(t *domain.Task) (bool, string, error) {
+func (state *schedulerRunState) computeInputHash(t *domain.Task) (skipped bool, hash string, err error) {
 	if state.force {
-		h, err := state.s.computeHashForce(t, state.graph.Root())
-		return false, h, err
+		h, forceErr := state.s.computeHashForce(t, state.graph.Root())
+		return false, h, forceErr
 	}
 
 	// Normal mode: check cache
-	skipped, hash, err := state.s.checkTaskCache(state.ctx, t, state.graph.Root())
+	skipped, hash, err = state.s.checkTaskCache(state.ctx, t, state.graph.Root())
 	if err != nil {
 		return false, "", err
 	}
@@ -541,9 +541,7 @@ func (state *schedulerRunState) handleResult(res result) {
 
 func (state *schedulerRunState) handleSuccess(res result) {
 	state.s.updateStatus(res.task, StatusCompleted)
-	if res.skipped {
-		// Logging moved to span attributes/events, direct usage removed.
-	} else {
+	if !res.skipped {
 		outputHash := state.computeOutputHash(res)
 		if outputHash != "" || len(res.taskOutputs) == 0 {
 			err := state.s.store.Put(domain.BuildInfo{
@@ -554,6 +552,8 @@ func (state *schedulerRunState) handleSuccess(res result) {
 			})
 			if err != nil {
 				// We log the error but don't fail the build if cache update fails
+				// TODO: Log this error properly once logger is available here or use a specific error metric
+				_ = err
 			}
 		}
 	}

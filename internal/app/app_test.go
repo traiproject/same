@@ -11,7 +11,6 @@ import (
 	"go.trai.ch/bob/internal/app"
 	"go.trai.ch/bob/internal/core/domain"
 	"go.trai.ch/bob/internal/core/ports/mocks"
-	"go.trai.ch/bob/internal/engine/scheduler"
 	"go.uber.org/mock/gomock"
 )
 
@@ -40,7 +39,8 @@ func TestApp_Build(t *testing.T) {
 		mockExecutor := mocks.NewMockExecutor(ctrl)
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
-		mockLogger := mocks.NewMockLogger(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 		// Setup Graph
 		g := domain.NewGraph()
@@ -49,16 +49,14 @@ func TestApp_Build(t *testing.T) {
 		_ = g.AddTask(task)
 
 		// Setup App
-		mockResolver := mocks.NewMockInputResolver(ctrl)
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
-		a := app.New(mockLoader, sched)
+		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get("task1").Return(nil, nil)
-		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any()).Return(nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
 
 		// Run
@@ -95,12 +93,11 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockExecutor := mocks.NewMockExecutor(ctrl)
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
-		mockLogger := mocks.NewMockLogger(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 		// Setup App
-		mockResolver := mocks.NewMockInputResolver(ctrl)
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
-		a := app.New(mockLoader, sched)
+		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
 
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
@@ -141,12 +138,11 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockExecutor := mocks.NewMockExecutor(ctrl)
 		mockStore := mocks.NewMockBuildInfoStore(ctrl)
 		mockHasher := mocks.NewMockHasher(ctrl)
-		mockLogger := mocks.NewMockLogger(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 		// Setup App
-		mockResolver := mocks.NewMockInputResolver(ctrl)
-		sched := scheduler.NewScheduler(mockExecutor, mockStore, mockHasher, mockResolver, mockLogger, nil)
-		a := app.New(mockLoader, sched)
+		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
 
 		// Expectations - loader fails
 		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))

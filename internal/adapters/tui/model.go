@@ -8,15 +8,26 @@ import (
 	"go.trai.ch/bob/internal/adapters/telemetry"
 )
 
+const (
+	taskListWidthRatio = 0.3
+	logPaneBorderWidth = 4
+)
+
+// TaskStatus represents the current state of a task.
 type TaskStatus string
 
 const (
+	// StatusPending indicates the task is waiting to start.
 	StatusPending TaskStatus = "Pending"
+	// StatusRunning indicates the task is currently executing.
 	StatusRunning TaskStatus = "Running"
-	StatusDone    TaskStatus = "Done"
-	StatusError   TaskStatus = "Error"
+	// StatusDone indicates the task completed successfully.
+	StatusDone TaskStatus = "Done"
+	// StatusError indicates the task failed.
+	StatusError TaskStatus = "Error"
 )
 
+// TaskNode represents a single task in the UI list.
 type TaskNode struct {
 	Name   string
 	Status TaskStatus
@@ -24,19 +35,26 @@ type TaskNode struct {
 	Cached bool
 }
 
+// Model represents the main TUI state.
 type Model struct {
-	Tasks      []TaskNode
-	TaskMap    map[string]*TaskNode
-	SpanMap    map[string]*TaskNode
+	Tasks          []TaskNode
+	TaskMap        map[string]*TaskNode
+	SpanMap        map[string]*TaskNode
 	Viewport       viewport.Model
 	AutoScroll     bool
 	ActiveTaskName string
 }
 
+// Init initializes the model.
+//
+//nolint:gocritic // hugeParam ignored
 func (m Model) Init() tea.Cmd {
 	return nil
 }
 
+// Update handles incoming messages and updates the model state.
+//
+//nolint:cyclop,gocritic // hugeParam ignored, cyclop ignored
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -49,8 +67,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		// Split screen: 30% for task list, 70% for logs
-		listWidth := int(float64(msg.Width) * 0.3)
-		logWidth := msg.Width - listWidth - 4 // minus margins/borders
+		listWidth := int(float64(msg.Width) * taskListWidthRatio)
+		logWidth := msg.Width - listWidth - logPaneBorderWidth // minus margins/borders
 
 		m.Viewport.Width = logWidth
 		m.Viewport.Height = msg.Height - 2 // minus header/footer space if any
@@ -107,5 +125,3 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	return m, cmd
 }
-
-

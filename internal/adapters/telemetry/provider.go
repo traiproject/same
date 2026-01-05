@@ -82,7 +82,7 @@ type OTelSpan struct {
 // End completes the span.
 func (s *OTelSpan) End() {
 	if s.batcher != nil {
-		s.batcher.Close()
+		_ = s.batcher.Close()
 	}
 	s.span.End()
 }
