@@ -181,3 +181,68 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		}
 	})
 }
+
+func TestApp_Run_BuildExecutionFailed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Use a temporary directory for the test
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		// Setup Graph
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task)
+
+		// Setup App
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			)
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
+		// Expectations
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
+		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		// Mock Executor failure
+		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(errors.New("command failed"))
+
+		// Run
+		err = a.Run(context.Background(), []string{"task1"}, false)
+		// Assert
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		if !errors.Is(err, domain.ErrBuildExecutionFailed) {
+			t.Errorf("Expected error to wrap ErrBuildExecutionFailed, got: %v", err)
+		}
+	})
+}

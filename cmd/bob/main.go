@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 	"github.com/grindlemire/graft"
 	"go.trai.ch/bob/cmd/bob/commands"
 	"go.trai.ch/bob/internal/app"
+	"go.trai.ch/bob/internal/core/domain"
 	_ "go.trai.ch/bob/internal/wiring"
 )
 
@@ -41,6 +43,9 @@ func run(opts ...func(*app.App)) int {
 
 	// 4. Execution
 	if err := cli.Execute(ctx); err != nil {
+		if errors.Is(err, domain.ErrBuildExecutionFailed) {
+			return 1
+		}
 		components.Logger.Error(err)
 		return 1
 	}

@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -160,7 +161,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
 		}()
 
 		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), force); err != nil {
-			return zerr.Wrap(err, "build execution failed")
+			return errors.Join(domain.ErrBuildExecutionFailed, err)
 		}
 		return nil
 	})
