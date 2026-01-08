@@ -43,6 +43,7 @@ func TestApp_Build(t *testing.T) {
 		mockHasher := mocks.NewMockHasher(ctrl)
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
 
 		// Setup Graph
 		g := domain.NewGraph()
@@ -51,7 +52,7 @@ func TestApp_Build(t *testing.T) {
 		_ = g.AddTask(task)
 
 		// Setup App
-		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -105,7 +106,8 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 		// Setup App
-		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		mockLogger := mocks.NewMockLogger(ctrl)
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -155,7 +157,8 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 		// Setup App
-		a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		mockLogger := mocks.NewMockLogger(ctrl)
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),

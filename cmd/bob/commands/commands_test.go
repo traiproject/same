@@ -31,7 +31,8 @@ func TestRun_Success(t *testing.T) {
 	_ = g.AddTask(buildTask)
 
 	// Setup app
-	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+	mockLogger := mocks.NewMockLogger(ctrl)
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
 		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
 	// Initialize CLI
@@ -80,7 +81,8 @@ func TestRun_NoTargets(t *testing.T) {
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 	// Setup app
-	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+	mockLogger := mocks.NewMockLogger(ctrl)
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
 		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
 	// Initialize CLI
@@ -111,7 +113,8 @@ func TestRoot_Help(t *testing.T) {
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 	// Setup app
-	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+	mockLogger := mocks.NewMockLogger(ctrl)
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
 		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
 	// Initialize CLI

@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"bytes"
-
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -32,7 +30,7 @@ const (
 type TaskNode struct {
 	Name   string
 	Status TaskStatus
-	Logs   bytes.Buffer
+	Logs   []byte
 	Cached bool
 }
 
@@ -77,7 +75,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Re-wrap content if we have an active task
 		if m.ActiveTaskName != "" {
 			if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
-				m.Viewport.SetContent(wrapLog(node.Logs.String(), m.Viewport.Width))
+				m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
 			}
 		}
 
@@ -100,7 +98,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Focus follows activity
 			m.ActiveTaskName = msg.Name
-			m.Viewport.SetContent(wrapLog(node.Logs.String(), m.Viewport.Width))
+			m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
 			if m.AutoScroll {
 				m.Viewport.GotoBottom()
 			}
@@ -108,13 +106,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case telemetry.MsgTaskLog:
 		if node, ok := m.SpanMap[msg.SpanID]; ok {
-			node.Logs.Write(msg.Data)
+			node.Logs = append(node.Logs, msg.Data...)
+
+			// Truncate if too large (keep last 1MB just to be safe and efficient)
+			const maxLogSize = 1024 * 1024
+			if len(node.Logs) > maxLogSize {
+				node.Logs = node.Logs[len(node.Logs)-maxLogSize:]
+			}
 
 			// Update viewport if we are looking at this task
 			if node.Name == m.ActiveTaskName {
 				// We append properly by setting content again.
 				// Optimization: In a real app we might append line by line, but SetContent is safe.
-				m.Viewport.SetContent(wrapLog(node.Logs.String(), m.Viewport.Width))
+				m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
 				if m.AutoScroll {
 					m.Viewport.GotoBottom()
 				}

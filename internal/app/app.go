@@ -4,11 +4,13 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // concrete type assertion
 	"go.trai.ch/bob/internal/adapters/telemetry"
 	"go.trai.ch/bob/internal/adapters/tui"
 	"go.trai.ch/bob/internal/core/domain"
@@ -18,10 +20,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	logDirPerm  = 0o750
+	logFilePerm = 0o600
+)
+
 // App represents the main application logic.
 type App struct {
 	configLoader ports.ConfigLoader
 	executor     ports.Executor
+	logger       ports.Logger
 	store        ports.BuildInfoStore
 	hasher       ports.Hasher
 	resolver     ports.InputResolver
@@ -33,6 +41,7 @@ type App struct {
 func New(
 	loader ports.ConfigLoader,
 	executor ports.Executor,
+	log ports.Logger,
 	store ports.BuildInfoStore,
 	hasher ports.Hasher,
 	resolver ports.InputResolver,
@@ -41,6 +50,7 @@ func New(
 	return &App{
 		configLoader: loader,
 		executor:     executor,
+		logger:       log,
 		store:        store,
 		hasher:       hasher,
 		resolver:     resolver,
@@ -57,6 +67,25 @@ func (a *App) WithTeaOptions(opts ...tea.ProgramOption) *App {
 
 // Run executes the build process for the specified targets.
 func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
+	// 0. Redirect Logs for TUI
+	// We want to avoid polluting the terminal with app logs while the TUI is running.
+	if err := os.MkdirAll(".bob", logDirPerm); err != nil {
+		return zerr.Wrap(err, "failed to create .bob directory")
+	}
+	f, err := os.OpenFile(".bob/debug.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, logFilePerm)
+	if err != nil {
+		return zerr.Wrap(err, "failed to open debug log")
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	// If we have the concrete logger type, redirect it.
+	if l, ok := a.logger.(*logger.Logger); ok {
+		l.SetOutput(f)
+		defer l.SetOutput(os.Stderr)
+	}
+
 	// 1. Load the graph
 	graph, err := a.configLoader.Load(".")
 	if err != nil {
