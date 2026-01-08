@@ -20,6 +20,8 @@ type Span interface {
 	io.Writer
 	// End completes the span.
 	End()
+	// RecordError records an error for the span.
+	RecordError(err error)
 	// SetAttribute adds a key-value pair to the span.
 	SetAttribute(key string, value any)
 }

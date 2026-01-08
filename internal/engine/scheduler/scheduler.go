@@ -415,6 +415,7 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 		// Step 1: Compute Input Hash (Check Cache)
 		skipped, hash, err := state.computeInputHash(t)
 		if err != nil {
+			span.RecordError(err)
 			return result{task: t.Name, err: err}
 		}
 
@@ -426,7 +427,8 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 
 		// Step 2: Clean Outputs
 		// Clean outputs before building to prevent stale artifacts
-		if err := state.validateAndCleanOutputs(t); err != nil {
+		if err = state.validateAndCleanOutputs(t); err != nil {
+			span.RecordError(err)
 			return result{task: t.Name, err: err}
 		}
 
@@ -443,18 +445,25 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 			envID := state.taskEnvIDs[t.Name]
 			cachedEnv, ok := state.s.envCache.Load(envID)
 			if !ok {
+				err = zerr.With(domain.ErrEnvironmentNotCached, "env_id", envID)
+				span.RecordError(err)
 				return result{
 					task: t.Name,
-					err:  zerr.With(domain.ErrEnvironmentNotCached, "env_id", envID),
+					err:  err,
 				}
 			}
 			env = cachedEnv.([]string)
 		}
 
 		// Step 4: Execute
+		err = state.s.executor.Execute(ctx, t, env, span, span)
+		if err != nil {
+			span.RecordError(err)
+		}
+
 		return result{
 			task:        t.Name,
-			err:         state.s.executor.Execute(ctx, t, env, span, span),
+			err:         err,
 			inputHash:   hash,
 			taskOutputs: outputs,
 		}

@@ -29,6 +29,9 @@ type NoOpSpan struct{}
 // End does nothing.
 func (s *NoOpSpan) End() {}
 
+// RecordError does nothing.
+func (s *NoOpSpan) RecordError(_ error) {}
+
 // SetAttribute does nothing.
 func (s *NoOpSpan) SetAttribute(_ string, _ any) {}
 

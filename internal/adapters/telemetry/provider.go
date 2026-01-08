@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.trai.ch/bob/internal/core/ports"
 )
@@ -85,6 +86,12 @@ func (s *OTelSpan) End() {
 		_ = s.batcher.Close()
 	}
 	s.span.End()
+}
+
+// RecordError records an error for the span.
+func (s *OTelSpan) RecordError(err error) {
+	s.span.RecordError(err)
+	s.span.SetStatus(codes.Error, err.Error())
 }
 
 // SetAttribute adds a key-value pair to the span.

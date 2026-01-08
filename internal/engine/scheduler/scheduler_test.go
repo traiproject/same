@@ -63,6 +63,11 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C", "D"}))
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
 		mockSpan.EXPECT().End().Times(4) // 1x Hydration, 3x Tasks (D, B, C)
+		mockSpan.EXPECT().RecordError(gomock.Any()).Do(func(err error) {
+			if err.Error() != "B failed" {
+				t.Errorf("expected error 'B failed', got '%v'", err)
+			}
+		})
 
 		// Tasks D, B, C run. A is skipped due to deps failing.
 		mockTracer.EXPECT().Start(gomock.Any(), "D").Return(context.Background(), mockSpan)
