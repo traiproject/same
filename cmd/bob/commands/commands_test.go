@@ -2,8 +2,10 @@ package commands_test
 
 import (
 	"context"
+	"io"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"go.trai.ch/bob/cmd/bob/commands"
 	"go.trai.ch/bob/internal/app"
 	"go.trai.ch/bob/internal/core/domain"
@@ -29,7 +31,8 @@ func TestRun_Success(t *testing.T) {
 	_ = g.AddTask(buildTask)
 
 	// Setup app
-	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
+	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
 	// Initialize CLI
 	cli := commands.New(a)
@@ -77,7 +80,8 @@ func TestRun_NoTargets(t *testing.T) {
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 	// Setup app
-	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
+	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
 	// Initialize CLI
 	cli := commands.New(a)
@@ -107,7 +111,8 @@ func TestRoot_Help(t *testing.T) {
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 
 	// Setup app
-	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory)
+	a := app.New(mockLoader, mockExecutor, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
 	// Initialize CLI
 	cli := commands.New(a)

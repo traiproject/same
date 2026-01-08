@@ -56,6 +56,7 @@ func TestApp_Build(t *testing.T) {
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
 				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
 			)
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)

@@ -17,7 +17,7 @@ func main() {
 	os.Exit(run())
 }
 
-func run() int {
+func run(opts ...func(*app.App)) int {
 	// 0. Context with signal handling
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -29,6 +29,11 @@ func run() int {
 		// Write directly to stderr
 		_, _ = os.Stderr.WriteString("Error: " + err.Error() + "\n")
 		return 1
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(components.App)
 	}
 
 	// 2. Interface - CLI

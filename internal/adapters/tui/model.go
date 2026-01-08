@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"go.trai.ch/bob/internal/adapters/telemetry"
 )
 
@@ -73,6 +74,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Viewport.Width = logWidth
 		m.Viewport.Height = msg.Height - 2 // minus header/footer space if any
 
+		// Re-wrap content if we have an active task
+		if m.ActiveTaskName != "" {
+			if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
+				m.Viewport.SetContent(wrapLog(node.Logs.String(), m.Viewport.Width))
+			}
+		}
+
 	case telemetry.MsgInitTasks:
 		m.Tasks = make([]TaskNode, len(msg.Tasks))
 		m.TaskMap = make(map[string]*TaskNode, len(msg.Tasks))
@@ -92,7 +100,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Focus follows activity
 			m.ActiveTaskName = msg.Name
-			m.Viewport.SetContent(node.Logs.String())
+			m.Viewport.SetContent(wrapLog(node.Logs.String(), m.Viewport.Width))
 			if m.AutoScroll {
 				m.Viewport.GotoBottom()
 			}
@@ -106,7 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if node.Name == m.ActiveTaskName {
 				// We append properly by setting content again.
 				// Optimization: In a real app we might append line by line, but SetContent is safe.
-				m.Viewport.SetContent(node.Logs.String())
+				m.Viewport.SetContent(wrapLog(node.Logs.String(), m.Viewport.Width))
 				if m.AutoScroll {
 					m.Viewport.GotoBottom()
 				}
@@ -124,4 +132,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, cmd
+}
+
+func wrapLog(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	if text == "" {
+		return ""
+	}
+
+	return lipgloss.NewStyle().Width(width).Render(text)
 }
