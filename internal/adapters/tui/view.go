@@ -17,13 +17,13 @@ func (m Model) View() string {
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		m.taskList(),
-		m.logPane(),
+		(&m).taskList(),
+		(&m).logPane(),
 	)
 }
 
 //nolint:gocritic // hugeParam ignored
-func (m Model) taskList() string {
+func (m *Model) taskList() string {
 	var s strings.Builder
 
 	s.WriteString(titleStyle.Render("TASKS") + "\n\n")
@@ -71,7 +71,7 @@ func (m Model) taskList() string {
 }
 
 //nolint:gocritic // hugeParam ignored
-func (m Model) logPane() string {
+func (m *Model) logPane() string {
 	var header string
 	if m.ActiveTaskName != "" {
 		header = titleStyle.Render("LOGS: " + m.ActiveTaskName)
