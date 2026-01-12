@@ -66,8 +66,14 @@ func (a *App) WithTeaOptions(opts ...tea.ProgramOption) *App {
 	return a
 }
 
+// RunOptions configuration for the Run method.
+type RunOptions struct {
+	Force   bool
+	Inspect bool
+}
+
 // Run executes the build process for the specified targets.
-func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
+func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
 	// 0. Redirect Logs for TUI
 	// We want to avoid polluting the terminal with app logs while the TUI is running.
 	if err := os.MkdirAll(".bob", logDirPerm); err != nil {
@@ -103,8 +109,8 @@ func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
 	tuiModel := tui.NewModel()
 	// The Program manages the TUI lifecycle.
 	// We capture the program to clean it up if needed.
-	opts := append([]tea.ProgramOption{tea.WithContext(ctx)}, a.teaOptions...)
-	program := tea.NewProgram(tuiModel, opts...)
+	optsTea := append([]tea.ProgramOption{tea.WithContext(ctx)}, a.teaOptions...)
+	program := tea.NewProgram(tuiModel, optsTea...)
 
 	// 4. Initialize Telemetry
 	// Create a bridge that sends OTel spans to the TUI program.
@@ -156,11 +162,13 @@ func (a *App) Run(ctx context.Context, targetNames []string, force bool) error {
 				// Program shutdown will restore terminal.
 				fmt.Printf("Scheduler panic: %v\n", r)
 			}
-			// Ensure TUI hits tea.Quit when scheduler finishes.
-			program.Quit()
+			// Ensure TUI hits tea.Quit when scheduler finishes, UNLESS inspection mode is on.
+			if !opts.Inspect {
+				program.Quit()
+			}
 		}()
 
-		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), force); err != nil {
+		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), opts.Force); err != nil {
 			return errors.Join(domain.ErrBuildExecutionFailed, err)
 		}
 		return nil
