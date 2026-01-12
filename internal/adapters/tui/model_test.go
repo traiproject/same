@@ -277,3 +277,158 @@ func TestUpdate_TaskComplete(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, tui.StatusError, newM.Tasks[0].Status)
 }
+
+func TestInit(t *testing.T) {
+	m := tui.Model{}
+	cmd := m.Init()
+	assert.Nil(t, cmd)
+}
+
+func TestUpdate_Quit(t *testing.T) {
+	m := tui.Model{}
+
+	// Test "q"
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	assert.Equal(t, tea.Quit(), cmd())
+
+	// Test "ctrl+c"
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	assert.Equal(t, tea.Quit(), cmd())
+}
+
+func TestUpdate_Logs_Truncation(t *testing.T) {
+	m := tui.Model{
+		Tasks:   []tui.TaskNode{{Name: "task1"}},
+		SpanMap: make(map[string]*tui.TaskNode),
+	}
+	m.SpanMap["span1"] = &m.Tasks[0]
+
+	// Create a log message slightly larger than 1MB
+	// 1MB = 1024 * 1024 = 1048576 bytes
+	largeData := make([]byte, 1024*1024+100)
+	for i := range largeData {
+		largeData[i] = 'a'
+	}
+	msg := telemetry.MsgTaskLog{SpanID: "span1", Data: largeData}
+
+	updatedModel, _ := m.Update(msg)
+	newM, ok := updatedModel.(tui.Model)
+	require.True(t, ok)
+
+	// Logs should be truncated to exactly 1MB
+	assert.Len(t, newM.Tasks[0].Logs, 1024*1024)
+}
+
+func TestUpdate_Logs_InactiveTask(t *testing.T) {
+	m := tui.Model{
+		Tasks:          []tui.TaskNode{{Name: "task1"}, {Name: "task2"}},
+		ActiveTaskName: "task1",
+		SpanMap:        make(map[string]*tui.TaskNode),
+		Viewport:       viewport.New(100, 20),
+	}
+	m.SpanMap["span2"] = &m.Tasks[1] // associate span2 with task2 (inactive)
+
+	msg := telemetry.MsgTaskLog{SpanID: "span2", Data: []byte("log for task 2")}
+
+	updatedModel, _ := m.Update(msg)
+	newM, ok := updatedModel.(tui.Model)
+	require.True(t, ok)
+
+	// Logs for task2 should be updated
+	assert.Equal(t, []byte("log for task 2"), newM.Tasks[1].Logs)
+	// Viewport should NOT be updated (still showing task1 empty logs)
+	assert.NotContains(t, newM.Viewport.View(), "log for task 2")
+}
+
+func TestUpdate_Logs_NoAutoScroll(t *testing.T) {
+	m := tui.Model{
+		Tasks:          []tui.TaskNode{{Name: "task1"}},
+		ActiveTaskName: "task1",
+		AutoScroll:     false,
+		SpanMap:        make(map[string]*tui.TaskNode),
+		Viewport:       viewport.New(100, 20),
+	}
+	m.SpanMap["span1"] = &m.Tasks[0]
+
+	// Pre-fill to ensure we have scrolling capability if we wanted
+	m.Tasks[0].Logs = []byte("line1\nline2\n")
+	m.Viewport.SetContent("line1\nline2\n")
+	m.Viewport.SetYOffset(0)
+
+	msg := telemetry.MsgTaskLog{SpanID: "span1", Data: []byte("line3\n")}
+
+	updatedModel, _ := m.Update(msg)
+	newM, ok := updatedModel.(tui.Model)
+	require.True(t, ok)
+
+	// Logs updated
+	assert.Contains(t, string(newM.Tasks[0].Logs), "line3")
+	// Viewport content updated
+	assert.Contains(t, newM.Viewport.View(), "line3")
+	// But YOffset should logic implies we probably haven't explicitly scrolled to bottom?
+	// Viewport.GotoBottom() sets YOffset.
+	// We can check if GotoBottom was called by checking AtBottom(), but that depends on height.
+	// Since we didn't scroll, we might not be at bottom if content > height.
+	// Let's create enough content to scroll.
+
+	// New attempt with heavy content
+	longContent := strings.Repeat("line\n", 50) // > 20 lines
+	m.Tasks[0].Logs = []byte(longContent)
+	m.Viewport.SetContent(longContent)
+	m.Viewport.SetYOffset(0) // Explicitly at top
+
+	msg2 := telemetry.MsgTaskLog{SpanID: "span1", Data: []byte("newline\n")}
+	updatedModel2, _ := m.Update(msg2)
+	newM2, ok := updatedModel2.(tui.Model)
+	require.True(t, ok)
+
+	// Should still be at top (offset 0) because AutoScroll is false
+	assert.Equal(t, 0, newM2.Viewport.YOffset)
+}
+
+func TestUpdate_EmptyTasks_Esc(t *testing.T) {
+	m := tui.Model{
+		Tasks: []tui.TaskNode{},
+	}
+
+	// Press Esc with empty tasks
+	updatedModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newM, ok := updatedModel.(tui.Model)
+	require.True(t, ok)
+
+	// Should not panic, FollowMode should be true
+	assert.True(t, newM.FollowMode)
+}
+
+func TestUpdate_Defensive_UnknownItems(t *testing.T) {
+	m := tui.Model{
+		Tasks:          []tui.TaskNode{{Name: "task1"}},
+		TaskMap:        make(map[string]*tui.TaskNode),
+		SpanMap:        make(map[string]*tui.TaskNode),
+		ActiveTaskName: "ghost_task",
+		Viewport:       viewport.New(10, 10),
+	}
+	// Note: ghost_task is NOT in TaskMap
+
+	// Case 1: WindowSizeMsg with active task name that doesn't exist in map
+	msgSize := tea.WindowSizeMsg{Width: 100, Height: 50}
+	updatedModel, _ := m.Update(msgSize)
+	// Should not panic
+	require.NotNil(t, updatedModel)
+
+	// Case 2: TaskStart for unknown task
+	msgStart := telemetry.MsgTaskStart{Name: "unknown", SpanID: "spanX"}
+	updatedModel, _ = m.Update(msgStart)
+	// Should do nothing (no panic)
+	require.NotNil(t, updatedModel)
+
+	// Case 3: TaskLog for unknown span
+	msgLog := telemetry.MsgTaskLog{SpanID: "unknown_span", Data: []byte("foo")}
+	updatedModel, _ = m.Update(msgLog)
+	require.NotNil(t, updatedModel)
+
+	// Case 4: TaskComplete for unknown span
+	msgComplete := telemetry.MsgTaskComplete{SpanID: "unknown_span", Err: nil}
+	updatedModel, _ = m.Update(msgComplete)
+	require.NotNil(t, updatedModel)
+}
