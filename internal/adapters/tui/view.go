@@ -56,7 +56,6 @@ func (m *Model) taskList() string {
 			icon = "⚡"
 		}
 
-
 		// Highlight selected task
 		line := fmt.Sprintf("%s %s", icon, task.Name)
 		if i == m.SelectedIdx {

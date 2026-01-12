@@ -53,7 +53,7 @@ func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m Model) getSelectedTask() *TaskNode {
+func (m *Model) getSelectedTask() *TaskNode {
 	if m.SelectedIdx >= 0 && m.SelectedIdx < len(m.Tasks) {
 		return &m.Tasks[m.SelectedIdx]
 	}
