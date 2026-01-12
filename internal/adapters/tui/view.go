@@ -28,7 +28,9 @@ func (m *Model) taskList() string {
 
 	s.WriteString(titleStyle.Render("TASKS") + "\n\n")
 
-	for _, task := range m.Tasks {
+	s.WriteString(titleStyle.Render("TASKS") + "\n\n")
+
+	for i, task := range m.Tasks {
 		var style lipgloss.Style
 		var icon string
 
@@ -54,11 +56,12 @@ func (m *Model) taskList() string {
 			icon = "⚡"
 		}
 
-		// Highlight active task with a marker or background (optional, strictly following simple requirements first)
-		// For now, just render the name
+
+		// Highlight selected task
 		line := fmt.Sprintf("%s %s", icon, task.Name)
-		if task.Name == m.ActiveTaskName {
-			// Maybe add a pointer?
+		if i == m.SelectedIdx {
+			// Selected row gets a pointer and distinct style/color if we had one.
+			// For now, using the pointer prefix as requested.
 			line = "> " + line
 		} else {
 			line = "  " + line
@@ -74,7 +77,13 @@ func (m *Model) taskList() string {
 func (m *Model) logPane() string {
 	var header string
 	if m.ActiveTaskName != "" {
-		header = titleStyle.Render("LOGS: " + m.ActiveTaskName)
+		status := ""
+		if m.FollowMode {
+			status = " (Following)"
+		} else {
+			status = " (Manual)"
+		}
+		header = titleStyle.Render("LOGS: " + m.ActiveTaskName + status)
 	} else {
 		header = titleStyle.Render("LOGS (Waiting...)")
 	}

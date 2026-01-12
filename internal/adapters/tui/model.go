@@ -42,6 +42,8 @@ type Model struct {
 	Viewport       viewport.Model
 	AutoScroll     bool
 	ActiveTaskName string
+	SelectedIdx    int
+	FollowMode     bool
 }
 
 // Init initializes the model.
@@ -49,6 +51,24 @@ type Model struct {
 //nolint:gocritic // hugeParam ignored
 func (m Model) Init() tea.Cmd {
 	return nil
+}
+
+func (m Model) getSelectedTask() *TaskNode {
+	if m.SelectedIdx >= 0 && m.SelectedIdx < len(m.Tasks) {
+		return &m.Tasks[m.SelectedIdx]
+	}
+	return nil
+}
+
+func (m *Model) updateActiveView() {
+	if node := m.getSelectedTask(); node != nil {
+		m.ActiveTaskName = node.Name
+		m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
+		// If following, auto-scroll to bottom
+		if m.FollowMode && m.AutoScroll {
+			m.Viewport.GotoBottom()
+		}
+	}
 }
 
 // Update handles incoming messages and updates the model state.
@@ -62,6 +82,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "k", "up":
+			if m.SelectedIdx > 0 {
+				m.SelectedIdx--
+				m.FollowMode = false
+				m.updateActiveView()
+			}
+		case "j", "down":
+			if m.SelectedIdx < len(m.Tasks)-1 {
+				m.SelectedIdx++
+				m.FollowMode = false
+				m.updateActiveView()
+			}
+		case "esc":
+			m.FollowMode = true
+			// When returning to follow mode, find the running task or last task
+			// For now, let's just re-enable follow mode. The next MsgTaskStart
+			// or manual navigation will handle selection.
+			// Actually, better user experience: jump to the currently running task if any.
+			for i, t := range m.Tasks {
+				if t.Status == StatusRunning {
+					m.SelectedIdx = i
+					break
+				}
+			}
+			m.updateActiveView()
 		}
 
 	case tea.WindowSizeMsg:
@@ -96,11 +141,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			node.Status = StatusRunning
 			m.SpanMap[msg.SpanID] = node
 
-			// Focus follows activity
-			m.ActiveTaskName = msg.Name
-			m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
-			if m.AutoScroll {
-				m.Viewport.GotoBottom()
+			// Focus follows activity ONLY if FollowMode is true
+			if m.FollowMode {
+				m.ActiveTaskName = msg.Name
+				// Find index of this task
+				for i, t := range m.Tasks {
+					if t.Name == msg.Name {
+						m.SelectedIdx = i
+						break
+					}
+				}
+				m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
+				if m.AutoScroll {
+					m.Viewport.GotoBottom()
+				}
 			}
 		}
 
