@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -198,4 +199,81 @@ func TestUpdate_AutoFollow(t *testing.T) {
 	assert.Equal(t, 2, newM2.SelectedIdx)
 	// But status of task1 SHOULD update
 	assert.Equal(t, tui.StatusRunning, newM2.TaskMap["task1"].Status)
+}
+
+func TestUpdate_Logs(t *testing.T) {
+	// Setup
+	m := tui.Model{
+		Tasks: []tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
+		Viewport: viewport.Model{
+			Width:  100,
+			Height: 20,
+		},
+		ActiveTaskName: "task1",
+		AutoScroll:     true,
+		TaskMap:        make(map[string]*tui.TaskNode),
+		SpanMap:        make(map[string]*tui.TaskNode),
+	}
+	m.TaskMap["task1"] = &m.Tasks[0]
+	m.SpanMap["span1"] = &m.Tasks[0] // associate span1 with task1
+
+	// Send Log
+	logData := []byte("hello world")
+	msg := telemetry.MsgTaskLog{SpanID: "span1", Data: logData}
+
+	updatedModel, cmd := m.Update(msg)
+	newM, ok := updatedModel.(tui.Model)
+	require.True(t, ok)
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, logData, newM.Tasks[0].Logs)
+	assert.Contains(t, newM.Viewport.View(), "hello world")
+}
+
+func TestUpdate_WindowSize(t *testing.T) {
+	m := tui.Model{
+		Tasks:          []tui.TaskNode{{Name: "task1", Logs: []byte("some logs")}},
+		ActiveTaskName: "task1",
+		TaskMap:        make(map[string]*tui.TaskNode),
+	}
+	m.TaskMap["task1"] = &m.Tasks[0]
+	m.Viewport.Width = 10
+	m.Viewport.Height = 10
+
+	// Send WindowSizeMsg
+	// Width 100 -> List gets 30, Logs get 100 - 30 - 4 = 66
+	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
+
+	updatedModel, _ := m.Update(msg)
+	newM, ok := updatedModel.(tui.Model)
+	require.True(t, ok)
+
+	// Check dimensions
+	// listWidthRatio = 0.3
+	assert.Equal(t, 48, newM.Viewport.Height) // 50 - 2
+	assert.Equal(t, 66, newM.Viewport.Width)
+}
+
+func TestUpdate_TaskComplete(t *testing.T) {
+	m := tui.Model{
+		Tasks:   []tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
+		SpanMap: make(map[string]*tui.TaskNode),
+	}
+	m.SpanMap["span1"] = &m.Tasks[0]
+
+	// Success case
+	msgSuccess := telemetry.MsgTaskComplete{SpanID: "span1", Err: nil}
+	updatedModel, _ := m.Update(msgSuccess)
+	newM, ok := updatedModel.(tui.Model)
+	require.True(t, ok)
+	assert.Equal(t, tui.StatusDone, newM.Tasks[0].Status)
+
+	// Error case
+	// Reset status
+	m.Tasks[0].Status = tui.StatusRunning
+	msgError := telemetry.MsgTaskComplete{SpanID: "span1", Err: assert.AnError}
+	updatedModel, _ = m.Update(msgError)
+	newM, ok = updatedModel.(tui.Model)
+	require.True(t, ok)
+	assert.Equal(t, tui.StatusError, newM.Tasks[0].Status)
 }
