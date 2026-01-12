@@ -28,7 +28,6 @@ func (m *Model) taskList() string {
 
 	s.WriteString(titleStyle.Render("TASKS") + "\n\n")
 
-	s.WriteString(titleStyle.Render("TASKS") + "\n\n")
 
 	for i, task := range m.Tasks {
 		var style lipgloss.Style
