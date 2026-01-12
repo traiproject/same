@@ -66,14 +66,8 @@ func (a *App) WithTeaOptions(opts ...tea.ProgramOption) *App {
 	return a
 }
 
-// RunOptions configuration for the Run method.
-type RunOptions struct {
-	Force   bool
-	Inspect bool
-}
-
 // Run executes the build process for the specified targets.
-func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
+func (a *App) Run(ctx context.Context, targetNames []string, force bool, inspect bool) error {
 	// 0. Redirect Logs for TUI
 	// We want to avoid polluting the terminal with app logs while the TUI is running.
 	if err := os.MkdirAll(".bob", logDirPerm); err != nil {
@@ -163,12 +157,12 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 				fmt.Printf("Scheduler panic: %v\n", r)
 			}
 			// Ensure TUI hits tea.Quit when scheduler finishes, UNLESS inspection mode is on.
-			if !opts.Inspect {
+			if !inspect {
 				program.Quit()
 			}
 		}()
 
-		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), opts.Force); err != nil {
+		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), force); err != nil {
 			return errors.Join(domain.ErrBuildExecutionFailed, err)
 		}
 		return nil

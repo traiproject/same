@@ -2,7 +2,6 @@ package commands
 
 import (
 	"github.com/spf13/cobra"
-	"go.trai.ch/bob/internal/app"
 )
 
 func (c *CLI) newRunCmd() *cobra.Command {
@@ -18,13 +17,9 @@ func (c *CLI) newRunCmd() *cobra.Command {
 			}
 			force, _ := cmd.Flags().GetBool("force")
 			inspect, _ := cmd.Flags().GetBool("inspect")
-			return c.app.Run(cmd.Context(), args, app.RunOptions{
-				Force:   force,
-				Inspect: inspect,
-			})
+			return c.app.Run(cmd.Context(), args, force, inspect)
 		},
 	}
-	cmd.Flags().BoolP("force", "f", false, "Force rebuild, bypassing cache")
-	cmd.Flags().BoolP("inspect", "i", false, "Wait for user input before exiting after the build completes")
+	// Flags are now defined on the root command
 	return cmd
 }
