@@ -93,12 +93,12 @@ func TestView_LipglossIntegration(t *testing.T) {
 	// Force some styles if possible, but mainly just ensuring no panic and non-empty
 	output := m.View()
 	assert.NotEmpty(t, output)
-	
+
 	// Check if it's joined horizontally (implies Side-by-Side)
 	// If it joined, it likely contains ANSI codes or newlines arranged in a block
 	// We can't easily assert the block layout without visual regression tools,
 	// but we can assert we aren't crashing.
-	
+
 	// Let's verify that the output width is roughly what we expect or has newlines
 	assert.Contains(t, output, "\n")
 }
