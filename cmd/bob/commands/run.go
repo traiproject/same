@@ -2,6 +2,7 @@ package commands
 
 import (
 	"github.com/spf13/cobra"
+	"go.trai.ch/bob/internal/app"
 )
 
 func (c *CLI) newRunCmd() *cobra.Command {
@@ -17,9 +18,11 @@ func (c *CLI) newRunCmd() *cobra.Command {
 			}
 			force, _ := cmd.Flags().GetBool("force")
 			inspect, _ := cmd.Flags().GetBool("inspect")
-			return c.app.Run(cmd.Context(), args, force, inspect)
+			return c.app.Run(cmd.Context(), args, app.RunOptions{
+				Force:   force,
+				Inspect: inspect,
+			})
 		},
 	}
-	// Flags are now defined on the root command
 	return cmd
 }
