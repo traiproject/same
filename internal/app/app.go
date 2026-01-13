@@ -110,7 +110,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 	// The Program manages the TUI lifecycle.
 	// We capture the program to clean it up if needed.
 	optsTea := append([]tea.ProgramOption{tea.WithContext(ctx)}, a.teaOptions...)
-	program := tea.NewProgram(tuiModel, optsTea...)
+	program := tea.NewProgram(&tuiModel, optsTea...)
 
 	// 4. Initialize Telemetry
 	// Create a bridge that sends OTel spans to the TUI program.

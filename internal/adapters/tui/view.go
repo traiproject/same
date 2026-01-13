@@ -10,15 +10,15 @@ import (
 // View renders the UI.
 //
 //nolint:gocritic // hugeParam ignored
-func (m Model) View() string {
+func (m *Model) View() string {
 	if m.Viewport.Height == 0 {
 		return "Initializing..."
 	}
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		(&m).taskList(),
-		(&m).logPane(),
+		m.taskList(),
+		m.logPane(),
 	)
 }
 

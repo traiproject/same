@@ -89,12 +89,12 @@ func TestWrapLog(t *testing.T) {
 }
 
 func TestUpdate_InitTasks(t *testing.T) {
-	m := tui.Model{}
+	m := &tui.Model{}
 	tasks := []string{"task1", "task2", "task3"}
 	msg := telemetry.MsgInitTasks{Tasks: tasks}
 
 	updatedModel, cmd := m.Update(msg)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	assert.Nil(t, cmd)
@@ -110,7 +110,7 @@ func TestUpdate_InitTasks(t *testing.T) {
 
 func TestUpdate_Navigation(t *testing.T) {
 	// Initialize directly with tasks
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks: []tui.TaskNode{
 			{Name: "task1"},
 			{Name: "task2"},
@@ -130,7 +130,7 @@ func TestUpdate_Navigation(t *testing.T) {
 	msgDown := tea.KeyMsg{Type: tea.KeyDown}
 
 	updatedModel, _ := m.Update(msgDown)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	assert.Equal(t, 1, newM.SelectedIdx)
@@ -139,7 +139,7 @@ func TestUpdate_Navigation(t *testing.T) {
 	// Case 2: Up
 	msgUp := tea.KeyMsg{Type: tea.KeyUp}
 	updatedModel, _ = newM.Update(msgUp)
-	newM, ok = updatedModel.(tui.Model)
+	newM, ok = updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	assert.Equal(t, 0, newM.SelectedIdx)
@@ -152,7 +152,7 @@ func TestUpdate_Navigation(t *testing.T) {
 
 	msgEsc := tea.KeyMsg{Type: tea.KeyEsc}
 	updatedModel, _ = newM.Update(msgEsc)
-	newM, ok = updatedModel.(tui.Model)
+	newM, ok = updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	assert.True(t, newM.FollowMode)
@@ -162,9 +162,9 @@ func TestUpdate_Navigation(t *testing.T) {
 func TestUpdate_AutoFollow(t *testing.T) {
 	// Setup
 	tasks := []string{"task1", "task2", "task3"}
-	m := tui.Model{}
+	m := &tui.Model{}
 	updatedModel, _ := m.Update(telemetry.MsgInitTasks{Tasks: tasks})
-	m = updatedModel.(tui.Model)
+	m = updatedModel.(*tui.Model)
 
 	// Case 1: Follow Mode True
 	m.FollowMode = true
@@ -174,7 +174,7 @@ func TestUpdate_AutoFollow(t *testing.T) {
 	// Send Start for task2
 	msg := telemetry.MsgTaskStart{Name: "task2", SpanID: "span2"}
 	updatedModel, _ = m.Update(msg)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	assert.Equal(t, "task2", newM.ActiveTaskName, "Should switch active task in follow mode")
@@ -190,7 +190,7 @@ func TestUpdate_AutoFollow(t *testing.T) {
 	// Send Start for task1
 	msgStart := telemetry.MsgTaskStart{Name: "task1", SpanID: "span1"}
 	updatedModel2, _ := newM.Update(msgStart)
-	newM2, ok := updatedModel2.(tui.Model)
+	newM2, ok := updatedModel2.(*tui.Model)
 	require.True(t, ok)
 
 	// Active task name should stay as "task3" because we are NOT following
@@ -203,7 +203,7 @@ func TestUpdate_AutoFollow(t *testing.T) {
 
 func TestUpdate_Logs(t *testing.T) {
 	// Setup
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks: []tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
 		Viewport: viewport.Model{
 			Width:  100,
@@ -222,7 +222,7 @@ func TestUpdate_Logs(t *testing.T) {
 	msg := telemetry.MsgTaskLog{SpanID: "span1", Data: logData}
 
 	updatedModel, cmd := m.Update(msg)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	assert.Nil(t, cmd)
@@ -231,7 +231,7 @@ func TestUpdate_Logs(t *testing.T) {
 }
 
 func TestUpdate_WindowSize(t *testing.T) {
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks:          []tui.TaskNode{{Name: "task1", Logs: []byte("some logs")}},
 		ActiveTaskName: "task1",
 		TaskMap:        make(map[string]*tui.TaskNode),
@@ -245,7 +245,7 @@ func TestUpdate_WindowSize(t *testing.T) {
 	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
 
 	updatedModel, _ := m.Update(msg)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	// Check dimensions
@@ -255,7 +255,7 @@ func TestUpdate_WindowSize(t *testing.T) {
 }
 
 func TestUpdate_TaskComplete(t *testing.T) {
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks:   []tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
 		SpanMap: make(map[string]*tui.TaskNode),
 	}
@@ -264,7 +264,7 @@ func TestUpdate_TaskComplete(t *testing.T) {
 	// Success case
 	msgSuccess := telemetry.MsgTaskComplete{SpanID: "span1", Err: nil}
 	updatedModel, _ := m.Update(msgSuccess)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 	assert.Equal(t, tui.StatusDone, newM.Tasks[0].Status)
 
@@ -273,19 +273,19 @@ func TestUpdate_TaskComplete(t *testing.T) {
 	m.Tasks[0].Status = tui.StatusRunning
 	msgError := telemetry.MsgTaskComplete{SpanID: "span1", Err: assert.AnError}
 	updatedModel, _ = m.Update(msgError)
-	newM, ok = updatedModel.(tui.Model)
+	newM, ok = updatedModel.(*tui.Model)
 	require.True(t, ok)
 	assert.Equal(t, tui.StatusError, newM.Tasks[0].Status)
 }
 
 func TestInit(t *testing.T) {
-	m := tui.Model{}
+	m := &tui.Model{}
 	cmd := m.Init()
 	assert.Nil(t, cmd)
 }
 
 func TestUpdate_Quit(t *testing.T) {
-	m := tui.Model{}
+	m := &tui.Model{}
 
 	// Test "q"
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
@@ -297,7 +297,7 @@ func TestUpdate_Quit(t *testing.T) {
 }
 
 func TestUpdate_Logs_Truncation(t *testing.T) {
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks:   []tui.TaskNode{{Name: "task1"}},
 		SpanMap: make(map[string]*tui.TaskNode),
 	}
@@ -312,7 +312,7 @@ func TestUpdate_Logs_Truncation(t *testing.T) {
 	msg := telemetry.MsgTaskLog{SpanID: "span1", Data: largeData}
 
 	updatedModel, _ := m.Update(msg)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	// Logs should be truncated to exactly 1MB
@@ -320,7 +320,7 @@ func TestUpdate_Logs_Truncation(t *testing.T) {
 }
 
 func TestUpdate_Logs_InactiveTask(t *testing.T) {
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks:          []tui.TaskNode{{Name: "task1"}, {Name: "task2"}},
 		ActiveTaskName: "task1",
 		SpanMap:        make(map[string]*tui.TaskNode),
@@ -331,7 +331,7 @@ func TestUpdate_Logs_InactiveTask(t *testing.T) {
 	msg := telemetry.MsgTaskLog{SpanID: "span2", Data: []byte("log for task 2")}
 
 	updatedModel, _ := m.Update(msg)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	// Logs for task2 should be updated
@@ -341,7 +341,7 @@ func TestUpdate_Logs_InactiveTask(t *testing.T) {
 }
 
 func TestUpdate_Logs_NoAutoScroll(t *testing.T) {
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks:          []tui.TaskNode{{Name: "task1"}},
 		ActiveTaskName: "task1",
 		AutoScroll:     false,
@@ -358,7 +358,7 @@ func TestUpdate_Logs_NoAutoScroll(t *testing.T) {
 	msg := telemetry.MsgTaskLog{SpanID: "span1", Data: []byte("line3\n")}
 
 	updatedModel, _ := m.Update(msg)
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	// Logs updated
@@ -379,7 +379,7 @@ func TestUpdate_Logs_NoAutoScroll(t *testing.T) {
 
 	msg2 := telemetry.MsgTaskLog{SpanID: "span1", Data: []byte("newline\n")}
 	updatedModel2, _ := m.Update(msg2)
-	newM2, ok := updatedModel2.(tui.Model)
+	newM2, ok := updatedModel2.(*tui.Model)
 	require.True(t, ok)
 
 	// Should still be at top (offset 0) because AutoScroll is false
@@ -387,13 +387,13 @@ func TestUpdate_Logs_NoAutoScroll(t *testing.T) {
 }
 
 func TestUpdate_EmptyTasks_Esc(t *testing.T) {
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks: []tui.TaskNode{},
 	}
 
 	// Press Esc with empty tasks
 	updatedModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	newM, ok := updatedModel.(tui.Model)
+	newM, ok := updatedModel.(*tui.Model)
 	require.True(t, ok)
 
 	// Should not panic, FollowMode should be true
@@ -401,7 +401,7 @@ func TestUpdate_EmptyTasks_Esc(t *testing.T) {
 }
 
 func TestUpdate_Defensive_UnknownItems(t *testing.T) {
-	m := tui.Model{
+	m := &tui.Model{
 		Tasks:          []tui.TaskNode{{Name: "task1"}},
 		TaskMap:        make(map[string]*tui.TaskNode),
 		SpanMap:        make(map[string]*tui.TaskNode),

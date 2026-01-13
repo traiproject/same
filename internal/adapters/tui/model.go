@@ -49,7 +49,7 @@ type Model struct {
 // Init initializes the model.
 //
 //nolint:gocritic // hugeParam ignored
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
@@ -74,7 +74,7 @@ func (m *Model) updateActiveView() {
 // Update handles incoming messages and updates the model state.
 //
 //nolint:cyclop,gocritic // hugeParam ignored, cyclop ignored
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
