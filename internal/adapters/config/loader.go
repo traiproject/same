@@ -29,10 +29,6 @@ func NewLoader(logger ports.Logger) *Loader {
 type Mode string
 
 const (
-	// WorkfileName represents the name of a workfile.
-	WorkfileName = "same.work.yaml"
-	// SamefileName represents the name of a samefile.
-	SamefileName = "same.yaml"
 	// ModeWorkspace indicates that same has a workfile.
 	ModeWorkspace Mode = "workspace"
 	// ModeStandalone indicates that same has only one samefile.
@@ -63,13 +59,13 @@ func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 	var standaloneCandidate string
 
 	for {
-		workfilePath := filepath.Join(currentDir, WorkfileName)
+		workfilePath := filepath.Join(currentDir, domain.WorkFileName)
 		if _, err := os.Stat(workfilePath); err == nil {
 			return workfilePath, ModeWorkspace, nil
 		}
 
 		if standaloneCandidate == "" {
-			samefilePath := filepath.Join(currentDir, SamefileName)
+			samefilePath := filepath.Join(currentDir, domain.SameFileName)
 			if _, err := os.Stat(samefilePath); err == nil {
 				standaloneCandidate = samefilePath
 			}
@@ -97,7 +93,7 @@ func (l *Loader) loadSamefile(configPath string) (*domain.Graph, error) {
 	}
 
 	if samefile.Project != "" {
-		l.Logger.Warn(fmt.Sprintf("'project' defined in %s has no effect in standalone mode", SamefileName))
+		l.Logger.Warn(fmt.Sprintf("'project' defined in %s has no effect in standalone mode", domain.SameFileName))
 	}
 
 	g := domain.NewGraph()
@@ -231,9 +227,9 @@ func (l *Loader) processProject(
 	}
 
 	// Check for same.yaml existence
-	sameYamlPath := filepath.Join(projectPath, SamefileName)
+	sameYamlPath := filepath.Join(projectPath, domain.SameFileName)
 	if _, fileErr := os.Stat(sameYamlPath); os.IsNotExist(fileErr) {
-		l.Logger.Warn(fmt.Sprintf("%s missing in project %s, skipping", SamefileName, relPath))
+		l.Logger.Warn(fmt.Sprintf("%s missing in project %s, skipping", domain.SameFileName, relPath))
 		return nil
 	}
 

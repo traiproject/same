@@ -165,7 +165,7 @@ func TestResolve_FromCache(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 	data, _ := json.MarshalIndent(entry, "", "  ")
-	if writeErr := os.WriteFile(cachePath, data, filePerm); writeErr != nil {
+	if writeErr := os.WriteFile(cachePath, data, domain.FilePerm); writeErr != nil {
 		t.Fatalf("failed to write cache: %v", writeErr)
 	}
 
@@ -281,7 +281,7 @@ func TestResolve_InvalidCacheData(t *testing.T) {
 	// Write invalid JSON to cache
 	hash := getHash("go", testVersion)
 	cachePath := filepath.Join(tmpDir, hash+".json")
-	if err := os.WriteFile(cachePath, []byte("invalid json"), filePerm); err != nil {
+	if err := os.WriteFile(cachePath, []byte("invalid json"), domain.FilePerm); err != nil {
 		t.Fatalf("failed to write invalid cache: %v", err)
 	}
 
@@ -487,7 +487,7 @@ func TestNewResolver_MkdirAllError(t *testing.T) {
 	conflictPath := filepath.Join(tmpDir, "conflict")
 
 	// Create a file at the path where we want to create a directory
-	if err := os.WriteFile(conflictPath, []byte("file"), filePerm); err != nil {
+	if err := os.WriteFile(conflictPath, []byte("file"), domain.FilePerm); err != nil {
 		t.Fatalf("failed to create conflict file: %v", err)
 	}
 
@@ -621,7 +621,7 @@ func TestLoadFromCache_ReadError(t *testing.T) {
 
 	// Create cache file with no read permission to trigger read error
 	cachePath := filepath.Join(tmpDir, "unreadable.json")
-	if writeErr := os.WriteFile(cachePath, []byte("{}"), filePerm); writeErr != nil {
+	if writeErr := os.WriteFile(cachePath, []byte("{}"), domain.FilePerm); writeErr != nil {
 		t.Fatalf("failed to write file: %v", writeErr)
 	}
 	if chmodErr := os.Chmod(cachePath, 0o000); chmodErr != nil {
@@ -629,7 +629,7 @@ func TestLoadFromCache_ReadError(t *testing.T) {
 	}
 	// Restore permissions on cleanup
 	t.Cleanup(func() {
-		_ = os.Chmod(cachePath, filePerm)
+		_ = os.Chmod(cachePath, domain.FilePerm)
 	})
 
 	_, _, err = resolver.loadFromCache(cachePath, "x86_64-linux")
@@ -665,7 +665,7 @@ func TestLoadFromCache_SystemNotInCache(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 	data, _ := json.MarshalIndent(entry, "", "  ")
-	if writeErr := os.WriteFile(cachePath, data, filePerm); writeErr != nil {
+	if writeErr := os.WriteFile(cachePath, data, domain.FilePerm); writeErr != nil {
 		t.Fatalf("failed to write cache: %v", writeErr)
 	}
 
@@ -906,6 +906,53 @@ func (t *errorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
 		StatusCode: http.StatusOK,
 		Body:       &errorBody{},
 	}, nil
+}
+
+func TestResolver_SaveToCache_MkdirError(t *testing.T) {
+	// Create a file where the cache directory should be to cause MkdirAll to fail
+	tmpDir := t.TempDir()
+	conflictPath := filepath.Join(tmpDir, "conflict")
+
+	// Create a file at the path where we want to create a directory
+	if err := os.WriteFile(conflictPath, []byte("file"), domain.FilePerm); err != nil {
+		t.Fatalf("failed to create conflict file: %v", err)
+	}
+
+	// Create resolver with the conflict path as the cache directory
+	resolver := &Resolver{
+		cacheDir: conflictPath,
+		httpClient: &http.Client{
+			Timeout: httpClientTimeout,
+		},
+	}
+
+	// Mock API response
+	apiResp := &nixHubResponse{
+		Name:    "go",
+		Version: "1.21",
+		Systems: map[string]SystemResponse{
+			"x86_64-linux": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Rev: "test-hash",
+					},
+					AttrPath: "packages.x86_64-linux.go",
+				},
+			},
+		},
+	}
+
+	// Try to save to cache - path construction inside saveToCache should be fine,
+	// but atomicWriteFile should fail when calling MkdirAll on conflictPath
+	cacheFile := resolver.getCachePath("go", "1.21")
+	err := resolver.saveToCache(cacheFile, "go", "1.21", apiResp)
+
+	if err == nil {
+		t.Error("saveToCache() expected error when MkdirAll fails")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixCacheWriteFailed.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixCacheWriteFailed)
+	}
 }
 
 type errorBody struct{}

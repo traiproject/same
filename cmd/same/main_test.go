@@ -3,11 +3,13 @@ package main
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"go.trai.ch/same/internal/app"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 func TestRun(t *testing.T) {
@@ -26,13 +28,13 @@ func TestRun(t *testing.T) {
 		{
 			name: "Success with valid config",
 			setupConfig: func(tmpDir string) string {
-				configPath := tmpDir + "/same.yaml"
+				configPath := filepath.Join(tmpDir, domain.SameFileName)
 				configContent := `version: "1"
 tasks:
   test:
     cmd: ["echo", "hello"]
 `
-				err := os.WriteFile(configPath, []byte(configContent), 0o600)
+				err := os.WriteFile(configPath, []byte(configContent), domain.PrivateFilePerm)
 				if err != nil {
 					t.Fatalf("failed to write config: %v", err)
 				}
@@ -85,20 +87,20 @@ func TestRun_StoreInitError(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a valid config
-	configPath := tmpDir + "/same.yaml"
+	configPath := filepath.Join(tmpDir, domain.SameFileName)
 	configContent := `version: "1"
 tasks:
   test:
     cmd: ["echo", "hello"]
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0o600)
+	err := os.WriteFile(configPath, []byte(configContent), domain.PrivateFilePerm)
 	if err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
 	// Create .same directory as a file (not a directory) to cause store init to fail
-	samePath := tmpDir + "/.same"
-	err = os.WriteFile(samePath, []byte("not a directory"), 0o600)
+	samePath := filepath.Join(tmpDir, domain.DefaultSamePath())
+	err = os.WriteFile(samePath, []byte("not a directory"), domain.PrivateFilePerm)
 	if err != nil {
 		t.Fatalf("failed to create .same file: %v", err)
 	}

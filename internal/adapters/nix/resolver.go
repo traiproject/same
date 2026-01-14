@@ -21,9 +21,6 @@ import (
 )
 
 const (
-	dirPerm           = 0o750
-	filePerm          = 0o644
-	cachePath         = ".same/cache/nixhub"
 	nixHubAPIBase     = "https://search.devbox.sh/v2/resolve"
 	httpClientTimeout = 30 * time.Second
 )
@@ -43,13 +40,13 @@ type Resolver struct {
 
 // NewResolver creates a new DependencyResolver backed by NixHub API.
 func NewResolver() (*Resolver, error) {
-	return newResolverWithPath(cachePath)
+	return newResolverWithPath(domain.DefaultNixHubCachePath())
 }
 
 // newResolverWithPath creates a Resolver with a custom cache path (used for testing).
 func newResolverWithPath(path string) (*Resolver, error) {
 	cleanPath := filepath.Clean(path)
-	if err := os.MkdirAll(cleanPath, dirPerm); err != nil {
+	if err := os.MkdirAll(cleanPath, domain.DirPerm); err != nil {
 		return nil, zerr.Wrap(err, domain.ErrNixCacheCreateFailed.Error())
 	}
 
@@ -175,7 +172,7 @@ func (r *Resolver) saveToCache(path, alias, version string, apiResponse *nixHubR
 // atomicWriteFile writes data to a file atomically by writing to a temp file and renaming it.
 func (r *Resolver) atomicWriteFile(path string, data []byte) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, dirPerm); err != nil {
+	if err := os.MkdirAll(dir, domain.DirPerm); err != nil {
 		return err
 	}
 
@@ -201,7 +198,7 @@ func (r *Resolver) atomicWriteFile(path string, data []byte) error {
 		return err
 	}
 
-	if err := os.Chmod(tmpName, filePerm); err != nil {
+	if err := os.Chmod(tmpName, domain.FilePerm); err != nil {
 		return err
 	}
 

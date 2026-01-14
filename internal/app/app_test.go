@@ -246,3 +246,59 @@ func TestApp_Run_BuildExecutionFailed(t *testing.T) {
 		}
 	})
 }
+
+func TestApp_Run_LogSetupFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Use a temporary directory for the test
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		// Create a file named .same to cause MkdirAll to fail
+		// Note: DefaultSamePath returns ".same"
+		if writeErr := os.WriteFile(domain.DefaultSamePath(), []byte("conflict"), domain.PrivateFilePerm); writeErr != nil {
+			t.Fatalf("Failed to create conflict file: %v", writeErr)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		// Setup App
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+			)
+
+		// Execute - should fail before calling Load
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{Force: false})
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+
+		// Expect wrapped error
+		if !strings.Contains(err.Error(), "failed to create internal directory") {
+			t.Errorf("Expected error containing 'failed to create internal directory', got: %v", err)
+		}
+	})
+}

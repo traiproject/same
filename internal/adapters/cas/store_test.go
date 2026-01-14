@@ -41,7 +41,7 @@ func TestNewStore(t *testing.T) {
 
 	// Verify the directory was created
 	// .same/store is the default path
-	expectedPath := filepath.Join(tmpDir, ".same", "store")
+	expectedPath := filepath.Join(tmpDir, domain.DefaultStorePath())
 	if _, statErr := os.Stat(expectedPath); os.IsNotExist(statErr) {
 		t.Errorf("NewStore did not create directory at %s", expectedPath)
 	}
@@ -170,7 +170,7 @@ func TestNewStore_Error(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Create a file where the directory should be
 	filePath := filepath.Join(tmpDir, "file_blocking_dir")
-	if err := os.WriteFile(filePath, []byte("block"), 0o600); err != nil {
+	if err := os.WriteFile(filePath, []byte("block"), domain.PrivateFilePerm); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
@@ -220,7 +220,7 @@ func TestGet_UnmarshalError(t *testing.T) {
 	hexHash := hex.EncodeToString(hash[:])
 	taskFile := filepath.Join(storePath, hexHash+".json")
 
-	if err = os.WriteFile(taskFile, []byte("{ invalid json"), 0o600); err != nil {
+	if err = os.WriteFile(taskFile, []byte("{ invalid json"), domain.PrivateFilePerm); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
@@ -245,7 +245,7 @@ func TestPut_WriteError(t *testing.T) {
 	}
 	defer func() {
 		//nolint:gosec // Restoring permissions to standard value
-		if chmodErr := os.Chmod(storePath, 0o750); chmodErr != nil {
+		if chmodErr := os.Chmod(storePath, domain.DirPerm); chmodErr != nil {
 			t.Errorf("Failed to restore permissions: %v", chmodErr)
 		}
 	}() // Restore permissions for cleanup
