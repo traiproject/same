@@ -1,4 +1,4 @@
-// Package commands implements the CLI commands for the bob build tool.
+// Package commands implements the CLI commands for the same build tool.
 package commands
 
 import (
