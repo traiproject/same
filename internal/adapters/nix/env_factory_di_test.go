@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"go.trai.ch/same/internal/adapters/nix"
+	"go.trai.ch/same/internal/core/domain"
 	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.uber.org/mock/gomock"
 )
@@ -21,7 +22,7 @@ func TestNewEnvFactory_DefaultCache(t *testing.T) {
 	}
 
 	// Verify it creates the same as NewEnvFactoryWithCache with default path
-	expectedFactory := nix.NewEnvFactoryWithCache(resolver, ".same/cache/environments")
+	expectedFactory := nix.NewEnvFactoryWithCache(resolver, domain.DefaultEnvCachePath())
 
 	// Both should be non-nil and of the same type
 	if factory == nil || expectedFactory == nil {

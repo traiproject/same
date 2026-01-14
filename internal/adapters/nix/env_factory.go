@@ -233,7 +233,7 @@ func LoadEnvFromCache(path string) ([]string, error) {
 func SaveEnvToCache(path string, env []string) error {
 	// Ensure cache directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, dirPerm); err != nil {
+	if err := os.MkdirAll(dir, domain.DirPerm); err != nil {
 		return zerr.Wrap(err, "failed to create cache directory")
 	}
 
@@ -266,7 +266,7 @@ func SaveEnvToCache(path string, env []string) error {
 	}
 
 	// Set correct permissions
-	if err := os.Chmod(tmpName, filePerm); err != nil {
+	if err := os.Chmod(tmpName, domain.FilePerm); err != nil {
 		return zerr.Wrap(err, "failed to chmod cache file")
 	}
 

@@ -14,12 +14,6 @@ import (
 	"go.trai.ch/zerr"
 )
 
-const (
-	dirPerm   = 0o750
-	filePerm  = 0o644
-	storePath = ".same/store"
-)
-
 // Store implements ports.BuildInfoStore using a file-per-task strategy.
 type Store struct {
 	dir string
@@ -27,13 +21,13 @@ type Store struct {
 
 // NewStore creates a new BuildInfoStore backed by the directory at the given path.
 func NewStore() (*Store, error) {
-	return newStoreWithPath(storePath)
+	return newStoreWithPath(domain.DefaultStorePath())
 }
 
 // newStoreWithPath creates a Store with a custom path (used for testing).
 func newStoreWithPath(path string) (*Store, error) {
 	cleanPath := filepath.Clean(path)
-	if err := os.MkdirAll(cleanPath, dirPerm); err != nil {
+	if err := os.MkdirAll(cleanPath, domain.DirPerm); err != nil {
 		return nil, zerr.Wrap(err, domain.ErrStoreCreateFailed.Error())
 	}
 
@@ -71,7 +65,7 @@ func (s *Store) Put(info domain.BuildInfo) error {
 
 	filename := s.getFilename(info.TaskName)
 	//nolint:gosec // Path is constructed from trusted directory and hashed filename
-	if err := os.WriteFile(filename, data, filePerm); err != nil {
+	if err := os.WriteFile(filename, data, domain.FilePerm); err != nil {
 		return zerr.Wrap(err, domain.ErrStoreWriteFailed.Error())
 	}
 

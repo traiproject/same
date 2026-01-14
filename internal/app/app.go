@@ -21,11 +21,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	logDirPerm  = 0o750
-	logFilePerm = 0o600
-)
-
 // App represents the main application logic.
 type App struct {
 	configLoader ports.ConfigLoader
@@ -76,10 +71,10 @@ type RunOptions struct {
 func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
 	// 0. Redirect Logs for TUI
 	// We want to avoid polluting the terminal with app logs while the TUI is running.
-	if err := os.MkdirAll(".same", logDirPerm); err != nil {
-		return zerr.Wrap(err, "failed to create .same directory")
+	if err := os.MkdirAll(domain.DefaultSamePath(), domain.DirPerm); err != nil {
+		return zerr.Wrap(err, "failed to create internal directory")
 	}
-	f, err := os.OpenFile(".same/debug.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, logFilePerm)
+	f, err := os.OpenFile(domain.DefaultDebugLogPath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, domain.PrivateFilePerm)
 	if err != nil {
 		return zerr.Wrap(err, "failed to open debug log")
 	}
