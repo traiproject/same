@@ -908,6 +908,53 @@ func (t *errorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
 	}, nil
 }
 
+func TestResolver_SaveToCache_MkdirError(t *testing.T) {
+	// Create a file where the cache directory should be to cause MkdirAll to fail
+	tmpDir := t.TempDir()
+	conflictPath := filepath.Join(tmpDir, "conflict")
+
+	// Create a file at the path where we want to create a directory
+	if err := os.WriteFile(conflictPath, []byte("file"), domain.FilePerm); err != nil {
+		t.Fatalf("failed to create conflict file: %v", err)
+	}
+
+	// Create resolver with the conflict path as the cache directory
+	resolver := &Resolver{
+		cacheDir: conflictPath,
+		httpClient: &http.Client{
+			Timeout: httpClientTimeout,
+		},
+	}
+
+	// Mock API response
+	apiResp := &nixHubResponse{
+		Name:    "go",
+		Version: "1.21",
+		Systems: map[string]SystemResponse{
+			"x86_64-linux": {
+				FlakeInstallable: FlakeInstallable{
+					Ref: FlakeRef{
+						Rev: "test-hash",
+					},
+					AttrPath: "packages.x86_64-linux.go",
+				},
+			},
+		},
+	}
+
+	// Try to save to cache - path construction inside saveToCache should be fine,
+	// but atomicWriteFile should fail when calling MkdirAll on conflictPath
+	cacheFile := resolver.getCachePath("go", "1.21")
+	err := resolver.saveToCache(cacheFile, "go", "1.21", apiResp)
+
+	if err == nil {
+		t.Error("saveToCache() expected error when MkdirAll fails")
+	}
+	if !strings.Contains(err.Error(), domain.ErrNixCacheWriteFailed.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixCacheWriteFailed)
+	}
+}
+
 type errorBody struct{}
 
 func (b *errorBody) Read(_ []byte) (n int, err error) {
