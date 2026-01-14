@@ -3,7 +3,7 @@ package tui
 import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/wordwrap"
 	"go.trai.ch/bob/internal/adapters/telemetry"
 )
 
@@ -200,5 +200,5 @@ func wrapLog(text string, width int) string {
 		return ""
 	}
 
-	return lipgloss.NewStyle().Width(width).Render(text)
+	return wordwrap.String(text, width)
 }
