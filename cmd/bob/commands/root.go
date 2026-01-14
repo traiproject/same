@@ -23,6 +23,9 @@ func New(a *app.App) *CLI {
 		SilenceErrors: true,
 	}
 
+	rootCmd.PersistentFlags().BoolP("force", "f", false, "Force rebuild, bypassing cache")
+	rootCmd.PersistentFlags().BoolP("inspect", "i", false, "Inspect the TUI after build completion (prevents auto-exit)")
+
 	c := &CLI{
 		app:     a,
 		rootCmd: rootCmd,

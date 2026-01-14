@@ -1,10 +1,13 @@
 package main
 
 import (
+	"io"
 	"os"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
+	"go.trai.ch/bob/internal/app"
 )
 
 func TestRun(t *testing.T) {
@@ -72,7 +75,9 @@ tasks:
 			}
 
 			// Run and capture exit code
-			exitCode := run()
+			exitCode := run(func(a *app.App) {
+				a.WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+			})
 			assert.Equal(t, tt.expectedExit, exitCode)
 		})
 	}

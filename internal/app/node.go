@@ -4,10 +4,14 @@ import (
 	"context"
 
 	"github.com/grindlemire/graft"
+	"go.trai.ch/bob/internal/adapters/cas"    //nolint:depguard // Wired in app layer
 	"go.trai.ch/bob/internal/adapters/config" //nolint:depguard // Wired in app layer
+	"go.trai.ch/bob/internal/adapters/fs"     //nolint:depguard // Wired in app layer
 	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // Wired in app layer
+	"go.trai.ch/bob/internal/adapters/nix"    //nolint:depguard // Wired in app layer
+	"go.trai.ch/bob/internal/adapters/shell"  //nolint:depguard // Wired in app layer
 	"go.trai.ch/bob/internal/core/ports"
-	"go.trai.ch/bob/internal/engine/scheduler"
+	_ "go.trai.ch/bob/internal/engine/scheduler" // Ensure scheduler package is linked if needed, though we don't depend on the node anymore.
 )
 
 const (
@@ -24,21 +28,14 @@ func init() {
 		Cacheable: true,
 		DependsOn: []graft.ID{
 			config.NodeID,
-			scheduler.NodeID,
+			shell.NodeID,
+			logger.NodeID,
+			cas.NodeID,
+			fs.HasherNodeID,
+			fs.ResolverNodeID,
+			nix.EnvFactoryNodeID,
 		},
-		Run: func(ctx context.Context) (*App, error) {
-			loader, err := graft.Dep[ports.ConfigLoader](ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			sched, err := graft.Dep[*scheduler.Scheduler](ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			return New(loader, sched), nil
-		},
+		Run: runAppNode,
 	})
 
 	// Components Node
@@ -50,29 +47,70 @@ func init() {
 			logger.NodeID,
 			config.NodeID,
 		},
-		Run: func(ctx context.Context) (*Components, error) {
-			app, err := graft.Dep[*App](ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			log, err := graft.Dep[ports.Logger](ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			loader, err := graft.Dep[ports.ConfigLoader](ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			// Manually construct Components to avoid casting issues with NewComponents
-			// if it requires a concrete type.
-			return &Components{
-				App:          app,
-				Logger:       log,
-				configLoader: loader,
-			}, nil
-		},
+		Run: runComponentsNode,
 	})
+}
+
+func runAppNode(ctx context.Context) (*App, error) {
+	loader, err := graft.Dep[ports.ConfigLoader](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	executor, err := graft.Dep[ports.Executor](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	log, err := graft.Dep[ports.Logger](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	store, err := graft.Dep[ports.BuildInfoStore](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	hasher, err := graft.Dep[ports.Hasher](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	resolver, err := graft.Dep[ports.InputResolver](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	envFactory, err := graft.Dep[ports.EnvironmentFactory](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return New(loader, executor, log, store, hasher, resolver, envFactory), nil
+}
+
+func runComponentsNode(ctx context.Context) (*Components, error) {
+	app, err := graft.Dep[*App](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	log, err := graft.Dep[ports.Logger](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	loader, err := graft.Dep[ports.ConfigLoader](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Manually construct Components to avoid casting issues with NewComponents
+	// if it requires a concrete type.
+	return &Components{
+		App:          app,
+		Logger:       log,
+		configLoader: loader,
+	}, nil
 }

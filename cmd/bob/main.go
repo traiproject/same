@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 	"github.com/grindlemire/graft"
 	"go.trai.ch/bob/cmd/bob/commands"
 	"go.trai.ch/bob/internal/app"
+	"go.trai.ch/bob/internal/core/domain"
 	_ "go.trai.ch/bob/internal/wiring"
 )
 
@@ -17,7 +19,7 @@ func main() {
 	os.Exit(run())
 }
 
-func run() int {
+func run(opts ...func(*app.App)) int {
 	// 0. Context with signal handling
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -31,11 +33,19 @@ func run() int {
 		return 1
 	}
 
+	// Apply options
+	for _, opt := range opts {
+		opt(components.App)
+	}
+
 	// 2. Interface - CLI
 	cli := commands.New(components.App)
 
 	// 4. Execution
 	if err := cli.Execute(ctx); err != nil {
+		if errors.Is(err, domain.ErrBuildExecutionFailed) {
+			return 1
+		}
 		components.Logger.Error(err)
 		return 1
 	}

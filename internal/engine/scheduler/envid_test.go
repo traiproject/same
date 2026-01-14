@@ -20,9 +20,9 @@ func TestScheduler_EnvironmentIDGeneration(t *testing.T) {
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockResolver := mocks.NewMockInputResolver(ctrl)
-	mockLogger := mocks.NewMockLogger(ctrl)
+	mockTracer := mocks.NewMockTracer(ctrl)
 
-	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockLogger, nil)
+	s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
 
 	t.Run("IdenticalToolsSameEnvID", func(t *testing.T) {
 		// Two tasks with identical tools should get the same EnvID

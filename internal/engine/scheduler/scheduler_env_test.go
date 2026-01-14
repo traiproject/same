@@ -19,11 +19,12 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockResolver := mocks.NewMockInputResolver(ctrl)
-	mockLogger := mocks.NewMockLogger(ctrl)
+	mockTracer := mocks.NewMockTracer(ctrl)
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+	mockSpan := mocks.NewMockSpan(ctrl)
 
 	s := scheduler.NewScheduler(
-		mockExec, mockStore, mockHasher, mockResolver, mockLogger,
+		mockExec, mockStore, mockHasher, mockResolver, mockTracer,
 		mockEnvFactory,
 	)
 
@@ -42,6 +43,20 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 
 	// Mock Expectations
 
+	// 1. EmitPlan
+	mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"})
+	mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
+	// We expect hydration to be called.
+	// 4. Env Factory Resolution
+	expectedEnv := []string{"GO_VERSION=1.22.2", "PATH=/nix/store/go/bin"}
+	// mockLogger.EXPECT().Info removed
+	mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), gomock.Any()).Return(expectedEnv, nil)
+	mockSpan.EXPECT().End() // Hydration end
+
+	// Task Execution
+	mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
+	mockSpan.EXPECT().End() // Task end
+
 	// 2. Input Hashing
 	mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 	mockHasher.EXPECT().ComputeInputHash(task, gomock.Any(), gomock.Any()).Return("hash1", nil)
@@ -49,13 +64,8 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	// 3. Cache Check
 	mockStore.EXPECT().Get("build").Return(nil, nil)
 
-	// 4. Env Factory Resolution
-	expectedEnv := []string{"GO_VERSION=1.22.2", "PATH=/nix/store/go/bin"}
-	mockLogger.EXPECT().Info(gomock.Any())
-	mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), gomock.Any()).Return(expectedEnv, nil)
-
 	// 5. Execution with Env
-	mockExec.EXPECT().Execute(ctx, task, expectedEnv).Return(nil)
+	mockExec.EXPECT().Execute(ctx, task, expectedEnv, gomock.Any(), gomock.Any()).Return(nil)
 
 	// 6. Output Hashing & Store Put
 	mockHasher.EXPECT().ComputeOutputHash(gomock.Any(), ".").Return("outHash", nil)
