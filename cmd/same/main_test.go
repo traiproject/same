@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
-	"go.trai.ch/bob/internal/app"
+	"go.trai.ch/same/internal/app"
 )
 
 func TestRun(t *testing.T) {

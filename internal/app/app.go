@@ -11,12 +11,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // concrete type assertion
-	"go.trai.ch/bob/internal/adapters/telemetry"
-	"go.trai.ch/bob/internal/adapters/tui"
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports"
-	"go.trai.ch/bob/internal/engine/scheduler"
+	"go.trai.ch/same/internal/adapters/logger" //nolint:depguard // concrete type assertion
+	"go.trai.ch/same/internal/adapters/telemetry"
+	"go.trai.ch/same/internal/adapters/tui"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports"
+	"go.trai.ch/same/internal/engine/scheduler"
 	"go.trai.ch/zerr"
 	"golang.org/x/sync/errgroup"
 )

@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/grindlemire/graft"
-	"go.trai.ch/bob/internal/adapters/cas"       //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/adapters/fs"        //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/adapters/nix"       //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/adapters/shell"     //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/adapters/telemetry" //nolint:depguard // Wired in engine wiring
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/adapters/cas"       //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/same/internal/adapters/fs"        //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/same/internal/adapters/nix"       //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/same/internal/adapters/shell"     //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/same/internal/adapters/telemetry" //nolint:depguard // Wired in engine wiring
+	"go.trai.ch/same/internal/core/ports"
 )
 
 // NodeID is the unique identifier for the scheduler Graft node.

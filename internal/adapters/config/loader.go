@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"gopkg.in/yaml.v3"
 )

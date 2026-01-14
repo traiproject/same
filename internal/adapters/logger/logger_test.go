@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.trai.ch/bob/internal/adapters/logger"
+	"go.trai.ch/same/internal/adapters/logger"
 )
 
 // captureStderr captures output written to os.Stderr during the execution of fn.

@@ -3,7 +3,7 @@ package domain_test
 import (
 	"testing"
 
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 func TestGenerateEnvID_Deterministic(t *testing.T) {

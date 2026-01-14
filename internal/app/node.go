@@ -4,14 +4,14 @@ import (
 	"context"
 
 	"github.com/grindlemire/graft"
-	"go.trai.ch/bob/internal/adapters/cas"    //nolint:depguard // Wired in app layer
-	"go.trai.ch/bob/internal/adapters/config" //nolint:depguard // Wired in app layer
-	"go.trai.ch/bob/internal/adapters/fs"     //nolint:depguard // Wired in app layer
-	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // Wired in app layer
-	"go.trai.ch/bob/internal/adapters/nix"    //nolint:depguard // Wired in app layer
-	"go.trai.ch/bob/internal/adapters/shell"  //nolint:depguard // Wired in app layer
-	"go.trai.ch/bob/internal/core/ports"
-	_ "go.trai.ch/bob/internal/engine/scheduler" // Ensure scheduler package is linked if needed, though we don't depend on the node anymore.
+	"go.trai.ch/same/internal/adapters/cas"    //nolint:depguard // Wired in app layer
+	"go.trai.ch/same/internal/adapters/config" //nolint:depguard // Wired in app layer
+	"go.trai.ch/same/internal/adapters/fs"     //nolint:depguard // Wired in app layer
+	"go.trai.ch/same/internal/adapters/logger" //nolint:depguard // Wired in app layer
+	"go.trai.ch/same/internal/adapters/nix"    //nolint:depguard // Wired in app layer
+	"go.trai.ch/same/internal/adapters/shell"  //nolint:depguard // Wired in app layer
+	"go.trai.ch/same/internal/core/ports"
+	_ "go.trai.ch/same/internal/engine/scheduler" // Ensure scheduler package is linked if needed, though we don't depend on the node anymore.
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.trai.ch/bob/internal/adapters/nix"
+	"go.trai.ch/same/internal/adapters/nix"
 )
 
 func TestGenerateNixExpr_Deterministic(t *testing.T) {

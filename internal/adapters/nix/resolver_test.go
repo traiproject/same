@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 const testVersion = "1.21"

@@ -3,7 +3,7 @@ package telemetry
 import (
 	"context"
 
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/core/ports"
 )
 
 // NoOpTracer is a no-op implementation of ports.Tracer.

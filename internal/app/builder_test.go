@@ -7,8 +7,8 @@ import (
 
 	"github.com/grindlemire/graft"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/app"
-	_ "go.trai.ch/bob/internal/wiring" // Register providers
+	"go.trai.ch/same/internal/app"
+	_ "go.trai.ch/same/internal/wiring" // Register providers
 )
 
 func TestAppWiring(t *testing.T) {

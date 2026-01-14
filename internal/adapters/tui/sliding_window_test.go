@@ -5,8 +5,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
-	"go.trai.ch/bob/internal/adapters/telemetry"
-	"go.trai.ch/bob/internal/adapters/tui"
+	"go.trai.ch/same/internal/adapters/telemetry"
+	"go.trai.ch/same/internal/adapters/tui"
 )
 
 func TestUpdate_SlidingWindow_Scrolling(t *testing.T) {

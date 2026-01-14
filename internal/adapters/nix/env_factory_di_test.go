@@ -3,8 +3,8 @@ package nix_test
 import (
 	"testing"
 
-	"go.trai.ch/bob/internal/adapters/nix"
-	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.trai.ch/same/internal/adapters/nix"
+	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.uber.org/mock/gomock"
 )
 

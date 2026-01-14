@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.trai.ch/bob/internal/adapters/telemetry"
+	"go.trai.ch/same/internal/adapters/telemetry"
 )
 
 // TestModel captures messages for verification.

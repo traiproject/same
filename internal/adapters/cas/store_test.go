@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"go.trai.ch/bob/internal/adapters/cas"
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/adapters/cas"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 func TestNewStore(t *testing.T) {

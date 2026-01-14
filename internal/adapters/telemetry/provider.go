@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/core/ports"
 )
 
 // OTelTracer is a concrete implementation of ports.Tracer using OpenTelemetry.

@@ -14,8 +14,8 @@ import (
 	"strings"
 	"sync"
 
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"

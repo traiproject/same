@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"go.trai.ch/bob/internal/build"
+	"go.trai.ch/same/internal/build"
 )
 
 func (c *CLI) newVersionCmd() *cobra.Command {

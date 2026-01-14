@@ -9,8 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/adapters/telemetry"
-	"go.trai.ch/bob/internal/adapters/tui"
+	"go.trai.ch/same/internal/adapters/telemetry"
+	"go.trai.ch/same/internal/adapters/tui"
 )
 
 func TestWrapLog(t *testing.T) {

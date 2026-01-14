@@ -4,7 +4,7 @@ package scheduler
 import (
 	"context"
 
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 // GetTaskStatusMap returns a copy of the internal task status map.

@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/core/domain"
 	"go.trai.ch/zerr"
 )
 

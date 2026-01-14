@@ -9,10 +9,10 @@ import (
 	"syscall"
 
 	"github.com/grindlemire/graft"
-	"go.trai.ch/bob/cmd/bob/commands"
-	"go.trai.ch/bob/internal/app"
-	"go.trai.ch/bob/internal/core/domain"
-	_ "go.trai.ch/bob/internal/wiring"
+	"go.trai.ch/same/cmd/same/commands"
+	"go.trai.ch/same/internal/app"
+	"go.trai.ch/same/internal/core/domain"
+	_ "go.trai.ch/same/internal/wiring"
 )
 
 func main() {

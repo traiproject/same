@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/adapters/config"
-	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.trai.ch/same/internal/adapters/config"
+	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.trai.ch/zerr"
 	"go.uber.org/mock/gomock"
 )

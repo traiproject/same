@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.trai.ch/bob/internal/adapters/tui"
+	"go.trai.ch/same/internal/adapters/tui"
 )
 
 func TestNewModel(t *testing.T) {
