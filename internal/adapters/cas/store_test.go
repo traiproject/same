@@ -14,7 +14,7 @@ import (
 )
 
 func TestNewStore(t *testing.T) {
-	// NewStore uses a hardcoded path ".bob/store"
+	// NewStore uses a hardcoded path ".same/store"
 	// We need to test in a temp directory context
 	originalWd, err := os.Getwd()
 	if err != nil {
@@ -49,7 +49,7 @@ func TestNewStore(t *testing.T) {
 
 func TestStore_PutAndGet(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state")
+	storePath := filepath.Join(tmpDir, "same_state")
 
 	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestStore_PutAndGet(t *testing.T) {
 
 func TestStore_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state")
+	storePath := filepath.Join(tmpDir, "same_state")
 
 	// 1. Create store and save data
 	store1, err := cas.NewStoreWithPath(storePath)
@@ -119,7 +119,7 @@ func TestStore_Persistence(t *testing.T) {
 
 func TestStore_OmitZero(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state")
+	storePath := filepath.Join(tmpDir, "same_state")
 
 	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
@@ -182,7 +182,7 @@ func TestNewStore_Error(t *testing.T) {
 
 func TestGet_ReadError(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state")
+	storePath := filepath.Join(tmpDir, "same_state")
 	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
@@ -208,7 +208,7 @@ func TestGet_ReadError(t *testing.T) {
 
 func TestGet_UnmarshalError(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state")
+	storePath := filepath.Join(tmpDir, "same_state")
 	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
@@ -232,7 +232,7 @@ func TestGet_UnmarshalError(t *testing.T) {
 
 func TestPut_WriteError(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "bob_state")
+	storePath := filepath.Join(tmpDir, "same_state")
 	store, err := cas.NewStoreWithPath(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)

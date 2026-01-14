@@ -97,10 +97,10 @@ tasks:
 	}
 
 	// Create .same directory as a file (not a directory) to cause store init to fail
-	bobPath := tmpDir + "/.same"
-	err = os.WriteFile(bobPath, []byte("not a directory"), 0o600)
+	samePath := tmpDir + "/.same"
+	err = os.WriteFile(samePath, []byte("not a directory"), 0o600)
 	if err != nil {
-		t.Fatalf("failed to create .bob file: %v", err)
+		t.Fatalf("failed to create .same file: %v", err)
 	}
 
 	// Change to tmpDir
@@ -114,7 +114,7 @@ tasks:
 	}()
 
 	// Set args
-	os.Args = []string{"bob", "run", "test"}
+	os.Args = []string{"same", "run", "test"}
 
 	// Run and expect error exit code
 	exitCode := run()

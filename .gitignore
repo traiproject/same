@@ -1,8 +1,8 @@
 ############################
-# Bob
+# Same
 ############################
 
-.bob/
+.same/
 
 ############################
 # Go dependency injection
@@ -16,7 +16,7 @@ wire_band.go
 
 # Binaries
 bin/
-/bob
+/same
 *.exe
 *.exe~
 *.dll

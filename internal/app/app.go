@@ -1,4 +1,4 @@
-// Package app implements the application layer for bob.
+// Package app implements the application layer for same.
 package app
 
 import (

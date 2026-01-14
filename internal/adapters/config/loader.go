@@ -1,4 +1,4 @@
-// Package config provides the configuration loader for bob.
+// Package config provides the configuration loader for same.
 package config
 
 import (
@@ -25,7 +25,7 @@ func NewLoader(logger ports.Logger) *Loader {
 	return &Loader{Logger: logger}
 }
 
-// Mode represents the configuration mode of bob.
+// Mode represents the configuration mode of same.
 type Mode string
 
 const (
@@ -33,9 +33,9 @@ const (
 	WorkfileName = "same.work.yaml"
 	// SamefileName represents the name of a samefile.
 	SamefileName = "same.yaml"
-	// ModeWorkspace indicates that bob has a workfile.
+	// ModeWorkspace indicates that same has a workfile.
 	ModeWorkspace Mode = "workspace"
-	// ModeStandalone indicates that bob has only one samefile.
+	// ModeStandalone indicates that same has only one samefile.
 	ModeStandalone Mode = "standalone"
 )
 

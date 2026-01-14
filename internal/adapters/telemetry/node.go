@@ -15,7 +15,7 @@ func init() {
 		ID:        TracerNodeID,
 		Cacheable: true,
 		Run: func(_ context.Context) (ports.Tracer, error) {
-			return NewOTelTracer("bob"), nil
+			return NewOTelTracer("same"), nil
 		},
 	})
 }

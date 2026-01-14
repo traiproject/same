@@ -1,4 +1,4 @@
-// Package main is the entry point for the bob build tool.
+// Package main is the entry point for the same build tool.
 package main
 
 import (

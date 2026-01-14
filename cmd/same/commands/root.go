@@ -8,7 +8,7 @@ import (
 	"go.trai.ch/same/internal/app"
 )
 
-// CLI represents the command line interface for bob.
+// CLI represents the command line interface for same.
 type CLI struct {
 	app     *app.App
 	rootCmd *cobra.Command

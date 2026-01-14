@@ -65,7 +65,7 @@
           };
         };
 
-        # So you can run `nix run .` and get bob.
+        # So you can run `nix run .` and get same.
         apps.default = flake-utils.lib.mkApp {
           drv = packages.default;
         };

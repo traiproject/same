@@ -21,7 +21,7 @@ func TestNewEnvFactory_DefaultCache(t *testing.T) {
 	}
 
 	// Verify it creates the same as NewEnvFactoryWithCache with default path
-	expectedFactory := nix.NewEnvFactoryWithCache(resolver, ".bob/cache/environments")
+	expectedFactory := nix.NewEnvFactoryWithCache(resolver, ".same/cache/environments")
 
 	// Both should be non-nil and of the same type
 	if factory == nil || expectedFactory == nil {

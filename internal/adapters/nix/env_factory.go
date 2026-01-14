@@ -186,7 +186,7 @@ func (e *EnvFactory) generateNixExpr(system string, commits map[string][]string)
 
 // createNixTempFile creates a temporary file with the given Nix expression.
 func createNixTempFile(nixExpr string) (tmpPath string, cleanup func(), err error) {
-	tmpFile, err := os.CreateTemp("", "bob-env-*.nix")
+	tmpFile, err := os.CreateTemp("", "same-env-*.nix")
 	if err != nil {
 		return "", nil, zerr.Wrap(err, "failed to create temp nix file")
 	}
