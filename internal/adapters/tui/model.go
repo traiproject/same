@@ -36,7 +36,7 @@ type TaskNode struct {
 
 // Model represents the main TUI state.
 type Model struct {
-	Tasks          []TaskNode
+	Tasks          []*TaskNode
 	TaskMap        map[string]*TaskNode
 	SpanMap        map[string]*TaskNode
 	Viewport       viewport.Model
@@ -55,7 +55,7 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) getSelectedTask() *TaskNode {
 	if m.SelectedIdx >= 0 && m.SelectedIdx < len(m.Tasks) {
-		return &m.Tasks[m.SelectedIdx]
+		return m.Tasks[m.SelectedIdx]
 	}
 	return nil
 }
@@ -125,15 +125,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case telemetry.MsgInitTasks:
-		m.Tasks = make([]TaskNode, len(msg.Tasks))
+		m.Tasks = make([]*TaskNode, len(msg.Tasks))
 		m.TaskMap = make(map[string]*TaskNode, len(msg.Tasks))
 		m.SpanMap = make(map[string]*TaskNode)
 		for i, name := range msg.Tasks {
-			m.Tasks[i] = TaskNode{
+			m.Tasks[i] = &TaskNode{
 				Name:   name,
 				Status: StatusPending,
 			}
-			m.TaskMap[name] = &m.Tasks[i]
+			m.TaskMap[name] = m.Tasks[i]
 		}
 
 	case telemetry.MsgTaskStart:

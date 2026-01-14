@@ -16,7 +16,7 @@ func TestView_Initialization(t *testing.T) {
 }
 
 func TestView_TaskList(t *testing.T) {
-	tasks := []tui.TaskNode{
+	tasks := []*tui.TaskNode{
 		{Name: "task1", Status: tui.StatusRunning},
 		{Name: "task2", Status: tui.StatusDone},
 		{Name: "task3", Status: tui.StatusError},
@@ -34,7 +34,7 @@ func TestView_TaskList(t *testing.T) {
 		TaskMap:     make(map[string]*tui.TaskNode),
 	}
 	for i := range m.Tasks {
-		m.TaskMap[m.Tasks[i].Name] = &m.Tasks[i]
+		m.TaskMap[m.Tasks[i].Name] = m.Tasks[i]
 	}
 
 	output := m.View()
@@ -84,7 +84,7 @@ func TestView_LogPane(t *testing.T) {
 func TestView_LipglossIntegration(t *testing.T) {
 	// Just ensure it renders something structure-wise
 	m := tui.Model{
-		Tasks: []tui.TaskNode{{Name: "task1"}},
+		Tasks: []*tui.TaskNode{{Name: "task1"}},
 		Viewport: viewport.Model{
 			Height: 10,
 			Width:  40,

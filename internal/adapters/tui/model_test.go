@@ -104,14 +104,14 @@ func TestUpdate_InitTasks(t *testing.T) {
 	for i, task := range tasks {
 		assert.Equal(t, task, newM.Tasks[i].Name)
 		assert.Equal(t, tui.StatusPending, newM.Tasks[i].Status)
-		assert.Same(t, &newM.Tasks[i], newM.TaskMap[task])
+		assert.Same(t, newM.Tasks[i], newM.TaskMap[task])
 	}
 }
 
 func TestUpdate_Navigation(t *testing.T) {
 	// Initialize directly with tasks
 	m := &tui.Model{
-		Tasks: []tui.TaskNode{
+		Tasks: []*tui.TaskNode{
 			{Name: "task1"},
 			{Name: "task2"},
 			{Name: "task3"},
@@ -122,7 +122,7 @@ func TestUpdate_Navigation(t *testing.T) {
 	}
 	// Setup map pointers
 	for i := range m.Tasks {
-		m.TaskMap[m.Tasks[i].Name] = &m.Tasks[i]
+		m.TaskMap[m.Tasks[i].Name] = m.Tasks[i]
 	}
 
 	// Case 1: Down
@@ -204,7 +204,7 @@ func TestUpdate_AutoFollow(t *testing.T) {
 func TestUpdate_Logs(t *testing.T) {
 	// Setup
 	m := &tui.Model{
-		Tasks: []tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
+		Tasks: []*tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
 		Viewport: viewport.Model{
 			Width:  100,
 			Height: 20,
@@ -214,8 +214,8 @@ func TestUpdate_Logs(t *testing.T) {
 		TaskMap:        make(map[string]*tui.TaskNode),
 		SpanMap:        make(map[string]*tui.TaskNode),
 	}
-	m.TaskMap["task1"] = &m.Tasks[0]
-	m.SpanMap["span1"] = &m.Tasks[0] // associate span1 with task1
+	m.TaskMap["task1"] = m.Tasks[0]
+	m.SpanMap["span1"] = m.Tasks[0] // associate span1 with task1
 
 	// Send Log
 	logData := []byte("hello world")
@@ -232,11 +232,11 @@ func TestUpdate_Logs(t *testing.T) {
 
 func TestUpdate_WindowSize(t *testing.T) {
 	m := &tui.Model{
-		Tasks:          []tui.TaskNode{{Name: "task1", Logs: []byte("some logs")}},
+		Tasks:          []*tui.TaskNode{{Name: "task1", Logs: []byte("some logs")}},
 		ActiveTaskName: "task1",
 		TaskMap:        make(map[string]*tui.TaskNode),
 	}
-	m.TaskMap["task1"] = &m.Tasks[0]
+	m.TaskMap["task1"] = m.Tasks[0]
 	m.Viewport.Width = 10
 	m.Viewport.Height = 10
 
@@ -256,10 +256,10 @@ func TestUpdate_WindowSize(t *testing.T) {
 
 func TestUpdate_TaskComplete(t *testing.T) {
 	m := &tui.Model{
-		Tasks:   []tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
+		Tasks:   []*tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
 		SpanMap: make(map[string]*tui.TaskNode),
 	}
-	m.SpanMap["span1"] = &m.Tasks[0]
+	m.SpanMap["span1"] = m.Tasks[0]
 
 	// Success case
 	msgSuccess := telemetry.MsgTaskComplete{SpanID: "span1", Err: nil}
@@ -298,10 +298,10 @@ func TestUpdate_Quit(t *testing.T) {
 
 func TestUpdate_Logs_Truncation(t *testing.T) {
 	m := &tui.Model{
-		Tasks:   []tui.TaskNode{{Name: "task1"}},
+		Tasks:   []*tui.TaskNode{{Name: "task1"}},
 		SpanMap: make(map[string]*tui.TaskNode),
 	}
-	m.SpanMap["span1"] = &m.Tasks[0]
+	m.SpanMap["span1"] = m.Tasks[0]
 
 	// Create a log message slightly larger than 1MB
 	// 1MB = 1024 * 1024 = 1048576 bytes
@@ -321,12 +321,12 @@ func TestUpdate_Logs_Truncation(t *testing.T) {
 
 func TestUpdate_Logs_InactiveTask(t *testing.T) {
 	m := &tui.Model{
-		Tasks:          []tui.TaskNode{{Name: "task1"}, {Name: "task2"}},
+		Tasks:          []*tui.TaskNode{{Name: "task1"}, {Name: "task2"}},
 		ActiveTaskName: "task1",
 		SpanMap:        make(map[string]*tui.TaskNode),
 		Viewport:       viewport.New(100, 20),
 	}
-	m.SpanMap["span2"] = &m.Tasks[1] // associate span2 with task2 (inactive)
+	m.SpanMap["span2"] = m.Tasks[1] // associate span2 with task2 (inactive)
 
 	msg := telemetry.MsgTaskLog{SpanID: "span2", Data: []byte("log for task 2")}
 
@@ -342,13 +342,13 @@ func TestUpdate_Logs_InactiveTask(t *testing.T) {
 
 func TestUpdate_Logs_NoAutoScroll(t *testing.T) {
 	m := &tui.Model{
-		Tasks:          []tui.TaskNode{{Name: "task1"}},
+		Tasks:          []*tui.TaskNode{{Name: "task1"}},
 		ActiveTaskName: "task1",
 		AutoScroll:     false,
 		SpanMap:        make(map[string]*tui.TaskNode),
 		Viewport:       viewport.New(100, 20),
 	}
-	m.SpanMap["span1"] = &m.Tasks[0]
+	m.SpanMap["span1"] = m.Tasks[0]
 
 	// Pre-fill to ensure we have scrolling capability if we wanted
 	m.Tasks[0].Logs = []byte("line1\nline2\n")
@@ -388,7 +388,7 @@ func TestUpdate_Logs_NoAutoScroll(t *testing.T) {
 
 func TestUpdate_EmptyTasks_Esc(t *testing.T) {
 	m := &tui.Model{
-		Tasks: []tui.TaskNode{},
+		Tasks: []*tui.TaskNode{},
 	}
 
 	// Press Esc with empty tasks
@@ -402,7 +402,7 @@ func TestUpdate_EmptyTasks_Esc(t *testing.T) {
 
 func TestUpdate_Defensive_UnknownItems(t *testing.T) {
 	m := &tui.Model{
-		Tasks:          []tui.TaskNode{{Name: "task1"}},
+		Tasks:          []*tui.TaskNode{{Name: "task1"}},
 		TaskMap:        make(map[string]*tui.TaskNode),
 		SpanMap:        make(map[string]*tui.TaskNode),
 		ActiveTaskName: "ghost_task",
