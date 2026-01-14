@@ -1,4 +1,4 @@
-module go.trai.ch/bob
+module go.trai.ch/same
 
 go 1.25.3
 

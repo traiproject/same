@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/adapters/telemetry"
+	"go.trai.ch/same/internal/adapters/telemetry"
 )
 
 func TestBatchProcessor_FlushOnSize(t *testing.T) {

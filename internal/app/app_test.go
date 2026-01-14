@@ -10,9 +10,9 @@ import (
 	"testing/synctest"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"go.trai.ch/bob/internal/app"
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.trai.ch/same/internal/app"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.uber.org/mock/gomock"
 )
 

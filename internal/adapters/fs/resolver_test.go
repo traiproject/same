@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/adapters/fs"
+	"go.trai.ch/same/internal/adapters/fs"
 )
 
 func TestResolver_ResolveInputs_Success(t *testing.T) {

@@ -1,9 +1,9 @@
-// Package app implements the application layer for bob.
+// Package app implements the application layer for same.
 package app
 
 import (
-	"go.trai.ch/bob/internal/adapters/config" //nolint:depguard // Builders need to wire concrete adapters
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/adapters/config" //nolint:depguard // Builders need to wire concrete adapters
+	"go.trai.ch/same/internal/core/ports"
 )
 
 // Components contains all the initialized application components.

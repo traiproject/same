@@ -5,7 +5,7 @@ import (
 	"context"
 	"io"
 
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 // Executor defines the interface for executing tasks.

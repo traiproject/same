@@ -56,7 +56,7 @@ linters:
       sections:
         - standard
         - default
-        - prefix(go.trai.ch/bob)
+        - prefix(go.trai.ch/same)
 
     godot:
       scope: toplevel
@@ -81,7 +81,7 @@ linters:
             - "**/internal/core/**/*.go"
           allow:
             - $gostd
-            - "go.trai.ch/bob/internal/core"
+            - "go.trai.ch/same/internal/core"
             - "go.trai.ch/zerr"
             - "github.com/stretchr/testify"
 
@@ -90,11 +90,11 @@ linters:
           files:
             - "**/internal/engine/**/*.go"
           deny:
-            - pkg: "go.trai.ch/bob/internal/adapters"
+            - pkg: "go.trai.ch/same/internal/adapters"
               desc: "engine must not depend on adapters (infra layer)"
-            - pkg: "go.trai.ch/bob/internal/app"
+            - pkg: "go.trai.ch/same/internal/app"
               desc: "engine must not depend on app layer"
-            - pkg: "go.trai.ch/bob/cmd"
+            - pkg: "go.trai.ch/same/cmd"
               desc: "engine must not depend on cmd"
 
         adapters:
@@ -102,9 +102,9 @@ linters:
           files:
             - "**/internal/adapters/**/*.go"
           deny:
-            - pkg: "go.trai.ch/bob/internal/engine"
+            - pkg: "go.trai.ch/same/internal/engine"
               desc: "adapters must not depend on engine"
-            - pkg: "go.trai.ch/bob/internal/app"
+            - pkg: "go.trai.ch/same/internal/app"
               desc: "adapters must not depend on app"
 
         app:
@@ -112,9 +112,9 @@ linters:
           files:
             - "**/internal/app/**/*.go"
           deny:
-            - pkg: "go.trai.ch/bob/internal/adapters"
+            - pkg: "go.trai.ch/same/internal/adapters"
               desc: "app should depend on ports, not concrete adapters"
-            - pkg: "go.trai.ch/bob/cmd"
+            - pkg: "go.trai.ch/same/cmd"
               desc: "app must not depend on cmd"
 
         cmd:
@@ -122,7 +122,7 @@ linters:
           files:
             - "**/cmd/**/*.go"
           deny:
-            - pkg: "go.trai.ch/bob/internal/adapters"
+            - pkg: "go.trai.ch/same/internal/adapters"
               desc: "CLI should go through app layer, not adapters directly"
             # Note: internal/wiring is allowed to be imported by cmd to trigger side-effects.
 

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"golang.org/x/sync/errgroup"
 )
@@ -421,7 +421,7 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 
 		// If skipped (cached)
 		if skipped {
-			span.SetAttribute("bob.cached", true)
+			span.SetAttribute("same.cached", true)
 			return result{task: t.Name, skipped: true, inputHash: hash}
 		}
 

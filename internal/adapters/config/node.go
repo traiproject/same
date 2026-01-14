@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/grindlemire/graft"
-	"go.trai.ch/bob/internal/adapters/logger"
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/adapters/logger"
+	"go.trai.ch/same/internal/core/ports"
 )
 
 // NodeID is the unique identifier for the config loader Graft node.

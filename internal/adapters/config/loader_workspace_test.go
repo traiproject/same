@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/adapters/config"
-	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.trai.ch/same/internal/adapters/config"
+	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.trai.ch/zerr"
 	"go.uber.org/mock/gomock"
 )
@@ -24,7 +24,7 @@ func TestLoad_DuplicateProjectName(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace config
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(testWorkspaceConfig), 0o600)
 	require.NoError(t, err)
 
@@ -37,30 +37,30 @@ func TestLoad_DuplicateProjectName(t *testing.T) {
 	project1Dir := filepath.Join(packagesDir, "project1")
 	err = os.MkdirAll(project1Dir, 0o750)
 	require.NoError(t, err)
-	bobfile1Content := `
+	samefile1Content := `
 version: "1"
 project: "myapp"
 tasks:
   build:
     cmd: ["echo", "building project1"]
 `
-	bobfile1Path := filepath.Join(project1Dir, "bob.yaml")
-	err = os.WriteFile(bobfile1Path, []byte(bobfile1Content), 0o600)
+	samefile1Path := filepath.Join(project1Dir, "same.yaml")
+	err = os.WriteFile(samefile1Path, []byte(samefile1Content), 0o600)
 	require.NoError(t, err)
 
 	// Create second project with the same name "myapp"
 	project2Dir := filepath.Join(packagesDir, "project2")
 	err = os.MkdirAll(project2Dir, 0o750)
 	require.NoError(t, err)
-	bobfile2Content := `
+	samefile2Content := `
 version: "1"
 project: "myapp"
 tasks:
   test:
     cmd: ["echo", "testing project2"]
 `
-	bobfile2Path := filepath.Join(project2Dir, "bob.yaml")
-	err = os.WriteFile(bobfile2Path, []byte(bobfile2Content), 0o600)
+	samefile2Path := filepath.Join(project2Dir, "same.yaml")
+	err = os.WriteFile(samefile2Path, []byte(samefile2Content), 0o600)
 	require.NoError(t, err)
 
 	// Load the config
@@ -100,7 +100,7 @@ func TestLoad_Workspace_NamespaceDependencies(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace config
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(testWorkspaceConfig), 0o600)
 	require.NoError(t, err)
 
@@ -114,15 +114,15 @@ func TestLoad_Workspace_NamespaceDependencies(t *testing.T) {
 	err = os.MkdirAll(project1Dir, 0o750)
 	require.NoError(t, err)
 
-	bobfile1Content := `
+	samefile1Content := `
 version: "1"
 project: "lib"
 tasks:
   build:
     cmd: ["go", "build"]
 `
-	bobfile1Path := filepath.Join(project1Dir, "bob.yaml")
-	err = os.WriteFile(bobfile1Path, []byte(bobfile1Content), 0o600)
+	samefile1Path := filepath.Join(project1Dir, "same.yaml")
+	err = os.WriteFile(samefile1Path, []byte(samefile1Content), 0o600)
 	require.NoError(t, err)
 
 	// Create second project with dependencies (local and cross-project)
@@ -130,7 +130,7 @@ tasks:
 	err = os.MkdirAll(project2Dir, 0o750)
 	require.NoError(t, err)
 
-	bobfile2Content := `
+	samefile2Content := `
 version: "1"
 project: "app"
 tasks:
@@ -140,8 +140,8 @@ tasks:
     cmd: ["go", "build"]
     dependsOn: ["test", "lib:build"]
 `
-	bobfile2Path := filepath.Join(project2Dir, "bob.yaml")
-	err = os.WriteFile(bobfile2Path, []byte(bobfile2Content), 0o600)
+	samefile2Path := filepath.Join(project2Dir, "same.yaml")
+	err = os.WriteFile(samefile2Path, []byte(samefile2Content), 0o600)
 	require.NoError(t, err)
 
 	// Load the config
@@ -172,7 +172,7 @@ tasks:
 	}
 }
 
-// TestLoad_Workspace_InvalidProjectName tests the validateBobfile function
+// TestLoad_Workspace_InvalidProjectName tests the validateSamefile function
 // by creating a workspace with an invalid project name.
 func TestLoad_Workspace_InvalidProjectName(t *testing.T) {
 	tests := []struct {
@@ -207,7 +207,7 @@ func TestLoad_Workspace_InvalidProjectName(t *testing.T) {
 			tmpDir := t.TempDir()
 
 			// Create workspace config
-			workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+			workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 			err := os.WriteFile(workfilePath, []byte(testWorkspaceConfig), 0o600)
 			require.NoError(t, err)
 
@@ -221,15 +221,15 @@ func TestLoad_Workspace_InvalidProjectName(t *testing.T) {
 			err = os.MkdirAll(projectDir, 0o750)
 			require.NoError(t, err)
 
-			bobfileContent := `
+			samefileContent := `
 version: "1"
 project: "` + tt.projectName + `"
 tasks:
   build:
     cmd: ["echo", "building"]
 `
-			bobfilePath := filepath.Join(projectDir, "bob.yaml")
-			err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+			samefilePath := filepath.Join(projectDir, "same.yaml")
+			err = os.WriteFile(samefilePath, []byte(samefileContent), 0o600)
 			require.NoError(t, err)
 
 			// Load the config
@@ -249,13 +249,13 @@ tasks:
 	}
 }
 
-// TestLoad_Workspace_MissingProjectName tests the validateBobfile function
+// TestLoad_Workspace_MissingProjectName tests the validateSamefile function
 // when the project name is missing.
 func TestLoad_Workspace_MissingProjectName(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace config
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(testWorkspaceConfig), 0o600)
 	require.NoError(t, err)
 
@@ -269,14 +269,14 @@ func TestLoad_Workspace_MissingProjectName(t *testing.T) {
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
 
-	bobfileContent := `
+	samefileContent := `
 version: "1"
 tasks:
   build:
     cmd: ["echo", "building"]
 `
-	bobfilePath := filepath.Join(projectDir, "bob.yaml")
-	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	samefilePath := filepath.Join(projectDir, "same.yaml")
+	err = os.WriteFile(samefilePath, []byte(samefileContent), 0o600)
 	require.NoError(t, err)
 
 	// Load the config
@@ -289,12 +289,12 @@ tasks:
 	assert.Contains(t, err.Error(), "missing project name")
 }
 
-// TestLoad_Workspace_BobfileReadError tests error handling when bob.yaml cannot be read.
-func TestLoad_Workspace_BobfileReadError(t *testing.T) {
+// TestLoad_Workspace_SamefileReadError tests error handling when same.yaml cannot be read.
+func TestLoad_Workspace_SamefileReadError(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace config
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(testWorkspaceConfig), 0o600)
 	require.NoError(t, err)
 
@@ -308,9 +308,9 @@ func TestLoad_Workspace_BobfileReadError(t *testing.T) {
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
 
-	// Create bob.yaml with no read permissions
-	bobfilePath := filepath.Join(projectDir, "bob.yaml")
-	err = os.WriteFile(bobfilePath, []byte("test"), 0o000)
+	// Create same.yaml with no read permissions
+	samefilePath := filepath.Join(projectDir, "same.yaml")
+	err = os.WriteFile(samefilePath, []byte("test"), 0o000)
 	require.NoError(t, err)
 
 	// Load the config
@@ -323,12 +323,12 @@ func TestLoad_Workspace_BobfileReadError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to read config file")
 }
 
-// TestLoad_Workspace_BobfileParseError tests error handling when bob.yaml has invalid YAML.
-func TestLoad_Workspace_BobfileParseError(t *testing.T) {
+// TestLoad_Workspace_SamefileParseError tests error handling when same.yaml has invalid YAML.
+func TestLoad_Workspace_SamefileParseError(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace config
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(testWorkspaceConfig), 0o600)
 	require.NoError(t, err)
 
@@ -342,15 +342,15 @@ func TestLoad_Workspace_BobfileParseError(t *testing.T) {
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
 
-	// Create bob.yaml with invalid YAML
-	bobfilePath := filepath.Join(projectDir, "bob.yaml")
+	// Create same.yaml with invalid YAML
+	samefilePath := filepath.Join(projectDir, "same.yaml")
 	invalidYaml := `
 version: "1"
 project: "test"
 tasks:
   build: [invalid yaml structure
 `
-	err = os.WriteFile(bobfilePath, []byte(invalidYaml), 0o600)
+	err = os.WriteFile(samefilePath, []byte(invalidYaml), 0o600)
 	require.NoError(t, err)
 
 	// Load the config
@@ -364,12 +364,12 @@ tasks:
 }
 
 // TestLoad_Workspace_RootWarning tests that the loader warns when root is defined
-// in a workspace project's bob.yaml (which is ignored).
+// in a workspace project's same.yaml (which is ignored).
 func TestLoad_Workspace_RootWarning(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace config
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(testWorkspaceConfig), 0o600)
 	require.NoError(t, err)
 
@@ -383,7 +383,7 @@ func TestLoad_Workspace_RootWarning(t *testing.T) {
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
 
-	bobfileContent := `
+	samefileContent := `
 version: "1"
 project: "myproject"
 root: "./custom-root"
@@ -391,8 +391,8 @@ tasks:
   build:
     cmd: ["echo", "building"]
 `
-	bobfilePath := filepath.Join(projectDir, "bob.yaml")
-	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	samefilePath := filepath.Join(projectDir, "same.yaml")
+	err = os.WriteFile(samefilePath, []byte(samefileContent), 0o600)
 	require.NoError(t, err)
 
 	// Load the config with mock logger to capture warnings
@@ -414,13 +414,13 @@ tasks:
 	require.NotNil(t, g)
 }
 
-// TestLoad_Workspace_MissingBobfileWarning tests that the loader warns when
-// a matched directory doesn't contain a bob.yaml file.
-func TestLoad_Workspace_MissingBobfileWarning(t *testing.T) {
+// TestLoad_Workspace_MissingSamefileWarning tests that the loader warns when
+// a matched directory doesn't contain a same.yaml file.
+func TestLoad_Workspace_MissingSamefileWarning(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace config
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(testWorkspaceConfig), 0o600)
 	require.NoError(t, err)
 
@@ -429,7 +429,7 @@ func TestLoad_Workspace_MissingBobfileWarning(t *testing.T) {
 	err = os.MkdirAll(packagesDir, 0o750)
 	require.NoError(t, err)
 
-	// Create project directory WITHOUT bob.yaml
+	// Create project directory WITHOUT same.yaml
 	projectDir := filepath.Join(packagesDir, "empty-project")
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
@@ -438,7 +438,7 @@ func TestLoad_Workspace_MissingBobfileWarning(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockLogger := mocks.NewMockLogger(ctrl)
 
-	// Expect warning about missing bob.yaml
+	// Expect warning about missing same.yaml
 	mockLogger.EXPECT().
 		Warn(gomock.Any()).
 		Do(func(msg string) {
@@ -466,7 +466,7 @@ tools:
 projects:
   - "packages/*"
 `
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
 	require.NoError(t, err)
 
@@ -480,7 +480,7 @@ projects:
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
 
-	bobfileContent := `
+	samefileContent := `
 version: "1"
 project: "myapp"
 tasks:
@@ -491,8 +491,8 @@ tasks:
     cmd: ["npm", "run", "build"]
     tools: ["node"]
 `
-	bobfilePath := filepath.Join(projectDir, "bob.yaml")
-	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	samefilePath := filepath.Join(projectDir, "same.yaml")
+	err = os.WriteFile(samefilePath, []byte(samefileContent), 0o600)
 	require.NoError(t, err)
 
 	// Load the config
@@ -533,7 +533,7 @@ tools:
 projects:
   - "packages/*"
 `
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
 	require.NoError(t, err)
 
@@ -547,7 +547,7 @@ projects:
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
 
-	bobfileContent := `
+	samefileContent := `
 version: "1"
 project: "myapp"
 tools:
@@ -557,8 +557,8 @@ tasks:
     cmd: ["go", "build"]
     tools: ["go"]
 `
-	bobfilePath := filepath.Join(projectDir, "bob.yaml")
-	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	samefilePath := filepath.Join(projectDir, "same.yaml")
+	err = os.WriteFile(samefilePath, []byte(samefileContent), 0o600)
 	require.NoError(t, err)
 
 	// Load the config
@@ -595,7 +595,7 @@ tools:
 projects:
   - "packages/*"
 `
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
 	require.NoError(t, err)
 
@@ -609,7 +609,7 @@ projects:
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
 
-	bobfileContent := `
+	samefileContent := `
 version: "1"
 project: "myapp"
 tools:
@@ -619,8 +619,8 @@ tasks:
     cmd: ["make", "build"]
     tools: ["go", "node"]
 `
-	bobfilePath := filepath.Join(projectDir, "bob.yaml")
-	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	samefilePath := filepath.Join(projectDir, "same.yaml")
+	err = os.WriteFile(samefilePath, []byte(samefileContent), 0o600)
 	require.NoError(t, err)
 
 	// Load the config
@@ -660,7 +660,7 @@ tools:
 projects:
   - "packages/*"
 `
-	workfilePath := filepath.Join(tmpDir, "bob.work.yaml")
+	workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 	err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
 	require.NoError(t, err)
 
@@ -674,7 +674,7 @@ projects:
 	err = os.MkdirAll(projectDir, 0o750)
 	require.NoError(t, err)
 
-	bobfileContent := `
+	samefileContent := `
 version: "1"
 project: "myapp"
 tasks:
@@ -682,8 +682,8 @@ tasks:
     cmd: ["go", "build"]
     tools: ["go", "rust"]
 `
-	bobfilePath := filepath.Join(projectDir, "bob.yaml")
-	err = os.WriteFile(bobfilePath, []byte(bobfileContent), 0o600)
+	samefilePath := filepath.Join(projectDir, "same.yaml")
+	err = os.WriteFile(samefilePath, []byte(samefileContent), 0o600)
 	require.NoError(t, err)
 
 	// Load the config

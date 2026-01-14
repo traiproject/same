@@ -7,7 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/core/ports"
 )
 
 // Logger implements ports.Logger using log/slog.

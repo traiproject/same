@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"go.trai.ch/bob/internal/adapters/config"
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports/mocks"
+	"go.trai.ch/same/internal/adapters/config"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.uber.org/mock/gomock"
 )
 
@@ -21,7 +21,7 @@ tasks:
     target: ["y", "x", "x", "z"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}

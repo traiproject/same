@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports/mocks"
-	"go.trai.ch/bob/internal/engine/scheduler"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports/mocks"
+	"go.trai.ch/same/internal/engine/scheduler"
 	"go.uber.org/mock/gomock"
 )
 

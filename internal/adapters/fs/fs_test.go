@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/adapters/fs"
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/adapters/fs"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 func TestHasher_ComputeInputHash_Glob(t *testing.T) {

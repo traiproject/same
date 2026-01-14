@@ -1,6 +1,6 @@
 package ports
 
-import "go.trai.ch/bob/internal/core/domain"
+import "go.trai.ch/same/internal/core/domain"
 
 // BuildInfoStore defines the interface for storing and retrieving build information.
 //

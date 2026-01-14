@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 func TestInternedString(t *testing.T) {

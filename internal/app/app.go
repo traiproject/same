@@ -1,4 +1,4 @@
-// Package app implements the application layer for bob.
+// Package app implements the application layer for same.
 package app
 
 import (
@@ -11,12 +11,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.trai.ch/bob/internal/adapters/logger" //nolint:depguard // concrete type assertion
-	"go.trai.ch/bob/internal/adapters/telemetry"
-	"go.trai.ch/bob/internal/adapters/tui"
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports"
-	"go.trai.ch/bob/internal/engine/scheduler"
+	"go.trai.ch/same/internal/adapters/logger" //nolint:depguard // concrete type assertion
+	"go.trai.ch/same/internal/adapters/telemetry"
+	"go.trai.ch/same/internal/adapters/tui"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports"
+	"go.trai.ch/same/internal/engine/scheduler"
 	"go.trai.ch/zerr"
 	"golang.org/x/sync/errgroup"
 )
@@ -76,10 +76,10 @@ type RunOptions struct {
 func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
 	// 0. Redirect Logs for TUI
 	// We want to avoid polluting the terminal with app logs while the TUI is running.
-	if err := os.MkdirAll(".bob", logDirPerm); err != nil {
-		return zerr.Wrap(err, "failed to create .bob directory")
+	if err := os.MkdirAll(".same", logDirPerm); err != nil {
+		return zerr.Wrap(err, "failed to create .same directory")
 	}
-	f, err := os.OpenFile(".bob/debug.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, logFilePerm)
+	f, err := os.OpenFile(".same/debug.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, logFilePerm)
 	if err != nil {
 		return zerr.Wrap(err, "failed to open debug log")
 	}
@@ -123,7 +123,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 
 	// Create and configure the OTel Tracer adapter.
 	// We inject the program so it can stream logs directly via the batcher.
-	tracer := telemetry.NewOTelTracer("bob").WithProgram(program)
+	tracer := telemetry.NewOTelTracer("same").WithProgram(program)
 
 	// 5. Initialize Scheduler
 	sched := scheduler.NewScheduler(

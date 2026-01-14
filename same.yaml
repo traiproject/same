@@ -42,7 +42,7 @@ tasks:
   # Build the binary
   build:
     input: ["cmd", "internal"]
-    cmd: ["go", "build", "-o", "bin/bob", "./cmd/bob"]
-    target: ["bin/bob"]
+    cmd: ["go", "build", "-o", "bin/same", "./cmd/same"]
+    target: ["bin/same"]
     tools: ["go"]
     dependsOn: ["test"]

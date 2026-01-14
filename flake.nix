@@ -39,7 +39,7 @@
       in
       rec {
         packages.default = pkgs.buildGoModule {
-          pname = "bob";
+          pname = "same";
           inherit version;
 
           src = ./.;
@@ -48,7 +48,7 @@
           env.CGO_ENABLED = 1;
 
           ldflags = [
-            "-X go.trai.ch/bob/internal/build.Version=${version}"
+            "-X go.trai.ch/same/internal/build.Version=${version}"
           ];
 
           excludePackages = [ ];
@@ -61,11 +61,11 @@
           '';
 
           meta = {
-            mainProgram = "bob";
+            mainProgram = "same";
           };
         };
 
-        # So you can run `nix run .` and get bob.
+        # So you can run `nix run .` and get same.
         apps.default = flake-utils.lib.mkApp {
           drv = packages.default;
         };

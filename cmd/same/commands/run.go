@@ -2,7 +2,7 @@ package commands
 
 import (
 	"github.com/spf13/cobra"
-	"go.trai.ch/bob/internal/app"
+	"go.trai.ch/same/internal/app"
 )
 
 func (c *CLI) newRunCmd() *cobra.Command {

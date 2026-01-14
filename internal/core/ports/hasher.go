@@ -1,6 +1,6 @@
 package ports
 
-import "go.trai.ch/bob/internal/core/domain"
+import "go.trai.ch/same/internal/core/domain"
 
 // Hasher defines the interface for computing hashes.
 //

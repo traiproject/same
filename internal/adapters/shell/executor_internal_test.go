@@ -48,8 +48,8 @@ func TestResolveEnvironment(t *testing.T) {
 			name:     "System + Nix + Task (Override)",
 			sysEnv:   []string{"USER=test", "PATH=/bin"},
 			nixEnv:   []string{"PATH=/nix/bin"},
-			taskEnv:  map[string]string{"USER": "bob", "FOO": "bar"},
-			expected: []string{"USER=bob", "PATH=/nix/bin" + string(os.PathListSeparator) + "/bin", "FOO=bar"},
+			taskEnv:  map[string]string{"USER": "same", "FOO": "bar"},
+			expected: []string{"USER=same", "PATH=/nix/bin" + string(os.PathListSeparator) + "/bin", "FOO=bar"},
 		},
 		{
 			name:     "System + Nix + Task (Task PATH override)",

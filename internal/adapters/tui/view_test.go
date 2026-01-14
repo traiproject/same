@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/stretchr/testify/assert"
-	"go.trai.ch/bob/internal/adapters/tui"
+	"go.trai.ch/same/internal/adapters/tui"
 )
 
 func TestView_Initialization(t *testing.T) {

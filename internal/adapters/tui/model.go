@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
-	"go.trai.ch/bob/internal/adapters/telemetry"
+	"go.trai.ch/same/internal/adapters/telemetry"
 )
 
 const (

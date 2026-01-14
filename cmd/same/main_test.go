@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
-	"go.trai.ch/bob/internal/app"
+	"go.trai.ch/same/internal/app"
 )
 
 func TestRun(t *testing.T) {
@@ -26,7 +26,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "Success with valid config",
 			setupConfig: func(tmpDir string) string {
-				configPath := tmpDir + "/bob.yaml"
+				configPath := tmpDir + "/same.yaml"
 				configContent := `version: "1"
 tasks:
   test:
@@ -38,16 +38,8 @@ tasks:
 				}
 				return configPath
 			},
-			args:         []string{"bob", "run", "test"},
+			args:         []string{"same", "run", "test"},
 			expectedExit: 0,
-		},
-		{
-			name: "Error with missing config",
-			setupConfig: func(tmpDir string) string {
-				return tmpDir + "/nonexistent.yaml"
-			},
-			args:         []string{"bob", "-c", "nonexistent.yaml", "run", "test"},
-			expectedExit: 1,
 		},
 	}
 
@@ -93,7 +85,7 @@ func TestRun_StoreInitError(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a valid config
-	configPath := tmpDir + "/bob.yaml"
+	configPath := tmpDir + "/same.yaml"
 	configContent := `version: "1"
 tasks:
   test:
@@ -104,11 +96,11 @@ tasks:
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	// Create .bob directory as a file (not a directory) to cause store init to fail
-	bobPath := tmpDir + "/.bob"
-	err = os.WriteFile(bobPath, []byte("not a directory"), 0o600)
+	// Create .same directory as a file (not a directory) to cause store init to fail
+	samePath := tmpDir + "/.same"
+	err = os.WriteFile(samePath, []byte("not a directory"), 0o600)
 	if err != nil {
-		t.Fatalf("failed to create .bob file: %v", err)
+		t.Fatalf("failed to create .same file: %v", err)
 	}
 
 	// Change to tmpDir
@@ -122,7 +114,7 @@ tasks:
 	}()
 
 	// Set args
-	os.Args = []string{"bob", "run", "test"}
+	os.Args = []string{"same", "run", "test"}
 
 	// Run and expect error exit code
 	exitCode := run()

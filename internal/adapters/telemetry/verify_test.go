@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/adapters/telemetry"
-	"go.trai.ch/bob/internal/core/ports"
+	"go.trai.ch/same/internal/adapters/telemetry"
+	"go.trai.ch/same/internal/core/ports"
 )
 
 func TestInterfaceSatisfaction(_ *testing.T) {

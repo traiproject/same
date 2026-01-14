@@ -1,6 +1,6 @@
 package ports
 
-import "go.trai.ch/bob/internal/core/domain"
+import "go.trai.ch/same/internal/core/domain"
 
 // ConfigLoader defines the interface for loading the build configuration.
 //

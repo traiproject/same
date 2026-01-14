@@ -16,14 +16,14 @@ import (
 	"runtime"
 	"time"
 
-	"go.trai.ch/bob/internal/core/domain"
+	"go.trai.ch/same/internal/core/domain"
 	"go.trai.ch/zerr"
 )
 
 const (
 	dirPerm           = 0o750
 	filePerm          = 0o644
-	cachePath         = ".bob/cache/nixhub"
+	cachePath         = ".same/cache/nixhub"
 	nixHubAPIBase     = "https://search.devbox.sh/v2/resolve"
 	httpClientTimeout = 30 * time.Second
 )

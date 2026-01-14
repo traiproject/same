@@ -10,9 +10,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.trai.ch/bob/internal/core/domain"
-	"go.trai.ch/bob/internal/core/ports/mocks"
-	"go.trai.ch/bob/internal/engine/scheduler"
+	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports/mocks"
+	"go.trai.ch/same/internal/engine/scheduler"
 	"go.uber.org/mock/gomock"
 )
 
@@ -409,7 +409,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
 		mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
 		mockSpan.EXPECT().End().Times(2)
-		mockSpan.EXPECT().SetAttribute("bob.cached", true)
+		mockSpan.EXPECT().SetAttribute("same.cached", true)
 
 		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(hash1, nil)
