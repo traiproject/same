@@ -28,10 +28,11 @@ const (
 
 // TaskNode represents a single task in the UI list.
 type TaskNode struct {
-	Name   string
-	Status TaskStatus
-	Logs   []byte
-	Cached bool
+	Name        string
+	Status      TaskStatus
+	Logs        []byte
+	ViewContent string
+	Cached      bool
 }
 
 // Model represents the main TUI state.
@@ -63,7 +64,7 @@ func (m *Model) getSelectedTask() *TaskNode {
 func (m *Model) updateActiveView() {
 	if node := m.getSelectedTask(); node != nil {
 		m.ActiveTaskName = node.Name
-		m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
+		m.Viewport.SetContent(node.ViewContent)
 		// If following, auto-scroll to bottom
 		if m.FollowMode && m.AutoScroll {
 			m.Viewport.GotoBottom()
@@ -117,10 +118,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Viewport.Width = logWidth
 		m.Viewport.Height = msg.Height - 2 // minus header/footer space if any
 
-		// Re-wrap content if we have an active task
+		// Re-wrap ALL content on window resize
+		for _, node := range m.Tasks {
+			node.ViewContent = wrapLog(string(node.Logs), m.Viewport.Width)
+		}
+
+		// Update viewport if we have an active task
 		if m.ActiveTaskName != "" {
 			if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
-				m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
+				m.Viewport.SetContent(node.ViewContent)
 			}
 		}
 
@@ -151,7 +157,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						break
 					}
 				}
-				m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
+				m.Viewport.SetContent(node.ViewContent)
 				if m.AutoScroll {
 					m.Viewport.GotoBottom()
 				}
@@ -168,11 +174,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				node.Logs = node.Logs[len(node.Logs)-maxLogSize:]
 			}
 
+			// Incremental update: wrap only the new data and append
+			newContent := wrapLog(string(msg.Data), m.Viewport.Width)
+			node.ViewContent += newContent
+
 			// Update viewport if we are looking at this task
 			if node.Name == m.ActiveTaskName {
-				// We append properly by setting content again.
-				// Optimization: In a real app we might append line by line, but SetContent is safe.
-				m.Viewport.SetContent(wrapLog(string(node.Logs), m.Viewport.Width))
+				m.Viewport.SetContent(node.ViewContent)
 				if m.AutoScroll {
 					m.Viewport.GotoBottom()
 				}
