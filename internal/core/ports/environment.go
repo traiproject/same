@@ -12,7 +12,7 @@ import (
 //   - Installing/preparing the required tools
 //   - Constructing environment variables (PATH, GOROOT, etc.) for hermetic execution
 //
-//go:generate go run go.uber.org/mock/mockgen -source=environment.go -destination=mocks/mock_environment.go -package=mocks
+//go:generate mockgen -source=environment.go -destination=mocks/mock_environment.go -package=mocks
 type EnvironmentFactory interface {
 	// GetEnvironment constructs a hermetic environment from a set of tools.
 	//

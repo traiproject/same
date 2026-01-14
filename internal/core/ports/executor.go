@@ -10,7 +10,7 @@ import (
 
 // Executor defines the interface for executing tasks.
 //
-//go:generate go run go.uber.org/mock/mockgen -source=executor.go -destination=mocks/mock_executor.go -package=mocks
+//go:generate mockgen -source=executor.go -destination=mocks/mock_executor.go -package=mocks
 type Executor interface {
 	// Execute runs the given task with the specified environment.
 	//
