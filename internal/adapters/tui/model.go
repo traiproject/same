@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"bytes"
+	"unicode/utf8"
+
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/reflow/wordwrap"
@@ -171,7 +174,33 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Truncate if too large (keep last 1MB just to be safe and efficient)
 			const maxLogSize = 1024 * 1024
 			if len(node.Logs) > maxLogSize {
-				node.Logs = node.Logs[len(node.Logs)-maxLogSize:]
+				targetStart := len(node.Logs) - maxLogSize
+				cutIndex := targetStart
+
+				// 1. Try to find a newline after the target start to keep log lines intact
+				// We scan a bit forward from the cut point.
+				// Slice from targetStart to end
+				searchSlice := node.Logs[targetStart:]
+				if idx := bytes.IndexByte(searchSlice, '\n'); idx != -1 {
+					// Found a newline, cut right after it
+					cutIndex = targetStart + idx + 1
+				} else {
+					// 2. If no newline found (extremely long line), ensure we don't split a UTF-8 rune.
+					// Check if we are incorrectly starting in the middle of a rune.
+					// utf8.RuneStart returns true if the byte is a start of a rune (or ASCII).
+					// If node.Logs[cutIndex] is not a start byte, we advance until we find one.
+					for cutIndex < len(node.Logs) && !utf8.RuneStart(node.Logs[cutIndex]) {
+						cutIndex++
+					}
+				}
+
+				// Apply the cut
+				if cutIndex < len(node.Logs) {
+					node.Logs = node.Logs[cutIndex:]
+				} else {
+					// If we advanced past the end (should be rare/impossible unless trailing partial rune), clear logs
+					node.Logs = nil
+				}
 			}
 
 			// Incremental update: wrap only the new data and append

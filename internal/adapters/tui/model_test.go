@@ -3,6 +3,7 @@ package tui_test
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -317,6 +318,133 @@ func TestUpdate_Logs_Truncation(t *testing.T) {
 
 	// Logs should be truncated to exactly 1MB
 	assert.Len(t, newM.Tasks[0].Logs, 1024*1024)
+}
+
+func TestUpdate_Logs_Truncation_Safe(t *testing.T) {
+	m := &tui.Model{
+		Tasks:   []*tui.TaskNode{{Name: "task1"}},
+		SpanMap: make(map[string]*tui.TaskNode),
+	}
+	m.SpanMap["span1"] = m.Tasks[0]
+
+	// 1. Test truncation at newline
+	// Log = "prefix..." (target cut point) + "keep\n" + "survive"
+	// We want to make sure we cut BEFORE "survive" but AFTER "keep\n" IF the cut point falls in "keep".
+	// Actually, the requirement is "start index for the cut ... scan forward to find the first newline".
+
+	// Let's construct a scenario:
+	// MaxLogSize is small for testing purposes?
+	// The implementation uses a const maxLogSize = 1024 * 1024.
+	// We cannot easily change that constant for testing effectively without exporting it or refactoring.
+	// However, we can test that it DOES NOT split a UTF-8 character if we happen to land on one.
+
+	// Create a buffer slightly larger than 1MB.
+	// 1MB = 1048576 bytes.
+	// We will fill it such that the split point (len - maxLogSize) lands right in the middle of a multi-byte rune.
+
+	const maxLogSize = 1024 * 1024
+	extraBytes := 10 // We are 10 bytes over the limit.
+	totalSize := maxLogSize + extraBytes
+
+	// Construct data:
+	// We want the cut point `start = totalSize - maxLogSize = 10`.
+	// So we want index 10 to be in the middle of a rune.
+	// Let's place a multi-byte rune at index 9 (length 3, e.g., '⌘' - 0xE2 0x8C 0x98).
+	// Index 9: 0xE2
+	// Index 10: 0x8C (Cut point!)
+	// Index 11: 0x98
+
+	data := make([]byte, totalSize)
+	// Fill with 'a'
+	for i := range data {
+		data[i] = 'a'
+	}
+
+	// Insert the rune at index 9
+	// '⌘' (Place of Interest Sign) is 3 bytes: E2 8C 98
+	data[9] = 0xE2
+	data[10] = 0x8C
+	data[11] = 0x98
+
+	// So naive cut at index 10 (keeping last maxLogSize) means:
+	// data[10:] -> starts with 0x8C -> invalid utf8.
+
+	msg := telemetry.MsgTaskLog{SpanID: "span1", Data: data}
+
+	updatedModel, _ := m.Update(msg)
+	newM, ok := updatedModel.(*tui.Model)
+	require.True(t, ok)
+
+	logs := newM.Tasks[0].Logs
+	// Check that we didn't produce invalid UTF-8 at the start
+	assert.True(t, utf8.Valid(logs), "Logs should contain valid UTF-8 sequence")
+
+	// The logic should have advanced to start of next rune or found a newline.
+	// We didn't put newlines, so it should rely on UTF-8 check.
+	// It should retain from index 12 ('a's start) or if it handles the rune correctly, it might drop the whole rune.
+	// If it safely cuts, it must start with valid rune.
+
+	// 2. Test truncation at newline priority
+	// Create content: "garbage\nuseful content..." where the cut point is in "garbage".
+	// data size = maxLogSize + 20. Cut point = 20.
+	// "01234567890123456789\nKeeping this"
+	//                      ^ index 20 (newline is at 20)
+
+	data2 := make([]byte, maxLogSize+20)
+	copy(data2, "0123456789012345678\n") // 20 bytes: 0..18 digits, 19 is newline.
+	// rest 'b'
+	for i := 20; i < len(data2); i++ {
+		data2[i] = 'b'
+	}
+
+	// Cut point is index 20.
+	// If we have "something\n" closer, it's good.
+	// Let's make the newline happen AFTER the naive cut point to force a scan forward.
+	// Cut point = 20.
+	// "0....(25 bytes)....24\nKeep"
+	// Naive cut at 20. Newline at 25. Should scan to 25 and cut after.
+
+	data3 := make([]byte, maxLogSize+30)
+	// first 30 bytes
+	prefix := []byte("0123456789012345678901234\nsucc") // \n at index 25
+	copy(data3, prefix)
+
+	// Naive cut should be at index 30.
+	// Wait, len=maxLogSize+30. Naive keep = maxLogSize. Start index = 30.
+	// If we want to test scanning FORWARD, the newline must be >= 30.
+	// "0....(35 chars)....\nKeep" -> Cut at 30. Scan finds \n at 36. Keep from 37.
+
+	prefixLong := []byte("012345678901234567890123456789012345\n") // \n at 36
+	copy(data3, prefixLong)
+
+	m2 := &tui.Model{
+		Tasks:   []*tui.TaskNode{{Name: "task2"}},
+		SpanMap: make(map[string]*tui.TaskNode),
+	}
+	m2.SpanMap["span2"] = m2.Tasks[0]
+
+	msg2 := telemetry.MsgTaskLog{SpanID: "span2", Data: data3}
+	updatedModel2, _ := m2.Update(msg2)
+	require.NotNil(t, updatedModel2)
+
+	// It should have cut AFTER the newline at 36.
+	// So logs should start with whatever was after \n
+	// (which is 0 in our init buffer, so empty/nulls in this case, or let's fill it)
+	// Let's actually fill data3 with verifiable content
+	for i := len(prefixLong); i < len(data3); i++ {
+		data3[i] = 'x'
+	}
+
+	msg3 := telemetry.MsgTaskLog{SpanID: "span2", Data: data3}
+	// Re-init m2 to clear logs
+	m2.Tasks[0].Logs = nil
+	updatedModel3, _ := m2.Update(msg3)
+	newM3, ok := updatedModel3.(*tui.Model)
+	require.True(t, ok)
+
+	logStr := string(newM3.Tasks[0].Logs)
+	// Should start with 'x'
+	assert.True(t, strings.HasPrefix(logStr, "x"), "Should start with content after newline, got: %q", logStr[:10])
 }
 
 func TestUpdate_Logs_InactiveTask(t *testing.T) {
