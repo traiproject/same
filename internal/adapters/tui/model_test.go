@@ -560,3 +560,72 @@ func TestUpdate_Defensive_UnknownItems(t *testing.T) {
 	updatedModel, _ = m.Update(msgComplete)
 	require.NotNil(t, updatedModel)
 }
+
+func TestUpdate_Logs_Truncation_ViewContent_Sync(t *testing.T) {
+	m := &tui.Model{
+		Tasks:    []*tui.TaskNode{{Name: "task1"}},
+		SpanMap:  make(map[string]*tui.TaskNode),
+		Viewport: viewport.New(100, 20),
+	}
+	m.SpanMap["span1"] = m.Tasks[0]
+
+	// 1. Fill logs up to maxLogSize (1MB)
+	// 1MB = 1048576 bytes
+	const maxLogSize = 1024 * 1024
+
+	// Create a unique marker at the START of the logs
+	prefix := "START_MARKER"
+	chunk1 := make([]byte, maxLogSize)
+	copy(chunk1, prefix)
+	for i := len(prefix); i < maxLogSize; i++ {
+		// Use spaces to ensure wrapping isn't super slow
+		if i%80 == 79 {
+			chunk1[i] = '\n'
+		} else {
+			chunk1[i] = 'a'
+		}
+	}
+
+	// Initial update - fills buffer exactly to maxLogSize
+	msg1 := telemetry.MsgTaskLog{SpanID: "span1", Data: chunk1}
+	updatedModel, _ := m.Update(msg1)
+	newM, ok := updatedModel.(*tui.Model)
+	require.True(t, ok)
+
+	// Check state before overflow
+	task := newM.Tasks[0]
+	assert.Len(t, task.Logs, maxLogSize)
+	// Verify marker is present in ViewContent
+	assert.Contains(t, task.ViewContent, prefix)
+
+	// 2. Overflow significantly to force truncation
+	// We send enough data to ensure the prefix is definitely dropped.
+	// Sending 1KB of new data should be enough to push out "START_MARKER"
+	overflowData := []byte("OVERFLOW_DATA")
+	// Make sure we push enough to remove the prefix
+	// The prefix is at index 0. We need to drop at least len(prefix) bytes.
+	// Truncation logic keeps last maxLogSize.
+	// New total size = maxLogSize + len(overflowData).
+	// Cut index = len(overflowData).
+	// So first len(overflowData) bytes are dropped.
+	// Ensure len(overflowData) > len(prefix) just to be sure, although prefix is small.
+
+	msg2 := telemetry.MsgTaskLog{SpanID: "span1", Data: overflowData}
+	updatedModel2, _ := newM.Update(msg2)
+	newM2, ok := updatedModel2.(*tui.Model)
+	require.True(t, ok)
+
+	task2 := newM2.Tasks[0]
+
+	// Verify Logs are capped
+	assert.LessOrEqual(t, len(task2.Logs), maxLogSize)
+	// Verify logs do NOT contain the prefix anymore
+
+	assert.NotContains(t, string(task2.Logs), prefix, "Logs should have truncated the start")
+
+	// Verify ViewContent is synced
+	// IF BUG (Append only): ViewContent still contains the old text + new text. So it contains prefix.
+	// IF FIX (Regenerate): ViewContent is made from task2.Logs. So it does NOT contain prefix.
+	assert.NotContains(t, task2.ViewContent, prefix,
+		"ViewContent should have been regenerated and not contain the old truncated content")
+}

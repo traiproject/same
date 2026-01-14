@@ -175,6 +175,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if node, ok := m.SpanMap[msg.SpanID]; ok {
 			node.Logs = append(node.Logs, msg.Data...)
 
+			truncated := false
+
 			// Truncate if too large (keep last 1MB just to be safe and efficient)
 			const maxLogSize = 1024 * 1024
 			if len(node.Logs) > maxLogSize {
@@ -200,16 +202,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Apply the cut
 				if cutIndex < len(node.Logs) {
-					node.Logs = node.Logs[cutIndex:]
+					// Check if we are actually cutting something
+					if cutIndex > 0 {
+						node.Logs = node.Logs[cutIndex:]
+						truncated = true
+					}
 				} else {
 					// If we advanced past the end (should be rare/impossible unless trailing partial rune), clear logs
 					node.Logs = nil
+					truncated = true
 				}
 			}
 
-			// Incremental update: wrap only the new data and append
-			newContent := wrapLog(string(msg.Data), m.Viewport.Width)
-			node.ViewContent += newContent
+			if truncated {
+				// Slow Path: Truncation occurred, so we must regenerate the view content
+				// to ensure it matches the new state of Logs.
+				node.ViewContent = wrapLog(string(node.Logs), m.Viewport.Width)
+			} else {
+				// Fast Path: No truncation, just append the new wrapped content.
+				// Incremental update: wrap only the new data and append
+				newContent := wrapLog(string(msg.Data), m.Viewport.Width)
+				node.ViewContent += newContent
+			}
 
 			// Update viewport if we are looking at this task
 			if node.Name == m.ActiveTaskName {
