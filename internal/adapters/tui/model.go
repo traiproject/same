@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 	"go.trai.ch/bob/internal/adapters/telemetry"
 )
@@ -119,7 +120,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		logWidth := msg.Width - listWidth - logPaneBorderWidth // minus margins/borders
 
 		m.Viewport.Width = logWidth
-		m.Viewport.Height = msg.Height - 2 // minus header/footer space if any
+
+		// Calculate header height dynamically
+		headerHeight := lipgloss.Height(titleStyle.Render("TEST"))
+		m.Viewport.Height = msg.Height - headerHeight
 
 		// Re-wrap ALL content on window resize
 		for _, node := range m.Tasks {

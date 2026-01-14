@@ -251,7 +251,7 @@ func TestUpdate_WindowSize(t *testing.T) {
 
 	// Check dimensions
 	// listWidthRatio = 0.3
-	assert.Equal(t, 48, newM.Viewport.Height) // 50 - 2
+	assert.Equal(t, 49, newM.Viewport.Height) // 50 - 1 (header height)
 	assert.Equal(t, 66, newM.Viewport.Width)
 }
 
