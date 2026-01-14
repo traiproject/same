@@ -76,10 +76,10 @@ type RunOptions struct {
 func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
 	// 0. Redirect Logs for TUI
 	// We want to avoid polluting the terminal with app logs while the TUI is running.
-	if err := os.MkdirAll(".bob", logDirPerm); err != nil {
-		return zerr.Wrap(err, "failed to create .bob directory")
+	if err := os.MkdirAll(".same", logDirPerm); err != nil {
+		return zerr.Wrap(err, "failed to create .same directory")
 	}
-	f, err := os.OpenFile(".bob/debug.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, logFilePerm)
+	f, err := os.OpenFile(".same/debug.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, logFilePerm)
 	if err != nil {
 		return zerr.Wrap(err, "failed to open debug log")
 	}

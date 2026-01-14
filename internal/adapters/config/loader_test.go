@@ -37,7 +37,7 @@ tasks:
     cmd: ["golangci-lint run"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -83,7 +83,7 @@ tasks:
     dependsOn: ["missing"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -116,7 +116,7 @@ tasks:
     cmd: ["echo hello"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -154,7 +154,7 @@ tasks:
     cmd: ["echo hello"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestLoad_Errors(t *testing.T) {
 		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
 		_, err := loader.Load("/non-existent-directory")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "could not find bobfile or workfile")
+		assert.Contains(t, err.Error(), "could not find samefile or workfile")
 	})
 
 	t.Run("Invalid YAML", func(t *testing.T) {
@@ -205,7 +205,7 @@ tasks:
     input: ["src/**/*"  # Unclosed list/quote
 `
 		tmpDir := t.TempDir()
-		configPath := filepath.Join(tmpDir, "bob.yaml")
+		configPath := filepath.Join(tmpDir, "same.yaml")
 		err := os.WriteFile(configPath, []byte(content), 0o600)
 		require.NoError(t, err)
 
@@ -234,7 +234,7 @@ tasks:
       GO_TEST_VERBOSE: "1"
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	err := os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err)
 
@@ -277,7 +277,7 @@ root: "./src"
 tasks: {}
 `
 		tmpDir := t.TempDir()
-		configPath := filepath.Join(tmpDir, "bob.yaml")
+		configPath := filepath.Join(tmpDir, "same.yaml")
 		err := os.WriteFile(configPath, []byte(content), 0o600)
 		require.NoError(t, err)
 
@@ -296,7 +296,7 @@ version: "1"
 tasks: {}
 `
 		tmpDir := t.TempDir()
-		configPath := filepath.Join(tmpDir, "bob.yaml")
+		configPath := filepath.Join(tmpDir, "same.yaml")
 		err := os.WriteFile(configPath, []byte(content), 0o600)
 		require.NoError(t, err)
 
@@ -323,7 +323,7 @@ version: "1"
 root: "` + absoluteRoot + `"
 tasks: {}
 `
-		configPath := filepath.Join(tmpDir, "bob.yaml")
+		configPath := filepath.Join(tmpDir, "same.yaml")
 		err := os.WriteFile(configPath, []byte(content), 0o600)
 		require.NoError(t, err)
 
@@ -348,7 +348,7 @@ tasks:
     dependsOn: ["build"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	err := os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err)
 
@@ -381,7 +381,7 @@ tasks:
     cmd: ["go", "test"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	err := os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err)
 
@@ -422,7 +422,7 @@ tasks:
     cmd: ["go", "build"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	err := os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err)
 
@@ -432,7 +432,7 @@ tasks:
 
 	// Expect the warning to be logged
 	mockLogger.EXPECT().
-		Warn(gomock.Eq("'project' defined in bob.yaml has no effect in standalone mode")).
+		Warn(gomock.Eq("'project' defined in same.yaml has no effect in standalone mode")).
 		Times(1)
 
 	loader := &config.Loader{Logger: mockLogger}
@@ -462,7 +462,7 @@ tasks:
     cmd: ["golangci-lint", "run"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	err := os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err)
 
@@ -507,7 +507,7 @@ tasks:
     tools: ["go", "undefined-tool"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	err := os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err)
 

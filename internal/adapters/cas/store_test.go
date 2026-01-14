@@ -40,7 +40,8 @@ func TestNewStore(t *testing.T) {
 	}
 
 	// Verify the directory was created
-	expectedPath := filepath.Join(tmpDir, ".bob", "store")
+	// .same/store is the default path
+	expectedPath := filepath.Join(tmpDir, ".same", "store")
 	if _, statErr := os.Stat(expectedPath); os.IsNotExist(statErr) {
 		t.Errorf("NewStore did not create directory at %s", expectedPath)
 	}

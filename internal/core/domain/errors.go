@@ -9,7 +9,7 @@ var (
 	// ErrMissingDependency is returned when a task references a dependency that doesn't exist in the graph.
 	ErrMissingDependency = zerr.New("missing dependency")
 
-	// ErrMissingProjectName is returned in workspace mode when a bobfile is missing a project name.
+	// ErrMissingProjectName is returned in workspace mode when a samefile is missing a project name.
 	ErrMissingProjectName = zerr.New("missing project name")
 
 	// ErrInvalidProjectName is returned when a project name is invalid.
@@ -61,7 +61,7 @@ var (
 	ErrConfigParseFailed = zerr.New("failed to parse config file")
 
 	// ErrConfigNotFound is returned when the config file cannot be found.
-	ErrConfigNotFound = zerr.New("could not find bobfile or workfile")
+	ErrConfigNotFound = zerr.New("could not find samefile or workfile")
 
 	// ErrBuildExecutionFailed is returned when the build execution fails.
 	ErrBuildExecutionFailed = zerr.New("build execution failed")

@@ -17,7 +17,7 @@ import (
 const (
 	dirPerm   = 0o750
 	filePerm  = 0o644
-	storePath = ".bob/store"
+	storePath = ".same/store"
 )
 
 // Store implements ports.BuildInfoStore using a file-per-task strategy.

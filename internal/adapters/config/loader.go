@@ -30,12 +30,12 @@ type Mode string
 
 const (
 	// WorkfileName represents the name of a workfile.
-	WorkfileName = "bob.work.yaml"
-	// BobfileName represents the name of a bobfile.
-	BobfileName = "bob.yaml"
+	WorkfileName = "same.work.yaml"
+	// SamefileName represents the name of a samefile.
+	SamefileName = "same.yaml"
 	// ModeWorkspace indicates that bob has a workfile.
 	ModeWorkspace Mode = "workspace"
-	// ModeStandalone indicates that bob has only one bobfile.
+	// ModeStandalone indicates that bob has only one samefile.
 	ModeStandalone Mode = "standalone"
 )
 
@@ -50,7 +50,7 @@ func (l *Loader) Load(cwd string) (*domain.Graph, error) {
 
 	switch mode {
 	case ModeStandalone:
-		return l.loadBobfile(configPath)
+		return l.loadSamefile(configPath)
 	case ModeWorkspace:
 		return l.loadWorkfile(configPath)
 	default:
@@ -69,9 +69,9 @@ func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 		}
 
 		if standaloneCandidate == "" {
-			bobfilePath := filepath.Join(currentDir, BobfileName)
-			if _, err := os.Stat(bobfilePath); err == nil {
-				standaloneCandidate = bobfilePath
+			samefilePath := filepath.Join(currentDir, SamefileName)
+			if _, err := os.Stat(samefilePath); err == nil {
+				standaloneCandidate = samefilePath
 			}
 		}
 
@@ -90,29 +90,29 @@ func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 	return "", "", zerr.With(domain.ErrConfigNotFound, "cwd", cwd)
 }
 
-func (l *Loader) loadBobfile(configPath string) (*domain.Graph, error) {
-	var bobfile Bobfile
-	if err := readAndUnmarshalYAML(configPath, &bobfile); err != nil {
+func (l *Loader) loadSamefile(configPath string) (*domain.Graph, error) {
+	var samefile Samefile
+	if err := readAndUnmarshalYAML(configPath, &samefile); err != nil {
 		return nil, err
 	}
 
-	if bobfile.Project != "" {
-		l.Logger.Warn(fmt.Sprintf("'project' defined in %s has no effect in standalone mode", BobfileName))
+	if samefile.Project != "" {
+		l.Logger.Warn(fmt.Sprintf("'project' defined in %s has no effect in standalone mode", SamefileName))
 	}
 
 	g := domain.NewGraph()
-	g.SetRoot(resolveRoot(configPath, bobfile.Root))
+	g.SetRoot(resolveRoot(configPath, samefile.Root))
 
 	taskNames := make(map[string]bool)
 
 	// First pass: Collect all task names to verify dependencies later
-	for name := range bobfile.Tasks {
+	for name := range samefile.Tasks {
 		taskNames[name] = true
 	}
 
 	// Second pass: Create tasks and add to graph
-	for name := range bobfile.Tasks {
-		dto := bobfile.Tasks[name]
+	for name := range samefile.Tasks {
+		dto := samefile.Tasks[name]
 		if err := validateTaskName(name); err != nil {
 			return nil, err
 		}
@@ -127,7 +127,7 @@ func (l *Loader) loadBobfile(configPath string) (*domain.Graph, error) {
 		workingDir := resolveTaskWorkingDir(g.Root(), dto.WorkingDir)
 
 		// Resolve tool aliases to flake references
-		taskTools, err := resolveTaskTools(dto.Tools, bobfile.Tools)
+		taskTools, err := resolveTaskTools(dto.Tools, samefile.Tools)
 		if err != nil {
 			return nil, zerr.With(err, "task", name)
 		}
@@ -230,65 +230,65 @@ func (l *Loader) processProject(
 		return nil
 	}
 
-	// Check for bob.yaml existence
-	bobYamlPath := filepath.Join(projectPath, BobfileName)
-	if _, fileErr := os.Stat(bobYamlPath); os.IsNotExist(fileErr) {
-		l.Logger.Warn(fmt.Sprintf("%s missing in project %s, skipping", BobfileName, relPath))
+	// Check for same.yaml existence
+	sameYamlPath := filepath.Join(projectPath, SamefileName)
+	if _, fileErr := os.Stat(sameYamlPath); os.IsNotExist(fileErr) {
+		l.Logger.Warn(fmt.Sprintf("%s missing in project %s, skipping", SamefileName, relPath))
 		return nil
 	}
 
-	bobfile, err := l.loadBobfileFromPath(bobYamlPath, relPath)
+	samefile, err := l.loadSamefileFromPath(sameYamlPath, relPath)
 	if err != nil {
 		return err
 	}
 
-	if err := l.validateBobfile(bobfile, relPath); err != nil {
+	if err := l.validateSamefile(samefile, relPath); err != nil {
 		return err
 	}
 
 	// Check for duplicate project names
-	if existingPath, exists := projectNames[bobfile.Project]; exists {
-		err := zerr.With(domain.ErrDuplicateProjectName, "project_name", bobfile.Project)
+	if existingPath, exists := projectNames[samefile.Project]; exists {
+		err := zerr.With(domain.ErrDuplicateProjectName, "project_name", samefile.Project)
 		err = zerr.With(err, "first_occurrence", existingPath)
 		err = zerr.With(err, "duplicate_at", relPath)
 		return err
 	}
-	projectNames[bobfile.Project] = relPath
+	projectNames[samefile.Project] = relPath
 
-	if bobfile.Root != "" {
+	if samefile.Root != "" {
 		l.Logger.Warn(fmt.Sprintf("'root' defined in %s is ignored in workspace mode", relPath))
 	}
 
 	// Merge tools: workspace tools as base, project tools override
-	resolvedTools := mergeTools(workspaceTools, bobfile.Tools)
+	resolvedTools := mergeTools(workspaceTools, samefile.Tools)
 
-	return l.addProjectTasks(g, bobfile, projectPath, resolvedTools)
+	return l.addProjectTasks(g, samefile, projectPath, resolvedTools)
 }
 
-func (l *Loader) loadBobfileFromPath(bobYamlPath, relPath string) (*Bobfile, error) {
-	// #nosec G304 -- bobYamlPath is constructed from validated projectPath
-	projectConfigFile, pathErr := os.ReadFile(bobYamlPath)
+func (l *Loader) loadSamefileFromPath(sameYamlPath, relPath string) (*Samefile, error) {
+	// #nosec G304 -- sameYamlPath is constructed from validated projectPath
+	projectConfigFile, pathErr := os.ReadFile(sameYamlPath)
 	if pathErr != nil {
 		pathErr = zerr.Wrap(pathErr, domain.ErrConfigReadFailed.Error())
 		pathErr = zerr.With(pathErr, "directory", relPath)
 		return nil, pathErr
 	}
 
-	var bobfile Bobfile
-	if err := yaml.Unmarshal(projectConfigFile, &bobfile); err != nil {
+	var samefile Samefile
+	if err := yaml.Unmarshal(projectConfigFile, &samefile); err != nil {
 		return nil, zerr.Wrap(err, "failed to parse project config: "+relPath)
 	}
 
-	return &bobfile, nil
+	return &samefile, nil
 }
 
-func (l *Loader) validateBobfile(bobfile *Bobfile, relPath string) error {
-	if bobfile.Project == "" {
+func (l *Loader) validateSamefile(samefile *Samefile, relPath string) error {
+	if samefile.Project == "" {
 		return zerr.With(domain.ErrMissingProjectName, "directory", relPath)
 	}
 
-	if !validProjectNameRegex.MatchString(bobfile.Project) {
-		err := zerr.With(domain.ErrInvalidProjectName, "project_name", bobfile.Project)
+	if !validProjectNameRegex.MatchString(samefile.Project) {
+		err := zerr.With(domain.ErrInvalidProjectName, "project_name", samefile.Project)
 		return zerr.With(err, "directory", relPath)
 	}
 
@@ -297,12 +297,12 @@ func (l *Loader) validateBobfile(bobfile *Bobfile, relPath string) error {
 
 func (l *Loader) addProjectTasks(
 	g *domain.Graph,
-	bobfile *Bobfile,
+	samefile *Samefile,
 	projectPath string,
 	resolvedTools map[string]string,
 ) error {
-	for taskName := range bobfile.Tasks {
-		dto := bobfile.Tasks[taskName]
+	for taskName := range samefile.Tasks {
+		dto := samefile.Tasks[taskName]
 		if err := validateTaskName(taskName); err != nil {
 			return err
 		}
@@ -311,16 +311,16 @@ func (l *Loader) addProjectTasks(
 		var err error
 		dto.Input, err = l.rebasePaths(dto.Input, projectPath, g.Root())
 		if err != nil {
-			return zerr.Wrap(err, "failed to rebase inputs for project "+bobfile.Project)
+			return zerr.Wrap(err, "failed to rebase inputs for project "+samefile.Project)
 		}
 
 		dto.Target, err = l.rebasePaths(dto.Target, projectPath, g.Root())
 		if err != nil {
-			return zerr.Wrap(err, "failed to rebase targets for project "+bobfile.Project)
+			return zerr.Wrap(err, "failed to rebase targets for project "+samefile.Project)
 		}
 
-		namespacedTaskName := fmt.Sprintf("%s:%s", bobfile.Project, taskName)
-		namespacedDeps := l.namespaceDependencies(bobfile.Project, dto.DependsOn)
+		namespacedTaskName := fmt.Sprintf("%s:%s", samefile.Project, taskName)
+		namespacedDeps := l.namespaceDependencies(samefile.Project, dto.DependsOn)
 		workingDir := resolveTaskWorkingDir(projectPath, dto.WorkingDir)
 
 		// Resolve tool aliases to flake references

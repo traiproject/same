@@ -7,5 +7,5 @@ import "go.trai.ch/same/internal/core/ports"
 func NewEnvFactory(
 	resolver ports.DependencyResolver,
 ) *EnvFactory {
-	return NewEnvFactoryWithCache(resolver, ".bob/cache/environments")
+	return NewEnvFactoryWithCache(resolver, ".same/cache/environments")
 }

@@ -21,7 +21,7 @@ tasks:
     target: ["y", "x", "x", "z"]
 `
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "bob.yaml")
+	configPath := filepath.Join(tmpDir, "same.yaml")
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
