@@ -30,6 +30,7 @@ func TestView_TaskList(t *testing.T) {
 			Height: 20,
 			Width:  100,
 		},
+		ListHeight:  20,
 		SelectedIdx: 0,
 		TaskMap:     make(map[string]*tui.TaskNode),
 	}
@@ -89,6 +90,7 @@ func TestView_LipglossIntegration(t *testing.T) {
 			Height: 10,
 			Width:  40,
 		},
+		ListHeight: 10,
 	}
 	// Force some styles if possible, but mainly just ensuring no panic and non-empty
 	output := m.View()

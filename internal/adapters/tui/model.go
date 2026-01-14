@@ -48,6 +48,8 @@ type Model struct {
 	AutoScroll     bool
 	ActiveTaskName string
 	SelectedIdx    int
+	ListOffset     int
+	ListHeight     int
 	FollowMode     bool
 }
 
@@ -56,6 +58,17 @@ type Model struct {
 //nolint:gocritic // hugeParam ignored
 func (m *Model) Init() tea.Cmd {
 	return nil
+}
+
+func (m *Model) ensureVisible() {
+	if m.ListHeight <= 0 {
+		return
+	}
+	if m.SelectedIdx < m.ListOffset {
+		m.ListOffset = m.SelectedIdx
+	} else if m.SelectedIdx >= m.ListOffset+m.ListHeight {
+		m.ListOffset = m.SelectedIdx - m.ListHeight + 1
+	}
 }
 
 func (m *Model) getSelectedTask() *TaskNode {
@@ -91,12 +104,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.SelectedIdx > 0 {
 				m.SelectedIdx--
 				m.FollowMode = false
+				m.ensureVisible()
 				m.updateActiveView()
 			}
 		case "j", "down":
 			if m.SelectedIdx < len(m.Tasks)-1 {
 				m.SelectedIdx++
 				m.FollowMode = false
+				m.ensureVisible()
 				m.updateActiveView()
 			}
 		case "esc":
@@ -111,6 +126,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					break
 				}
 			}
+			m.ensureVisible()
 			m.updateActiveView()
 		}
 
@@ -124,6 +140,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Calculate header height dynamically
 		headerHeight := lipgloss.Height(titleStyle.Render("TEST"))
 		m.Viewport.Height = msg.Height - headerHeight
+
+		// Calculate ListHeight with full header including newlines
+		fullHeader := titleStyle.Render("TASKS") + "\n\n"
+		listInfoHeight := lipgloss.Height(fullHeader)
+		m.ListHeight = msg.Height - listInfoHeight
+		m.ensureVisible()
 
 		// Re-wrap ALL content on window resize
 		for _, node := range m.Tasks {
@@ -164,6 +186,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						break
 					}
 				}
+				m.ensureVisible()
 				m.Viewport.SetContent(node.ViewContent)
 				if m.AutoScroll {
 					m.Viewport.GotoBottom()

@@ -28,7 +28,17 @@ func (m *Model) taskList() string {
 
 	s.WriteString(titleStyle.Render("TASKS") + "\n\n")
 
-	for i, task := range m.Tasks {
+	start := m.ListOffset
+	end := m.ListOffset + m.ListHeight
+	if end > len(m.Tasks) {
+		end = len(m.Tasks)
+	}
+	if start > end {
+		start = end
+	}
+
+	for i := start; i < end; i++ {
+		task := m.Tasks[i]
 		var style lipgloss.Style
 		var icon string
 
