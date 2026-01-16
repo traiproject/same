@@ -1,5 +1,5 @@
 <p align="center">
-  <img  width="300" src="https://bob.build/docs/img/logo.svg" />
+  <img  width="300" src="brand/logo/same_logo.svg" />
 </p>
 <p align="center">
 Write Once, Build Once, Anywhere
