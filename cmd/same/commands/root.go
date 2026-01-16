@@ -3,6 +3,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.trai.ch/same/internal/app"
@@ -25,6 +26,11 @@ func New(a *app.App) *CLI {
 		Version:       build.Version,
 	}
 
+	rootCmd.SetVersionTemplate(fmt.Sprintf(
+		"{{.Name}} version {{.Version}} (commit: %s, date: %s)\n",
+		build.Commit,
+		build.Date,
+	))
 	rootCmd.InitDefaultVersionFlag()
 	rootCmd.Flags().Lookup("version").Usage = "Print the application version"
 
