@@ -26,6 +26,25 @@ deterministic, and fast across any environment.
 - **Fast**: Snappy execution with aggressive content-addressable caching and
   parallel scheduling.
 
+## Why `same`?
+
+Use `same` if you struggle with:
+
+- **Inconsistent builds:** "It works on my machine" but fails on CI due to
+  environmental differences.
+- **Complex setups:** Onboarding new developers takes hours installing specific
+  compilers and tool versions.
+- **Slow CI:** Rebuilding the entire project for a one-line change.
+
+`same` helps by:
+
+- **Locking toolchains:** Uses Nix to ensure every developer and CI runner uses
+  the exact same binary versions.
+- **Caching everywhere:** Computes input hashes to skip work that has already
+  been done.
+- **Unifying execution:** One syntax (`same run`) for all tasks, regardless of
+  the underlying language (Go, Rust, Node, etc.).
+
 ## Install
 
 ### Nix
