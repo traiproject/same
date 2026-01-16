@@ -130,3 +130,65 @@ func TestRoot_Help(t *testing.T) {
 		t.Errorf("Expected no error for help, got: %v", err)
 	}
 }
+
+func TestRoot_Version(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup mocks
+	mockLoader := mocks.NewMockConfigLoader(ctrl)
+	mockExecutor := mocks.NewMockExecutor(ctrl)
+	mockStore := mocks.NewMockBuildInfoStore(ctrl)
+	mockHasher := mocks.NewMockHasher(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+
+	// Setup app
+	mockLogger := mocks.NewMockLogger(ctrl)
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	// Initialize CLI
+	cli := commands.New(a)
+
+	// Set command args to version
+	cli.SetArgs([]string{"--version"})
+
+	// Execute
+	err := cli.Execute(context.Background())
+	// Assert no error (Cobra handles version automatically)
+	if err != nil {
+		t.Errorf("Expected no error for version, got: %v", err)
+	}
+}
+
+func TestVersionCmd(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup mocks
+	mockLoader := mocks.NewMockConfigLoader(ctrl)
+	mockExecutor := mocks.NewMockExecutor(ctrl)
+	mockStore := mocks.NewMockBuildInfoStore(ctrl)
+	mockHasher := mocks.NewMockHasher(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+
+	// Setup app
+	mockLogger := mocks.NewMockLogger(ctrl)
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	// Initialize CLI
+	cli := commands.New(a)
+
+	// Set command args to version subcommand
+	cli.SetArgs([]string{"version"})
+
+	// Execute
+	err := cli.Execute(context.Background())
+	// Assert no error
+	if err != nil {
+		t.Errorf("Expected no error for version command, got: %v", err)
+	}
+}

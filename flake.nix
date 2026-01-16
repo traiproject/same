@@ -45,7 +45,7 @@
           src = ./.;
           vendorHash = "sha256-t1AVmblBqYG1wUuMEe8CCnmkhvLSuAa36tfVkpXkaV8=";
 
-          env.CGO_ENABLED = 1;
+          env.CGO_ENABLED = 0;
 
           ldflags = [
             "-X go.trai.ch/same/internal/build.Version=${version}"

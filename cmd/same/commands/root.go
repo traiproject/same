@@ -3,9 +3,11 @@ package commands
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.trai.ch/same/internal/app"
+	"go.trai.ch/same/internal/build"
 )
 
 // CLI represents the command line interface for same.
@@ -21,7 +23,19 @@ func New(a *app.App) *CLI {
 		Short:         "A modern build tool for monorepos",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Version:       build.Version,
 	}
+
+	rootCmd.SetVersionTemplate(fmt.Sprintf(
+		"{{.Name}} version {{.Version}} (commit: %s, date: %s)\n",
+		build.Commit,
+		build.Date,
+	))
+	rootCmd.InitDefaultVersionFlag()
+	rootCmd.Flags().Lookup("version").Usage = "Print the application version"
+
+	rootCmd.InitDefaultHelpFlag()
+	rootCmd.Flags().Lookup("help").Usage = "Show help for command"
 
 	rootCmd.PersistentFlags().BoolP("force", "f", false, "Force rebuild, bypassing cache")
 	rootCmd.PersistentFlags().BoolP("inspect", "i", false, "Inspect the TUI after build completion (prevents auto-exit)")
