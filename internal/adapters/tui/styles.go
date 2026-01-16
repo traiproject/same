@@ -8,7 +8,11 @@ var (
 	colorSlate = lipgloss.Color("#667085")
 	colorWhite = lipgloss.Color("#FFFFFF")
 	colorInk   = lipgloss.Color("#0B0F19")
+	colorMist  = lipgloss.Color("#F6F7FB")
+	colorGreen = lipgloss.Color("#22A06B")
+	colorRed   = lipgloss.Color("#D93025")
 	_          = colorInk // Silence unused warning
+	_          = colorMist
 
 	// Pane Styles.
 	listStyle = lipgloss.NewStyle().
@@ -29,10 +33,10 @@ var (
 				Bold(true)
 
 	taskDoneStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("42")) // Green
+			Foreground(colorGreen)
 
 	taskErrorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")) // Red
+			Foreground(colorRed)
 
 	taskCachedStyle = lipgloss.NewStyle().
 			Foreground(colorSlate).

@@ -13,6 +13,8 @@
 - **Slate (Muted text/borders):** `#667085`
 - **Mist (Background):** `#F6F7FB`
 - **White:** `#FFFFFF`
+- **Green (Success):** `#22A06B`
+- **Red (Error):** `#D93025`
 
 > Keep the palette tight: Iris for emphasis (links/CTAs/highlights), neutrals
 > for everything else.
