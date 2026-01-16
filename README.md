@@ -45,6 +45,27 @@ Use `same` if you struggle with:
 - **Unifying execution:** One syntax (`same run`) for all tasks, regardless of
   the underlying language (Go, Rust, Node, etc.).
 
+## Stability
+
+`same` is currently in **v0 (Beta)**.
+
+- **Breaking Changes:** The configuration schema (`same.yaml`) and CLI commands
+  may change as we refine the design.
+- **Production Use:** While reliable for development workflows, please pin
+  versions in your CI pipelines.
+
+## Supported Platforms
+
+`same` is built and tested for the following operating systems and
+architectures:
+
+| OS        | Architectures                            |
+| :-------- | :--------------------------------------- |
+| **Linux** | `amd64`, `arm64`                         |
+| **macOS** | `amd64` (Intel), `arm64` (Apple Silicon) |
+
+> **Note:** Windows is not supported at this time.
+
 ## Install
 
 ### Nix
