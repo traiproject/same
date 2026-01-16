@@ -1,5 +1,5 @@
 <p align="center">
-  <img  width="300" src="brand/logo/same_logo.svg" />
+  <img  width="300" src="brand/logo/same_logo_no_margin_tb.svg" />
 </p>
 <p align="center">
 same
@@ -137,10 +137,10 @@ apk add same_0.0.1_linux_amd64.apk
 
 The `same.yaml` file drives the execution engine.
 
-- `version`Configuration format version (currently "1").
-- `project`(Optional) Name of the project, only required if using a workspace
+- `version`: Configuration format version (currently "1").
+- `project`: (Optional) Name of the project, only required if using a workspace
   setup.
-- `tools`A map of tool aliases to versions (e.g., `go: go@1.23`). `same` uses
+- `tools`: A map of tool aliases to versions (e.g., `go: go@1.23`). `same` uses
   Nix to provide these hermetically.`tasks`A map of task names to task
   definitions.
 
