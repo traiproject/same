@@ -39,45 +39,64 @@ func (m *Model) taskList() string {
 
 	for i := start; i < end; i++ {
 		task := m.Tasks[i]
-		var style lipgloss.Style
-		var icon string
-
-		// Determine style and icon based on status
-		switch task.Status {
-		case StatusRunning:
-			style = taskRunningStyle
-			icon = "●"
-		case StatusDone:
-			style = taskDoneStyle
-			icon = "✓"
-		case StatusError:
-			style = taskErrorStyle
-			icon = "✗"
-		default: // Pending
-			style = taskPendingStyle
-			icon = "○"
-		}
-
-		// Override if cached
-		if task.Cached {
-			style = taskCachedStyle
-			icon = "⚡"
-		}
-
-		// Highlight selected task
-		line := fmt.Sprintf("%s %s", icon, task.Name)
-		if i == m.SelectedIdx {
-			// Selected row gets a pointer and distinct style/color if we had one.
-			// For now, using the pointer prefix as requested.
-			line = "> " + line
-		} else {
-			line = "  " + line
-		}
-
-		s.WriteString(style.Render(line) + "\n")
+		s.WriteString(m.renderTaskRow(i, task) + "\n")
 	}
 
 	return listStyle.Render(s.String())
+}
+
+func (m *Model) renderTaskRow(index int, task *TaskNode) string {
+	icon := m.getTaskIcon(task)
+	style := m.getTaskStyle(task)
+
+	// Highlight selected task
+	var cursor string
+	if index == m.SelectedIdx {
+		cursor = selectedStyle.Render("> ")
+		// If not Done/Error, highlight the text with Iris as well
+		if task.Status != StatusDone && task.Status != StatusError {
+			style = selectedStyle
+		}
+	} else {
+		cursor = "  "
+	}
+
+	content := fmt.Sprintf("%s %s", icon, task.Name)
+	return cursor + style.Render(content)
+}
+
+func (m *Model) getTaskIcon(task *TaskNode) string {
+	if task.Cached {
+		return "⚡"
+	}
+
+	switch task.Status {
+	case StatusRunning:
+		return "●"
+	case StatusDone:
+		return "✓"
+	case StatusError:
+		return "✗"
+	default: // Pending
+		return "○"
+	}
+}
+
+func (m *Model) getTaskStyle(task *TaskNode) lipgloss.Style {
+	if task.Cached {
+		return taskCachedStyle
+	}
+
+	switch task.Status {
+	case StatusRunning:
+		return taskRunningStyle
+	case StatusDone:
+		return taskDoneStyle
+	case StatusError:
+		return taskErrorStyle
+	default: // Pending
+		return taskPendingStyle
+	}
 }
 
 //nolint:gocritic // hugeParam ignored
