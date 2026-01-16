@@ -1,0 +1,184 @@
+version: 2
+
+project_name: same
+
+before:
+  hooks:
+    # Generate completions
+    - mkdir -p completions
+    - go run ./cmd/same completion bash > completions/same.bash
+    - go run ./cmd/same completion zsh > completions/same.zsh
+    - go run ./cmd/same completion fish > completions/_same.fish
+
+builds:
+  - id: same
+    main: ./cmd/same
+    binary: same
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+      
+    ldflags:
+      - -s -w
+      - -X go.trai.ch/same/internal/build.Version={{.Version}}
+      - -X go.trai.ch/same/internal/build.Commit={{.ShortCommit}}
+      - -X go.trai.ch/same/internal/build.Date={{.CommitDate}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- if eq .Os "darwin" }}macOS{{ else }}{{ .Os }}{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}
+    files:
+      - README*
+      - LICENSE*
+      - src: completions/*
+        dst: completions/
+
+homebrew_casks:
+  - name: same
+    
+    repository:
+      owner: traiproject
+      name: homebrew-tap
+
+    directory: Casks
+
+    homepage: "https://github.com/traiproject/same"
+    description: "A modern build tool for monorepos"
+
+    binaries:
+      - same
+
+    completions:
+      bash: completions/same.bash
+      zsh: completions/same.zsh
+      fish: completions/_same.fish
+
+    # Quarantine Workaround (Crucial for macOS)
+    # Since Casks trigger macOS Gatekeeper, and same isn't 
+    # Apple-Notarized yet, this hook removes the "quarantine" attribute 
+    # so users can run it without "Unidentified Developer" errors.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/same"]
+          end
+
+nfpms:
+  - id: same
+    package_name: same
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    
+    vendor: "traiproject"
+    homepage: "https://github.com/traiproject/same"
+    maintainer: "Luca Fondo <luca.fondo@trai.ch>"
+    description: "A modern build tool for monorepos"
+    license: "Apache 2.0"
+    
+    formats:
+      - deb
+      - rpm
+      - apk
+
+    contents:
+      - src: ./LICENSE.md
+        dst: /usr/share/doc/same/copyright
+        file_info:
+          mode: 0644
+
+dockers:
+  - image_templates:
+      - "ghcr.io/traiproject/{{ .ProjectName }}:{{ .Version }}-amd64"
+    use: buildx
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+
+  - image_templates:
+      - "ghcr.io/traiproject/{{ .ProjectName }}:{{ .Version }}-arm64"
+    use: buildx
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+
+# Create a manifest so users can pull "latest" regardless of architecture
+docker_manifests:
+  - name_template: "ghcr.io/traiproject/{{ .ProjectName }}:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/traiproject/{{ .ProjectName }}:{{ .Version }}-amd64"
+      - "ghcr.io/traiproject/{{ .ProjectName }}:{{ .Version }}-arm64"
+  
+  - name_template: "ghcr.io/traiproject/{{ .ProjectName }}:latest"
+    image_templates:
+      - "ghcr.io/traiproject/{{ .ProjectName }}:{{ .Version }}-amd64"
+      - "ghcr.io/traiproject/{{ .ProjectName }}:{{ .Version }}-arm64"
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+sboms:
+  - artifacts: archive
+    documents:
+      - "${artifact}.spdx.json"
+    cmd: syft
+    args: ["$artifact", "--output", "spdx-json=$document", "--enrich", "all"]
+
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - "sign-blob"
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+snapshot:
+  name_template: "{{ .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^ci:"
+      - "^test:"
+      - "^chore:"
+      - "merge conflict"
+  groups:
+    - title: Features
+      regexp: "^.*feat((\\([\\w\\-]+\\))?):"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^.*fix((\\([\\w\\-]+\\))?):"
+      order: 1
+
+release:
+  github:
+    owner: traiproject
+    name: same
+  draft: true
+  prerelease: auto
