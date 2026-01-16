@@ -12,7 +12,7 @@ func (c *CLI) newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print the application version",
 		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Println(build.Version)
+			fmt.Printf("same version %s\n", build.Version)
 		},
 	}
 }

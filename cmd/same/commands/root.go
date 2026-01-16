@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.trai.ch/same/internal/app"
+	"go.trai.ch/same/internal/build"
 )
 
 // CLI represents the command line interface for same.
@@ -21,6 +22,7 @@ func New(a *app.App) *CLI {
 		Short:         "A modern build tool for monorepos",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Version:       build.Version,
 	}
 
 	rootCmd.PersistentFlags().BoolP("force", "f", false, "Force rebuild, bypassing cache")
