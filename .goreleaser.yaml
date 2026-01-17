@@ -56,7 +56,7 @@ homebrew_casks:
     directory: Casks
 
     homepage: "https://github.com/traiproject/same"
-    description: "A modern build tool for monorepos"
+    description: "Modern build tool for monorepos"
 
     binaries:
       - same
@@ -66,17 +66,16 @@ homebrew_casks:
       zsh: completions/same.zsh
       fish: completions/_same.fish
 
+    custom_block: |
+      # rubocop:disable Cask/StanzaOrder, Cask/StanzaGrouping
+
     # Quarantine Workaround (Crucial for macOS)
     # Since Casks trigger macOS Gatekeeper, and same isn't 
     # Apple-Notarized yet, this hook removes the "quarantine" attribute 
     # so users can run it without "Unidentified Developer" errors.
     hooks:
       post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/same"]
-          end
-
+        install: 'system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/same"] if OS.mac?'
 nfpms:
   - id: same
     package_name: same
