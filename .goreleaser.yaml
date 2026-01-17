@@ -49,15 +49,6 @@ archives:
 homebrew_casks:
   - name: same
     
-    repository:
-      owner: traiproject
-      name: homebrew-tap
-
-    directory: Casks
-
-    homepage: "https://github.com/traiproject/same"
-    description: "Modern build tool for monorepos"
-
     binaries:
       - same
 
@@ -66,8 +57,15 @@ homebrew_casks:
       zsh: completions/same.zsh
       fish: completions/_same.fish
 
-    custom_block: |
-      # rubocop:disable Cask/StanzaOrder, Cask/StanzaGrouping
+    directory: Casks
+
+    homepage: "https://github.com/traiproject/same"
+
+    description: "Modern build tool for monorepos"
+
+    repository:
+      owner: traiproject
+      name: homebrew-tap
 
     # Quarantine Workaround (Crucial for macOS)
     # Since Casks trigger macOS Gatekeeper, and same isn't 
@@ -76,6 +74,7 @@ homebrew_casks:
     hooks:
       post:
         install: 'system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/same"] if OS.mac?'
+
 nfpms:
   - id: same
     package_name: same
