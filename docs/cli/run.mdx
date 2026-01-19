@@ -1,0 +1,62 @@
+---
+title: "Run"
+description: "Run specified tasks"
+---
+
+The `run` command is the primary command used to execute tasks and targets defined in your workspace.
+
+```bash
+same run [targets...]
+```
+
+## Arguments
+
+The command accepts an arbitrary number of arguments, which are interpreted as targets to run.
+
+- **`targets`**: A list of project names, task aliases, or specific task targets (e.g., `project:task`) to execute.
+
+If no targets are provided, the command displays the help message.
+
+## Flags
+
+### `--no-cache`
+
+**Short flag:** `-n`
+
+Bypass the build cache and force task execution. This is useful when you want to ensure that all tasks are re-executed regardless of their cached state.
+
+```bash
+same run build --no-cache
+```
+
+### `--inspect`
+
+**Short flag:** `-i`
+
+Inspect the TUI (Terminal User Interface) after the build completes (prevents auto-exit). By default, the `same` CLI exits immediately after the build finishes (whether successful or failed). Using the `--inspect` flag prevents auto-exit, allowing you to:
+
+- Scroll through the logs of completed tasks.
+- Inspect the state of the dependency graph.
+- Review any errors in detail within the TUI.
+
+```bash
+same run test --inspect
+```
+
+## Examples
+
+Run a single target named `build`:
+```bash
+same run build
+```
+
+Run multiple targets (`build` and `test`) in parallel (where dependencies allow):
+```bash
+same run build test
+```
+
+## Behavior
+
+- **Parallel Execution**: `same` will automatically determine the dependency graph and execute tasks in parallel where possible.
+- **Caching**: By default, `same` will skip tasks that have already been computed and whose inputs haven't changed. Use the [`--no-cache`](#no-cache) flag to bypass this.
+- **TUI**: The command launches an interactive Terminal User Interface to display progress.

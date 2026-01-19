@@ -1,0 +1,124 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "same",
+  "colors": {
+    "primary": "#8B5CF6",
+    "light": "#8B5CF6",
+    "dark": "#8B5CF6"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/traiproject/same",
+          "icon": "github"
+        }
+      ]
+    },
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/hermetic-builds",
+              "concepts/caching"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/same-yaml",
+              "configuration/workspaces"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "cli/global-flags",
+              "cli/run",
+              "cli/version"
+            ]
+          },
+          {
+            "group": "Internals",
+            "pages": [
+              "internals/architecture",
+              "internals/nix-integration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Roadmap",
+        "groups": [
+          {
+            "group": "Future Features",
+            "pages": [
+              "roadmap/remote-cache"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Changelog",
+        "groups": [
+          {
+            "group": "History",
+            "pages": [
+              "changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:hi@mintlify.com"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Dashboard",
+      "href": "https://dashboard.mintlify.com"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/mintlify",
+      "github": "https://github.com/mintlify",
+      "linkedin": "https://linkedin.com/company/mintlify"
+    }
+  }
+}

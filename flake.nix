@@ -42,7 +42,7 @@
           pname = "same";
           inherit version;
 
-          src = ./.;
+          src = ./cli;
           vendorHash = "sha256-t1AVmblBqYG1wUuMEe8CCnmkhvLSuAa36tfVkpXkaV8=";
 
           env.CGO_ENABLED = 0;
@@ -74,6 +74,9 @@
           packages =
             goTools
             ++ (with pkgs; [
+              nodejs
+              pnpm
+
               nixfmt-tree
               nixfmt-rfc-style
               nixd

@@ -1,0 +1,24 @@
+---
+title: "Version"
+description: "Print the application version"
+---
+
+The `version` command outputs the current version information for the `same` CLI tool.
+
+```bash
+same version
+```
+
+## Output Format
+
+The output includes the semantic version tag, the specific git commit hash, and the build date in the following format:
+
+```text
+same version <version> (commit: <hash>, date: <date>)
+```
+
+## Example
+
+```text
+same version v0.1.0 (commit: a1b2c3d, date: 2023-10-27)
+```

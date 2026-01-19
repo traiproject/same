@@ -1,0 +1,25 @@
+---
+title: "Remote Caching"
+description: "Share build artifacts across your team to speed up CI/CD and local development."
+---
+
+<Note>
+  This is a **Planned Feature**. It is not yet available in the current release.
+</Note>
+
+## Vision
+
+The vision for Remote Caching in `same` is to enable a "write once, read many" workflow for build artifacts. By uploading build outputs to a shared storage backend (like S3 or GCS), we can ensure that if one person (or CI runner) builds a target, no one else needs to rebuild it.
+
+### How it Works
+
+Currently, `same` uses a Local CAS (Content Addressable Store) to cache build results on your machine. With Remote Caching:
+
+1.  **Push**: When a build completes successfully, the artifacts are hashed and uploaded to a remote object store.
+2.  **Pull**: Before starting a build, `same` checks the remote cache. If the artifacts for the current inputs (source code, dependencies, environment) already exist, they are downloaded immediately.
+
+### Benefits
+
+*   **Faster CI Pipelines**: CI agents can share caches, drastically reducing build times for incremental changes.
+*   **Collaborative Development**: Developers can pull artifacts built by CI or other team members, skipping expensive local builds.
+*   **Cost Savings**: Reduced compute time translates to lower infrastructure costs.

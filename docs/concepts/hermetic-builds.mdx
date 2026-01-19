@@ -1,0 +1,44 @@
+---
+title: 'Hermetic Builds'
+description: 'Understanding how same ensures consistent builds across all environments.'
+---
+
+## Write Once, Build Once, Anywhere
+
+One of the core philosophies of `same` is the guarantee that if a build works on your machine, it will work on your colleague's machine and in your CI/CD pipeline. This property is known as **hermeticity**.
+
+In many build systems, scripts rely on tools and environment variables present on the host system. This leads to the infamous "it works on my machine" problem, where a build succeeds locally because of a specific version of a tool or a set environment variable, but fails elsewhere where those conditions differ.
+
+`same` eliminates this class of problems by enforcing strict isolation for every task it executes.
+
+## How It Works
+
+To achieve hermeticity, `same` controls the execution environment of every task with two primary mechanisms:
+
+### 1. Environment Filtering
+
+When `same` launches a task, it does **not** inherit the full environment of your shell. Instead, it strips away almost everything to ensure no accidental dependencies leak into your build.
+
+Only a strict allow-list of system environment variables is passed through:
+
+*   `HOME`: Required for tools that need to write to user configuration directories.
+*   `TERM`: Preserved to ensure colorful and formatted output is displayed correctly.
+*   `USER`: Passed for tools that rely on user identity.
+*   `PATH`: Injected carefully (see below).
+
+Any other environment variable set in your shell (like `AWS_ACCESS_KEY_ID`, `GOPATH`, or custom flags) is invisible to the task unless explicitly declared in your `same.yaml` configuration.
+
+### 2. Tool Injection
+
+The `PATH` variable is constructed in a specific order to prioritize reproducibility:
+
+1.  **Nix Environment**: The bin directories of the tools defined in your configuration are prepended to the `PATH`. This ensures that when you call `go`, `node`, or `python`, you are using the *exact* version pinned in your `same.yaml`, not the version installed on the host system.
+2.  **System PATH**: The system `PATH` is appended at the end to allow access to basic system utilities if absolutely necessary, but shadowed by the declared tools.
+
+By filtering variables and strictly defining the toolchain, `same` creates a "clean room" for every execution.
+
+## The Benefits
+
+*   **Portability**: You can onboard a new developer simply by having them install `same`. They don't need to manually install twenty different tools or configure their shell profile.
+*   **Reproducibility**: CI pipelines become reliable. You won't face issues where a CI runner has a slightly different version of a compiler than your local machine.
+*   **Debuggability**: If a build fails, you know it's likely due to the code or configuration, not a hidden environment variable changing the behavior of a tool.

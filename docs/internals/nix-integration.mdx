@@ -1,0 +1,83 @@
+---
+title: 'Nix Integration'
+description: 'How `same` leverages Nix to create hermetic, reproducible execution environments.'
+---
+
+`same` uses **Nix** as its underlying package manager to guarantee that builds run in a strictly hermetic environment. This ensures that a build running on one developer's machine behaves exactly the same as on another's, or in CI, effectively solving "it works on my machine" problems.
+
+The core component responsible for this is the **Environment Factory** (`internal/adapters/nix/env_factory.go`).
+
+## The Environment Factory
+
+The `EnvFactory` is responsible for translating a high-level list of required tools (e.g., `go`, `nodejs`) into a set of environment variables (like `PATH`, `GOPATH`, etc.) that define the execution context for a task.
+
+The process involves four main steps:
+
+1.  **Tool Resolution**: converting aliases to precise commits.
+2.  **Nix Expression Generation**: Creating a request for a Nix shell.
+3.  **Environment Extraction**: Running Nix to get the environment variables.
+4.  **Caching**: Storing the result to speed up future runs.
+
+## 1. Tool Resolution
+
+In `same.yaml`, users define tools with simple aliases and versions:
+
+```yaml
+tools:
+  go: "go@1.25.4"
+  lint: "golangci-lint@1.55"
+```
+
+The Environment Factory takes these specifications and resolves them to exact **Nixpkgs Git Commits**.
+
+*   It uses a `DependencyResolver` to query the Nix database.
+*   Resolutions happen **concurrently** (using an error group with a limit based on CPU cores).
+*   Each tool resolves to a `CommitHash` (e.g., `8d15...`) and an `AttributePath` (e.g., `go_1_25`).
+
+This step ensures that `go@1.25.4` always points to the exact same bytes of software, regardless of when it is run.
+
+## 2. Nix Expression Generation
+
+Once the tools are resolved, the factory generates a temporary `.nix` file (a Nix Expression) that defines a shell environment.
+
+The generator (`generateNixExpr`):
+1.  **Sorts** all inputs to ensure the generated file is deterministic.
+2.  Uses `builtins.getFlake` to fetch the specific `nixpkgs` revisions resolved in the previous step.
+3.  Constructs a `mkShell` derivation that includes all requested packages in its `buildInputs`.
+
+```nix
+let
+  system = "aarch64-darwin";
+  flake_0 = builtins.getFlake "github:NixOS/nixpkgs/COMMIT_HASH_HERE";
+  pkgs_0 = flake_0.legacyPackages.${system};
+in
+pkgs_0.mkShell {
+  buildInputs = [
+    pkgs_0.go_1_25
+    # ... other packages
+  ];
+}
+```
+
+## 3. Environment Extraction
+
+To get the actual environment variables without spawning an interactive shell, `same` executes:
+
+```bash
+nix print-dev-env --json --file /tmp/generated.nix
+```
+
+The output is a JSON object containing the variables Nix would set (e.g. `PATH` including the bin directories of the resolved tools).
+
+The factory parses this JSON and filters the variables:
+*   **Included**: Build-critical variables (e.g., `PATH`, `CC`, library paths).
+*   **Excluded**: Interactive shell variables (e.g., `TERM`, `SHELL`, `HOME`, `USER`) to prevent leaking the host user's configuration into the build.
+
+Finally, `same` appends its own overrides to enforce hermeticity, such as setting `GOCACHE` and forcing `TMPDIR` to a safe location.
+
+## 4. Caching
+
+New environments are expensive to resolve and evaluate. To mitigate this, `EnvFactory` uses:
+
+*   **Singleflight**: Ensures that if multiple concurrent tasks request the exact same environment, it is computed only once.
+*   **Persistent Cache**: Results are stored in `cache/environments/ENV_ID.json`, where `ENV_ID` is a hash of the requested tools. If a task requests a known environment, it is loaded instantly from disk.
