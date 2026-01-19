@@ -66,6 +66,8 @@ homebrew_casks:
     repository:
       owner: traiproject
       name: homebrew-tap
+      pull_request:
+        enabled: true
 
     # Quarantine Workaround (Crucial for macOS)
     # Since Casks trigger macOS Gatekeeper, and same isn't 
