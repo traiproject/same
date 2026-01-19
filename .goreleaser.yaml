@@ -66,6 +66,7 @@ homebrew_casks:
     repository:
       owner: traiproject
       name: homebrew-tap
+      branch: "{{ .ProjectName }}_{{- .Version }}"
       pull_request:
         enabled: true
 
