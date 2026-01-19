@@ -8,7 +8,7 @@
 
 ## Colors
 
-- **Iris (Primary):** `#5D3FD3`
+- **Iris (Primary):** `#8B5CF6`
 - **Ink (Text):** `#0B0F19`
 - **Slate (Muted text/borders):** `#667085`
 - **Mist (Background):** `#F6F7FB`
