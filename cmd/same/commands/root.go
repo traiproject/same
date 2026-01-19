@@ -37,9 +37,6 @@ func New(a *app.App) *CLI {
 	rootCmd.InitDefaultHelpFlag()
 	rootCmd.Flags().Lookup("help").Usage = "Show help for command"
 
-	rootCmd.PersistentFlags().BoolP("force", "f", false, "Force rebuild, bypassing cache")
-	rootCmd.PersistentFlags().BoolP("inspect", "i", false, "Inspect the TUI after build completion (prevents auto-exit)")
-
 	c := &CLI{
 		app:     a,
 		rootCmd: rootCmd,

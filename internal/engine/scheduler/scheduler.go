@@ -92,14 +92,14 @@ func (s *Scheduler) Run(
 	graph *domain.Graph,
 	targetNames []string,
 	parallelism int,
-	force bool,
+	noCache bool,
 ) error {
 	// Explicitly validate the graph to ensure executionOrder is populated
 	if err := graph.Validate(); err != nil {
 		return err
 	}
 
-	state, err := s.newRunState(ctx, graph, targetNames, parallelism, force)
+	state, err := s.newRunState(ctx, graph, targetNames, parallelism, noCache)
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ type schedulerRunState struct {
 	parallelism int
 	s           *Scheduler
 	allTasks    []domain.InternedString
-	force       bool
+	noCache     bool
 	taskEnvIDs  map[domain.InternedString]string // task name -> environment ID
 }
 
@@ -168,7 +168,7 @@ func (s *Scheduler) newRunState(
 	graph *domain.Graph,
 	targetNames []string,
 	parallelism int,
-	force bool,
+	noCache bool,
 ) (*schedulerRunState, error) {
 	tasksToRun, allTasks, err := s.resolveTasksToRun(graph, targetNames)
 	if err != nil {
@@ -220,7 +220,7 @@ func (s *Scheduler) newRunState(
 		parallelism: parallelism,
 		s:           s,
 		allTasks:    allTasks,
-		force:       force,
+		noCache:     noCache,
 		taskEnvIDs:  taskEnvIDs,
 	}, nil
 }
@@ -473,7 +473,7 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 }
 
 func (state *schedulerRunState) computeInputHash(t *domain.Task) (skipped bool, hash string, err error) {
-	if state.force {
+	if state.noCache {
 		h, forceErr := state.s.computeHashForce(t, state.graph.Root())
 		return false, h, forceErr
 	}
