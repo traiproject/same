@@ -43,8 +43,7 @@ archives:
     files:
       - README*
       - LICENSE*
-      - src: completions/*
-        dst: completions/
+      - completions/*
 
 homebrew_casks:
   - name: same
