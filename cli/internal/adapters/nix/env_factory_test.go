@@ -32,7 +32,7 @@ func TestNewEnvFactory(t *testing.T) {
 }
 
 func TestGetEnvironment_Success(t *testing.T) {
-	// This test requires nix to be installed and will actually run nix build
+	// This test requires nix to be installed and will actually run nix print-dev-env
 	// Skip if nix is not available
 	if _, err := exec.LookPath("nix"); err != nil {
 		t.Skip("nix not found in PATH, skipping integration test")
@@ -128,7 +128,7 @@ func TestGetEnvironment_InvalidSpec(t *testing.T) {
 }
 
 func TestGetEnvironment_AliasMismatch(t *testing.T) {
-	// This test requires nix to be installed and will actually run nix build
+	// This test requires nix to be installed and will actually run nix print-dev-env
 	// Skip if nix is not available
 	if _, err := exec.LookPath("nix"); err != nil {
 		t.Skip("nix not found in PATH, skipping integration test")
