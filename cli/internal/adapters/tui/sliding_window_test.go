@@ -15,7 +15,7 @@ func TestUpdate_SlidingWindow_Scrolling(t *testing.T) {
 	taskNames := make([]string, 10)
 	for i := 0; i < 10; i++ {
 		name := "task" + string(rune('0'+i))
-		tasks[i] = &tui.TaskNode{Name: name}
+		tasks[i] = &tui.TaskNode{Name: name, Term: tui.NewVterm()}
 		taskNames[i] = name
 	}
 
@@ -80,16 +80,16 @@ func TestUpdate_SlidingWindow_Scrolling(t *testing.T) {
 func TestUpdate_SlidingWindow_AutoFollow(t *testing.T) {
 	// Setup
 	tasks := []*tui.TaskNode{
-		{Name: "t0"},
-		{Name: "t1"},
-		{Name: "t2"},
-		{Name: "t3"},
-		{Name: "t4"},
-		{Name: "t5"},
-		{Name: "t6"},
-		{Name: "t7"},
-		{Name: "t8"},
-		{Name: "t9"},
+		{Name: "t0", Term: tui.NewVterm()},
+		{Name: "t1", Term: tui.NewVterm()},
+		{Name: "t2", Term: tui.NewVterm()},
+		{Name: "t3", Term: tui.NewVterm()},
+		{Name: "t4", Term: tui.NewVterm()},
+		{Name: "t5", Term: tui.NewVterm()},
+		{Name: "t6", Term: tui.NewVterm()},
+		{Name: "t7", Term: tui.NewVterm()},
+		{Name: "t8", Term: tui.NewVterm()},
+		{Name: "t9", Term: tui.NewVterm()},
 	}
 	m := &tui.Model{
 		Tasks:      tasks,
@@ -121,7 +121,7 @@ func TestUpdate_SlidingWindow_AutoFollow(t *testing.T) {
 
 func TestUpdate_SlidingWindow_Resize(t *testing.T) {
 	m := &tui.Model{
-		Tasks: []*tui.TaskNode{{Name: "t1"}},
+		Tasks: []*tui.TaskNode{{Name: "t1", Term: tui.NewVterm()}},
 	}
 
 	// Helper to calculate expected height same way as implementation

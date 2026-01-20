@@ -4,7 +4,7 @@ import "github.com/charmbracelet/lipgloss"
 
 var (
 	// Private brand colors.
-	colorIris  = lipgloss.Color("#5D3FD3")
+	colorIris  = lipgloss.Color("#8B5CF6")
 	colorSlate = lipgloss.Color("#667085")
 	colorWhite = lipgloss.Color("#FFFFFF")
 	colorInk   = lipgloss.Color("#0B0F19")

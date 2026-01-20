@@ -16,6 +16,5 @@ func TestNewModel(t *testing.T) {
 	assert.Empty(t, m.TaskMap)
 	assert.NotNil(t, m.SpanMap)
 	assert.Empty(t, m.SpanMap)
-	assert.NotNil(t, m.Viewport)
 	assert.True(t, m.AutoScroll, "AutoScroll should be true by default")
 }
