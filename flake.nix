@@ -43,7 +43,7 @@
           inherit version;
 
           src = ./cli;
-          vendorHash = "sha256-NBrFhDAlpdCbSJn596nSrROaKTcYdilDtHqlbHvNu54=";
+          vendorHash = "sha256-cRI4tfCLBqp8p/deZGe0t2uLiYIIkvQDP/IANDNjom4=";
 
           env.CGO_ENABLED = 0;
 

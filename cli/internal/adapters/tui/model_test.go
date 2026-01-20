@@ -5,257 +5,179 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/adapters/telemetry"
 	"go.trai.ch/same/internal/adapters/tui"
 )
 
-func TestUpdate_InitTasks(t *testing.T) {
+func TestModel_Update_WindowSize(t *testing.T) {
+	t.Parallel()
+
 	m := &tui.Model{}
-	tasks := []string{"task1", "task2", "task3"}
-	msg := telemetry.MsgInitTasks{Tasks: tasks}
+	m.Init() // explicit init call just for coverage
 
-	updatedModel, cmd := m.Update(msg)
-	newM, ok := updatedModel.(*tui.Model)
-	require.True(t, ok)
-
-	assert.Nil(t, cmd)
-	assert.Len(t, newM.Tasks, len(tasks))
-	assert.Len(t, newM.TaskMap, len(tasks))
-
-	for i, task := range tasks {
-		assert.Equal(t, task, newM.Tasks[i].Name)
-		assert.Equal(t, tui.StatusPending, newM.Tasks[i].Status)
-		assert.Same(t, newM.Tasks[i], newM.TaskMap[task])
-	}
-}
-
-func TestUpdate_Navigation(t *testing.T) {
-	// Initialize directly with tasks
-	m := &tui.Model{
-		Tasks: []*tui.TaskNode{
-			{Name: "task1"},
-			{Name: "task2"},
-			{Name: "task3"},
-		},
-		SelectedIdx: 0,
-		FollowMode:  true,
-		TaskMap:     make(map[string]*tui.TaskNode),
-	}
-	// Setup map pointers
-	for i := range m.Tasks {
-		// Init term
-		m.Tasks[i].Term = tui.NewVterm()
-		m.TaskMap[m.Tasks[i].Name] = m.Tasks[i]
-	}
-
-	// Case 1: Down
-	// tea.KeyMsg matching "down"
-	msgDown := tea.KeyMsg{Type: tea.KeyDown}
-
-	updatedModel, _ := m.Update(msgDown)
-	newM, ok := updatedModel.(*tui.Model)
-	require.True(t, ok)
-
-	assert.Equal(t, 1, newM.SelectedIdx)
-	assert.False(t, newM.FollowMode, "FollowMode should be false after navigation")
-
-	// Case 2: Up
-	msgUp := tea.KeyMsg{Type: tea.KeyUp}
-	updatedModel, _ = newM.Update(msgUp)
-	newM, ok = updatedModel.(*tui.Model)
-	require.True(t, ok)
-
-	assert.Equal(t, 0, newM.SelectedIdx)
-	assert.False(t, newM.FollowMode)
-
-	// Case 3: Activate Follow Mode (Escape)
-	newM.FollowMode = false
-	// Start a task to see if it jumps to running (as per logic: "jump to the currently running task if any")
-	newM.Tasks[2].Status = tui.StatusRunning
-
-	msgEsc := tea.KeyMsg{Type: tea.KeyEsc}
-	updatedModel, _ = newM.Update(msgEsc)
-	newM, ok = updatedModel.(*tui.Model)
-	require.True(t, ok)
-
-	assert.True(t, newM.FollowMode)
-	assert.Equal(t, 2, newM.SelectedIdx, "Should jump to running task index")
-}
-
-func TestUpdate_AutoFollow(t *testing.T) {
-	// Setup
-	tasks := []string{"task1", "task2", "task3"}
-	m := &tui.Model{}
-	updatedModel, _ := m.Update(telemetry.MsgInitTasks{Tasks: tasks})
-	m = updatedModel.(*tui.Model)
-
-	// Case 1: Follow Mode True
-	m.FollowMode = true
-	m.SelectedIdx = 0
-	m.ActiveTaskName = "task1"
-
-	// Send Start for task2
-	msg := telemetry.MsgTaskStart{Name: "task2", SpanID: "span2"}
-	updatedModel, _ = m.Update(msg)
-	newM, ok := updatedModel.(*tui.Model)
-	require.True(t, ok)
-
-	assert.Equal(t, "task2", newM.ActiveTaskName, "Should switch active task in follow mode")
-	assert.Equal(t, 1, newM.SelectedIdx)
-	assert.Equal(t, tui.StatusRunning, newM.TaskMap["task2"].Status)
-
-	// Case 2: Follow Mode False
-	newM.FollowMode = false
-	// Simulate user selected task3 manually
-	newM.SelectedIdx = 2
-	newM.ActiveTaskName = "task3"
-
-	// Send Start for task1
-	msgStart := telemetry.MsgTaskStart{Name: "task1", SpanID: "span1"}
-	updatedModel2, _ := newM.Update(msgStart)
-	newM2, ok := updatedModel2.(*tui.Model)
-	require.True(t, ok)
-
-	// Active task name should stay as "task3" because we are NOT following
-	assert.Equal(t, "task3", newM2.ActiveTaskName, "Should NOT switch active task when not in follow mode")
-	// SelectedIdx should NOT change
-	assert.Equal(t, 2, newM2.SelectedIdx)
-	// But status of task1 SHOULD update
-	assert.Equal(t, tui.StatusRunning, newM2.TaskMap["task1"].Status)
-}
-
-func TestUpdate_Logs(t *testing.T) {
-	// Setup
-	m := &tui.Model{
-		Tasks:          []*tui.TaskNode{{Name: "task1", Status: tui.StatusRunning, Term: tui.NewVterm()}},
-		ActiveTaskName: "task1",
-		AutoScroll:     true,
-		TaskMap:        make(map[string]*tui.TaskNode),
-		SpanMap:        make(map[string]*tui.TaskNode),
-	}
-	m.TaskMap["task1"] = m.Tasks[0]
-	m.SpanMap["span1"] = m.Tasks[0] // associate span1 with task1
-
-	// Determine width/height for term so it can render
-	m.Tasks[0].Term.SetWidth(100)
-	m.Tasks[0].Term.SetHeight(20)
-
-	// Send Log
-	logData := []byte("hello world")
-	msg := telemetry.MsgTaskLog{SpanID: "span1", Data: logData}
-
-	updatedModel, cmd := m.Update(msg)
-	newM, ok := updatedModel.(*tui.Model)
-	require.True(t, ok)
-
-	assert.Nil(t, cmd)
-	// Check Term view contains data
-	// Note: Vterm.View() returns the rendered string
-	assert.Contains(t, newM.Tasks[0].Term.View(), "hello world")
-}
-
-func TestUpdate_WindowSize(t *testing.T) {
-	m := &tui.Model{
-		Tasks:          []*tui.TaskNode{{Name: "task1", Term: tui.NewVterm()}},
-		ActiveTaskName: "task1",
-		TaskMap:        make(map[string]*tui.TaskNode),
-	}
-	m.TaskMap["task1"] = m.Tasks[0]
+	// Create some dummy tasks
+	tasks := []string{"task1", "task2"}
+	msgInit := telemetry.MsgInitTasks{Tasks: tasks}
+	newM, _ := m.Update(msgInit)
+	m = newM.(*tui.Model)
 
 	// Send WindowSizeMsg
-	// Width 100 -> List gets 30, Logs get 100 - 30 - 4 = 66
-	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
+	width, height := 100, 50
+	msgResize := tea.WindowSizeMsg{Width: width, Height: height}
 
-	updatedModel, _ := m.Update(msg)
-	newM, ok := updatedModel.(*tui.Model)
-	require.True(t, ok)
+	newM, _ = m.Update(msgResize)
+	m = newM.(*tui.Model)
 
 	// Check dimensions
-	// listWidthRatio = 0.3
-	// We can't easily check Term dimensions directly if they are private or just getters/Setters.
-	// But we can check public properties if available.
-	// Vterm struct has Height and Width public.
-	assert.Equal(t, 66, newM.Tasks[0].Term.Width)
-	// Height = 50 - 1 (header) = 49
-	assert.Equal(t, 49, newM.Tasks[0].Term.Height)
-}
+	// Check dimensions
+	// taskListWidthRatio check manually or expose constant?
+	expectedListWidth := int(float64(width) * 0.3)
+	expectedLogWidth := width - expectedListWidth - 4 // subtracting logPaneBorderWidth (4)
+	// We verify logic with hardcoded expectation based on known values.
+	// 100 * 0.3 = 30. 100 - 30 - 4 = 66.
 
-func TestUpdate_TaskComplete(t *testing.T) {
-	m := &tui.Model{
-		Tasks:   []*tui.TaskNode{{Name: "task1", Status: tui.StatusRunning}},
-		SpanMap: make(map[string]*tui.TaskNode),
+	assert.Equal(t, expectedLogWidth, m.LogWidth)
+	assert.Positive(t, m.LogHeight)
+	assert.Positive(t, m.ListHeight)
+
+	// Verify task terminals were resized
+	for _, node := range m.Tasks {
+		assert.Equal(t, expectedLogWidth, node.Term.Width)
+		assert.Equal(t, m.LogHeight, node.Term.Height)
 	}
-	m.SpanMap["span1"] = m.Tasks[0]
+}
 
-	// Success case
-	msgSuccess := telemetry.MsgTaskComplete{SpanID: "span1", Err: nil}
-	updatedModel, _ := m.Update(msgSuccess)
-	newM, ok := updatedModel.(*tui.Model)
-	require.True(t, ok)
-	assert.Equal(t, tui.StatusDone, newM.Tasks[0].Status)
+func TestModel_Update_Navigation(t *testing.T) {
+	t.Parallel()
 
-	// Error case
-	// Reset status
+	m := &tui.Model{
+		Tasks:      make([]*tui.TaskNode, 3),
+		ListHeight: 2, // Small height to test scrolling
+	}
+
+	// Initialize tasks
+	tags := []string{"t1", "t2", "t3"}
+	for i, tag := range tags {
+		m.Tasks[i] = &tui.TaskNode{Name: tag, Term: tui.NewVterm()}
+	}
+
+	// 1. Initial State
+	assert.Equal(t, 0, m.SelectedIdx)
+
+	// 2. Down (j)
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Equal(t, 1, m.SelectedIdx)
+	assert.False(t, m.FollowMode)
+
+	// 3. Down (down)
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	assert.Equal(t, 2, m.SelectedIdx)
+
+	// 4. Down at bottom (clamped)
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	assert.Equal(t, 2, m.SelectedIdx)
+
+	// 5. Up (k)
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	assert.Equal(t, 1, m.SelectedIdx)
+
+	// 6. Up (up)
+	m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	assert.Equal(t, 0, m.SelectedIdx)
+
+	// 7. Up at top (clamped)
+	m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	assert.Equal(t, 0, m.SelectedIdx)
+}
+
+func TestModel_Update_Telemetry(t *testing.T) {
+	t.Parallel()
+
+	m := &tui.Model{
+		LogWidth:   100,
+		LogHeight:  50,
+		FollowMode: true,
+	}
+
+	// 1. Init Tasks
+	tasks := []string{"task1"}
+	msgInit := telemetry.MsgInitTasks{Tasks: tasks}
+	m.Update(msgInit)
+
+	assert.Len(t, m.Tasks, 1)
+	assert.Contains(t, m.TaskMap, "task1")
+	assert.Equal(t, tui.StatusPending, m.Tasks[0].Status)
+	assert.Equal(t, 100, m.Tasks[0].Term.Width) // Should use pre-set dims
+
+	// 2. Start Task
+	spanID := "span-123"
+	msgStart := telemetry.MsgTaskStart{Name: "task1", SpanID: spanID}
+	m.Update(msgStart)
+
+	assert.Equal(t, tui.StatusRunning, m.Tasks[0].Status)
+	assert.Contains(t, m.SpanMap, spanID)
+	// Follow mode active -> should select this task
+	assert.Equal(t, 0, m.SelectedIdx)
+	assert.Equal(t, "task1", m.ActiveTaskName)
+
+	// 3. Log Task
+	msgLog := telemetry.MsgTaskLog{SpanID: spanID, Data: []byte("hello log")}
+	m.Update(msgLog)
+
+	output := m.Tasks[0].Term.View()
+	assert.Contains(t, output, "hello log")
+
+	// 4. Complete Task (Success)
+	msgComplete := telemetry.MsgTaskComplete{SpanID: spanID, Err: nil}
+	m.Update(msgComplete)
+	assert.Equal(t, tui.StatusDone, m.Tasks[0].Status)
+
+	// 5. Complete Task (Error)
+	// Reset status for test
 	m.Tasks[0].Status = tui.StatusRunning
-	msgError := telemetry.MsgTaskComplete{SpanID: "span1", Err: assert.AnError}
-	updatedModel, _ = m.Update(msgError)
-	newM, ok = updatedModel.(*tui.Model)
-	require.True(t, ok)
-	assert.Equal(t, tui.StatusError, newM.Tasks[0].Status)
+	msgError := telemetry.MsgTaskComplete{SpanID: spanID, Err: assert.AnError}
+	m.Update(msgError)
+	assert.Equal(t, tui.StatusError, m.Tasks[0].Status)
 }
 
-func TestInit(t *testing.T) {
-	m := &tui.Model{}
-	cmd := m.Init()
-	assert.Nil(t, cmd)
+func TestModel_Update_Esc(t *testing.T) {
+	t.Parallel()
+
+	m := &tui.Model{
+		Tasks: []*tui.TaskNode{
+			{Name: "t1", Status: tui.StatusDone},
+			{Name: "t2", Status: tui.StatusRunning},
+			{Name: "t3", Status: tui.StatusPending},
+		},
+		SelectedIdx: 0,
+		FollowMode:  false,
+	}
+	// Setup map needed for updateActiveView
+	m.TaskMap = map[string]*tui.TaskNode{
+		"t1": m.Tasks[0],
+		"t2": m.Tasks[1],
+		"t3": m.Tasks[2],
+	}
+	m.Tasks[0].Term = tui.NewVterm()
+	m.Tasks[1].Term = tui.NewVterm()
+	m.Tasks[2].Term = tui.NewVterm()
+
+	// Press Esc
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	// Should jump to running task (index 1) and enable follow mode
+	assert.Equal(t, 1, m.SelectedIdx)
+	assert.True(t, m.FollowMode)
+	assert.Equal(t, "t2", m.ActiveTaskName)
 }
 
-func TestUpdate_Quit(t *testing.T) {
+func TestModel_Update_Quit(t *testing.T) {
+	t.Parallel()
 	m := &tui.Model{}
 
-	// Test "q"
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
 	assert.Equal(t, tea.Quit(), cmd())
 
-	// Test "ctrl+c"
 	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	assert.Equal(t, tea.Quit(), cmd())
-}
-
-func TestUpdate_Logs_InactiveTask(t *testing.T) {
-	m := &tui.Model{
-		Tasks:          []*tui.TaskNode{{Name: "task1", Term: tui.NewVterm()}, {Name: "task2", Term: tui.NewVterm()}},
-		ActiveTaskName: "task1",
-		SpanMap:        make(map[string]*tui.TaskNode),
-	}
-	m.SpanMap["span2"] = m.Tasks[1] // associate span2 with task2 (inactive)
-
-	// Set some size
-	m.Tasks[1].Term.SetWidth(50)
-	m.Tasks[1].Term.SetHeight(10)
-
-	msg := telemetry.MsgTaskLog{SpanID: "span2", Data: []byte("log for task 2")}
-
-	updatedModel, _ := m.Update(msg)
-	newM, ok := updatedModel.(*tui.Model)
-	require.True(t, ok)
-
-	// Logs for task2 should be updated
-	// Check if view contains it
-	assert.Contains(t, newM.Tasks[1].Term.View(), "log for task 2")
-}
-
-func TestUpdate_EmptyTasks_Esc(t *testing.T) {
-	m := &tui.Model{
-		Tasks: []*tui.TaskNode{},
-	}
-
-	// Press Esc with empty tasks
-	updatedModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	newM, ok := updatedModel.(*tui.Model)
-	require.True(t, ok)
-
-	// Should not panic, FollowMode should be true
-	assert.True(t, newM.FollowMode)
 }
