@@ -38,9 +38,9 @@ func (s *Scheduler) GetTaskEnvIDs(
 	graph *domain.Graph,
 	targetNames []string,
 	parallelism int,
-	force bool,
+	noCache bool,
 ) (map[domain.InternedString]string, error) {
-	state, err := s.newRunState(ctx, graph, targetNames, parallelism, force)
+	state, err := s.newRunState(ctx, graph, targetNames, parallelism, noCache)
 	if err != nil {
 		return nil, err
 	}

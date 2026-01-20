@@ -16,13 +16,15 @@ func (c *CLI) newRunCmd() *cobra.Command {
 				_ = cmd.Help()
 				return nil
 			}
-			force, _ := cmd.Flags().GetBool("force")
+			noCache, _ := cmd.Flags().GetBool("no-cache")
 			inspect, _ := cmd.Flags().GetBool("inspect")
 			return c.app.Run(cmd.Context(), args, app.RunOptions{
-				Force:   force,
+				NoCache: noCache,
 				Inspect: inspect,
 			})
 		},
 	}
+	cmd.Flags().BoolP("no-cache", "n", false, "Bypass the build cache and force execution")
+	cmd.Flags().BoolP("inspect", "i", false, "Inspect the TUI after build completion (prevents auto-exit)")
 	return cmd
 }

@@ -63,7 +63,7 @@ func (a *App) WithTeaOptions(opts ...tea.ProgramOption) *App {
 
 // RunOptions configuration for the Run method.
 type RunOptions struct {
-	Force   bool
+	NoCache bool
 	Inspect bool
 }
 
@@ -163,7 +163,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 			}
 		}()
 
-		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), opts.Force); err != nil {
+		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), opts.NoCache); err != nil {
 			return errors.Join(domain.ErrBuildExecutionFailed, err)
 		}
 		return nil

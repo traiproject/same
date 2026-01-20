@@ -69,7 +69,7 @@ func TestApp_Build(t *testing.T) {
 		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
 
 		// Run
-		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{Force: false})
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		// Assert
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
@@ -118,7 +118,7 @@ func TestApp_Run_NoTargets(t *testing.T) {
 		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
 
 		// Execute
-		err = a.Run(context.Background(), nil, app.RunOptions{Force: false})
+		err = a.Run(context.Background(), nil, app.RunOptions{NoCache: false})
 		if err == nil {
 			t.Error("Expected error, got nil")
 		}
@@ -169,7 +169,7 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))
 
 		// Execute
-		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{Force: false})
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		if err == nil {
 			t.Error("Expected error, got nil")
 		}
@@ -236,7 +236,7 @@ func TestApp_Run_BuildExecutionFailed(t *testing.T) {
 			Return(errors.New("command failed"))
 
 		// Run
-		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{Force: false})
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		// Assert
 		if err == nil {
 			t.Error("Expected error, got nil")
@@ -291,7 +291,7 @@ func TestApp_Run_LogSetupFailure(t *testing.T) {
 			)
 
 		// Execute - should fail before calling Load
-		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{Force: false})
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		if err == nil {
 			t.Error("Expected error, got nil")
 		}
