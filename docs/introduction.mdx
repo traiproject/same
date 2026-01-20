@@ -1,0 +1,61 @@
+---
+title: Introduction
+description: "Write Once, Build Once, Anywhere"
+---
+
+`same` is a modern build tool for monorepos designed to make execution hermetic,
+deterministic, and fast across any environment.
+
+<CardGroup cols={3}>
+  <Card title="Reliable" icon="shield-check">
+    Deterministic builds via Nix ensure that if it runs on your machine, it runs on any other machine and on CI.
+  </Card>
+  <Card title="Simple" icon="sparkles">
+    Minimal configuration with a clean, uncluttered CLI and TUI.
+  </Card>
+  <Card title="Fast" icon="bolt">
+    Snappy execution with aggressive content-addressable caching and parallel scheduling.
+  </Card>
+</CardGroup>
+
+## Why `same`?
+
+Use `same` if you struggle with:
+
+- **Inconsistent builds:** "It works on my machine" but fails on CI due to
+  environmental differences.
+- **Complex setups:** Onboarding new developers takes hours installing specific
+  compilers and tool versions.
+- **Slow CI:** Rebuilding the entire project for a one-line change.
+
+`same` helps by:
+
+- **Locking toolchains:** Uses Nix to ensure every developer and CI runner uses
+  the exact same binary versions.
+- **Caching everywhere:** Computes input hashes to skip work that has already
+  been done.
+- **Unifying execution:** One syntax (`same run`) for all tasks, regardless of
+  the underlying language (Go, Rust, Node, etc.).
+
+## Stability
+
+<Warning>
+`same` is currently in **v0 (Beta)**.
+</Warning>
+
+- **Breaking Changes:** The configuration schema (`same.yaml`) and CLI commands
+  may change as we refine the design.
+- **Production Use:** While reliable for development workflows, please pin
+  versions in your CI pipelines.
+
+## Supported Platforms
+
+`same` is built and tested for the following operating systems and
+architectures:
+
+| OS        | Architectures                            |
+| :-------- | :--------------------------------------- |
+| **Linux** | `amd64`, `arm64`                         |
+| **macOS** | `amd64` (Intel), `arm64` (Apple Silicon) |
+
+> **Note:** Windows is not supported at this time.

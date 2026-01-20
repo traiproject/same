@@ -5,12 +5,6 @@
 .same/
 
 ############################
-# Go dependency injection
-############################
-
-wire_band.go
-
-############################
 # Go build artifacts
 ############################
 
@@ -53,10 +47,6 @@ profile.cov
 
 # Vendor directory (use Go modules instead)
 vendor/
-
-# Local Go workspaces (usually per-developer)
-go.work
-go.work.sum
 
 ############################
 # Nix & direnv

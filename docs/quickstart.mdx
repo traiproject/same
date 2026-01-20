@@ -1,0 +1,60 @@
+---
+title: Quickstart
+description: "Start building with same in minutes"
+---
+
+<Steps>
+  <Step title="Initialize configuration">
+    Create a `same.yaml` in the root of your project:
+
+    ```yaml same.yaml
+    version: "1"
+
+    # Define tools needed for your tasks (provisioned via Nix)
+    tools:
+      go: go@1.25.4
+      lint: golangci-lint@2.7.2
+
+    tasks:
+      # Define a task
+      build:
+        input: ["cmd", "internal", "go.mod"]
+        cmd: ["go", "build", "-o", "bin/app", "./cmd/main.go"]
+        target: ["bin/app"]
+        tools: ["go"]
+
+      # Define a dependent task
+      lint:
+        input: ["**/*.go"]
+        cmd: ["golangci-lint", "run"]
+        tools: ["lint"]
+        dependsOn: ["build"]
+    ```
+  </Step>
+  <Step title="Run a task">
+    Run the lint task you just defined:
+
+    ```bash
+    same run lint
+    ```
+  </Step>
+</Steps>
+
+## Configuration Schema
+
+The `same.yaml` file drives the execution engine.
+
+- `version`: Configuration format version (currently "1").
+- `project`: (Optional) Name of the project, only required if using a workspace setup.
+- `tools`: A map of tool aliases to versions (e.g., `go: go@1.23`). `same` uses Nix to provide these hermetically.
+- `tasks`: A map of task names to task definitions.
+
+**Task Definition:**
+
+- `input`: List of file globs or paths that affect the task output. Used for caching hash calculation.
+- `cmd`: The command to execute (as a list of strings).
+- `target`: List of output files or directories the task produces.
+- `tools`: List of tool aliases (defined in the global `tools` section) required by this specific task.
+- `dependsOn`: List of other tasks that must complete successfully before this task runs.
+- `environment`: Map of environment variables injected into the task execution.
+- `workingDir`: Directory to execute the command in. If a relative path is provided, it is relative to the project root (the directory containing `same.yaml`). Defaults to the project root.

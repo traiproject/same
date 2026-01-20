@@ -1,0 +1,7 @@
+version: "1"
+root: "."
+tools:
+  go: go@1.25.4
+  lint: golangci-lint@2.7.2
+projects:
+  - "cli"

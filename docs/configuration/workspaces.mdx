@@ -1,0 +1,64 @@
+---
+title: "workspaces"
+description: "Reference documentation for the same.work.yaml workspace configuration."
+---
+
+The `same.work.yaml` file is used to define a workspace in a monorepo setup. It allows you to group multiple projects together and share common tools.
+
+## Purpose
+
+In a monorepo, you often have multiple projects (e.g., a backend service, a frontend app, a shared library) that need to be built together or have inter-dependencies. The workspace configuration:
+
+1.  **Discovers Projects**: Tells `same` where to find the projects within the repository using glob patterns.
+2.  **Shares Tools**: Defines a common set of tools (e.g., a specific Go version, Node.js version) that can be used by all projects in the workspace.
+
+## Schema
+
+### `version`
+
+<ParamField path="version" type="string" required>
+  The version of the configuration schema. Currently, the only supported version is "1".
+</ParamField>
+
+### `projects`
+
+<ParamField path="projects" type="string[]" required>
+  A list of glob patterns to locate project directories. Any directory matching these patterns that contains a `same.yaml` file will be included in the workspace.
+  
+  Example: `["packages/*", "services/*"]`
+</ParamField>
+
+### `tools`
+
+<ParamField path="tools" type="map<string, string>">
+  A map of tool aliases to their Nix package specifications. These tools are available to all projects in the workspace.
+</ParamField>
+
+## Tool Inheritance & Overrides
+
+Tools defined in `same.work.yaml` are automatically available to all projects. However, projects can override these tools or define their own additions.
+
+*   **Inheritance**: If a tool is defined in `same.work.yaml` but not in `same.yaml`, the project uses the workspace version.
+*   **Override**: If a tool with the same alias is defined in both files, the definition in `same.yaml` takes precedence. This allows specific projects to use different versions of a tool (e.g., testing a library against a newer Go version).
+
+### Example
+
+**`same.work.yaml`**
+```yaml
+version: "1"
+tools:
+  go: "go@1.23"
+projects:
+  - "packages/*"
+```
+
+**`packages/myapp/same.yaml`**
+```yaml
+version: "1"
+project: "myapp"
+# Inherits 'go' from workspace
+tasks:
+  build:
+    cmd: ["go", "build"]
+    tools: ["go"] 
+```

@@ -1,7 +1,5 @@
 version: "1"
-tools:
-  go: go@1.25.4
-  lint: golangci-lint@2.7.2
+project: cli
 tasks:
   # Install dependencies
   install:

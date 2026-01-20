@@ -1,0 +1,57 @@
+---
+title: 'Architecture'
+description: 'A deep dive into the execution engine behind same.'
+---
+
+## The Execution Engine
+
+At its heart, `same` is a sophisticated Directed Acyclic Graph (DAG) scheduler. It transforms your static configuration into a dynamic execution plan that maximizes parallelism while respecting dependencies.
+
+The execution flow moves through three main phases:
+
+<Mermaid>
+graph TD
+    Config[Configuration] -->|Parse| Graph[Dependency Graph]
+    Graph -->|Validate| Scheduler
+    Scheduler -->|Dispatch| Executor[Shell Executor]
+    Executor -->|Result| Scheduler
+</Mermaid>
+
+## The Dependency Graph
+
+The `Graph` component is responsible for modeling the relationships between your tasks.
+
+### Cycle Detection
+Before any code runs, `same` must ensure your build plan is logical. A circular dependency (e.g., Task A depends on Task B, which depends on Task A) would cause an infinite loop.
+
+The graph validator uses a Depth-First Search (DFS) algorithm to traverse the dependency tree. It tracks the state of each node:
+*   **Unvisited**: Not yet checked.
+*   **Visiting**: Currently in the current recursion stack.
+*   **Visited**: Fully processed.
+
+If the search encounters a node marked as **Visiting**, a cycle is detected, and `same` halts with a helpful error message describing the exact cycle path.
+
+### Execution Order
+Once validated, the graph generates a **Topological Sort** of the tasks. This is a linear ordering of vertices such that for every dependency $A \to B$, $A$ comes before $B$ in the ordering. This linear list is used to display the build plan to the user.
+
+## The Scheduler
+
+The `Scheduler` is the engine that drives execution. It moves tasks through states: `Pending`, `Running`, `Completed`, and `Failed`.
+
+### Parallel Execution with In-Degrees
+Instead of simple serial execution, the scheduler uses an **in-degree** algorithm to manage parallelism:
+
+1.  It calculates the `in-degree` for every task—this is effectively the "number of unfinished dependencies".
+2.  Tasks with an in-degree of `0` are effectively "ready" and added to a queue.
+3.  The scheduler pulls tasks from the ready queue up to the configured `parallelism` limit and dispatches them to the Executor.
+4.  When a task completes successfully, the scheduler decrements the in-degree of all tasks that depend on it.
+5.  New tasks that reach an in-degree of `0` are added to the ready queue.
+
+This ensures `same` runs as many safe tasks in parallel as your machine allows.
+
+## The Executor
+
+The `Executor` is the low-level component that actually runs commands. To ensure consistency (see [Hermetic Builds](/concepts/hermetic-builds)), it does not simply call `exec()`.
+
+*   **PTY Integration**: On supported systems (Linux/macOS), commands are run within a Pseudo-Terminal (PTY). This preserves color output and formatting, making the logs look exactly as they would if you ran the command manually.
+*   **Output Streaming**: `stderr` and `stdout` are captured independently but streamed in real-time to the UI and the trace logs.

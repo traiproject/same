@@ -1,0 +1,72 @@
+---
+title: 'Caching'
+description: 'How `same` achieves fast, incremental builds using Content Addressable Storage and deterministic hashing.'
+---
+
+`same` relies on a robust caching strategy to ensure that tasks that have already been executed with the exact same inputs are never re-run unnecessarily. This is achieved through a combination of a Content Addressable Store (CAS) and a strict hashing protocol.
+
+## Content Addressable Store (CAS)
+
+The build system persists build metadata and artifacts in a local Content Addressable Store, located at `.same/store`. 
+
+Unlike traditional filesystems where files are retrieved by path, a CAS retrieves data based on its content digest. However, to efficiently map tasks to their results, `same` uses a **Build Info** index strategy:
+
+1.  **Task Identity**: The store indexes build information using the SHA-256 hash of the Task Name.
+2.  **Build Info**: This JSON metadata contains the computed **Input Hash** and **Output Hash** for a specific execution of a task.
+3.  **Artifact Storage**: The actual output files (artifacts) are tracked and verified against their Output Hashes.
+
+This separation allows the system to quickly check if a task needs to run by comparing the current computed Input Hash against the stored one.
+
+## Hashing Strategy
+
+Central to the caching mechanism is the `Hasher` (implemented in `internal/adapters/fs/hasher.go`), which uses **XXHash (v2)** for high-performance, non-cryptographic hashing.
+
+The system distinguishes between two critical types of hashes:
+
+### Input Hash
+
+The Input Hash is a unique fingerprint representing *everything* that could possibly affect the outcome of a task. If the Input Hash changes, the task must be re-run.
+
+The `ComputeInputHash` method aggregates the following components into a single hash:
+
+1.  **Task Definition**: The task's name, command arguments, and explicit dependencies.
+2.  **Tools**: The resolved versions of all tools used by the task (sorted by key for determinism).
+3.  **Environment Variables**: All environment variables injected into the task (sorted by key).
+4.  **Input Files**: The content of all file paths specified in the `input` section.
+    *   If an input is a directory, the hasher recursively walks the directory and hashes every file.
+    *   File names and their contents are both included in the hash.
+
+```go
+// Conceptual pseudo-code of what goes into the Input Hash
+hash = xxhash.New()
+hash.Write(task.Name)
+hash.Write(task.Command)
+hash.Write(Sort(task.Tools))
+hash.Write(Sort(task.Env))
+foreach file in task.Inputs {
+  hash.Write(file.Path)
+  hash.Write(file.Content)
+}
+```
+
+### Output Hash
+
+The Output Hash represents the state of the artifacts produced by the task.
+
+The `ComputeOutputHash` method computes this by:
+
+1.  Scanning the directories or files specified in the `output` section.
+2.  **Sorting** the list of output files to ensure deterministic ordering (since filesystem traversal order is not guaranteed).
+3.  Recursively hashing the content of every output file.
+
+## Determining Cache Hits
+
+When the scheduler prepares to run a task, it performs the following check:
+
+1.  **Compute Current Input Hash**: The system calculates the Input Hash based on the current state of files and configuration.
+2.  **Lookup Store**: It checks `.same/store` for a generic record corresponding to the task.
+3.  **Compare**: It reads the stored `BuildInfo` JSON.
+    *   **Hit**: If `Stored.InputHash == Current.InputHash`, the task is skipped. The system assumes the existing artifacts (outputs) are valid.
+    *   **Miss**: If the hashes differ (or no record exists), the task is executed.
+
+After execution, the system computes the new Output Hash and updates the Store with the new Input/Output hash pair.
