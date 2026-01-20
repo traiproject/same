@@ -43,6 +43,8 @@ type Model struct {
 	SelectedIdx    int
 	ListOffset     int
 	ListHeight     int
+	LogWidth       int
+	LogHeight      int
 	FollowMode     bool
 }
 
@@ -154,6 +156,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		headerHeight := lipgloss.Height(titleStyle.Render("TEST"))
 		logHeight := msg.Height - headerHeight
 
+		// Store calculated dimensions for future tasks
+		m.LogWidth = logWidth
+		m.LogHeight = logHeight
+
 		// Calculate ListHeight with full header including newlines
 		fullHeader := titleStyle.Render("TASKS") + "\n\n"
 		listInfoHeight := lipgloss.Height(fullHeader)
@@ -171,10 +177,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.TaskMap = make(map[string]*TaskNode, len(msg.Tasks))
 		m.SpanMap = make(map[string]*TaskNode)
 		for i, name := range msg.Tasks {
+			term := NewVterm()
+			// If we know the dimensions, set them immediately
+			if m.LogWidth > 0 && m.LogHeight > 0 {
+				term.SetWidth(m.LogWidth)
+				term.SetHeight(m.LogHeight)
+			}
+
 			m.Tasks[i] = &TaskNode{
 				Name:   name,
 				Status: StatusPending,
-				Term:   NewVterm(),
+				Term:   term,
 			}
 			m.TaskMap[name] = m.Tasks[i]
 		}

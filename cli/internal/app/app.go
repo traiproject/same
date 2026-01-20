@@ -119,6 +119,9 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 	// Create and configure the OTel Tracer adapter.
 	// We inject the program so it can stream logs directly via the batcher.
 	tracer := telemetry.NewOTelTracer("same").WithProgram(program)
+	defer func() {
+		_ = tracer.Shutdown(ctx)
+	}()
 
 	// 5. Initialize Scheduler
 	sched := scheduler.NewScheduler(

@@ -49,6 +49,10 @@ func (v *Vterm) SetHeight(h int) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	if h < 1 {
+		h = 1
+	}
+
 	stickToBottom := v.Offset >= v.maxOffset()
 
 	v.Height = h
@@ -69,8 +73,17 @@ func (v *Vterm) SetWidth(w int) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	if w < 1 {
+		w = 1
+	}
+
 	v.Width = w
-	v.vt.ResizeX(w - len(v.Prefix))
+	// Safe subtract
+	cols := w - len(v.Prefix)
+	if cols < 1 {
+		cols = 1
+	}
+	v.vt.ResizeX(cols)
 }
 
 // SetPrefix sets a prefix string for each line.
@@ -80,7 +93,11 @@ func (v *Vterm) SetPrefix(s string) {
 
 	v.Prefix = s
 	// Trigger resize to account for new prefix width
-	v.vt.ResizeX(v.Width - len(v.Prefix))
+	cols := v.Width - len(v.Prefix)
+	if cols < 1 {
+		cols = 1
+	}
+	v.vt.ResizeX(cols)
 }
 
 // UsedHeight returns the total number of lines in the terminal buffer.
