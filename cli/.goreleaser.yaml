@@ -160,21 +160,32 @@ snapshot:
   name_template: "{{ .Version }}-next"
 
 changelog:
+  use: github
   sort: asc
+  abbrev: -1
+  format: "- {{ .Message }} (@{{ .AuthorUsername }})"
   filters:
     exclude:
-      - "^docs:"
+      - "^Merge( pull request| branch) "
+      - "^chore\\(release\\):"
       - "^ci:"
       - "^test:"
-      - "^chore:"
-      - "merge conflict"
   groups:
-    - title: Features
-      regexp: "^.*feat((\\([\\w\\-]+\\))?):"
+    - title: "Features"
+      regexp: '^.*?feat(\\([[:word:]-]+\\))??!?:.+$'
       order: 0
-    - title: "Bug Fixes"
-      regexp: "^.*fix((\\([\\w\\-]+\\))?):"
+    - title: "Bug fixes"
+      regexp: '^.*?fix(\\([[:word:]-]+\\))??!?:.+$'
       order: 1
+    - title: "Performance"
+      regexp: '^.*?perf(\\([[:word:]-]+\\))??!?:.+$'
+      order: 2
+    - title: "Refactors"
+      regexp: '^.*?refactor(\\([[:word:]-]+\\))??!?:.+$'
+      order: 3
+    - title: "Docs"
+      regexp: '^.*?docs(\\([[:word:]-]+\\))??!?:.+$'
+      order: 4
 
 release:
   github:
