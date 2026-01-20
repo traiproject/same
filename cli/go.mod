@@ -12,6 +12,7 @@ require (
 	github.com/muesli/reflow v0.3.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
+	github.com/vito/midterm v0.2.3
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/sdk v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
@@ -27,6 +28,10 @@ require (
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
+	github.com/danielgatis/go-ansicode v1.0.7 // indirect
+	github.com/danielgatis/go-iterator v0.0.1 // indirect
+	github.com/danielgatis/go-utf8 v1.0.0 // indirect
+	github.com/danielgatis/go-vte v1.0.8 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
