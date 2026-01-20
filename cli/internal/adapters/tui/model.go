@@ -78,9 +78,6 @@ func (m *Model) updateActiveView() {
 		m.ActiveTaskName = node.Name
 
 		// Ensure term size is correct if we just switched
-		// (Optional, mostly handled in WindowSizeMsg)
-
-		// If following, ensure we are at the bottom
 		if m.FollowMode && m.AutoScroll {
 			// Calculate max offset: UsedHeight - Height
 			maxOff := node.Term.UsedHeight() - node.Term.Height
@@ -119,10 +116,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "esc":
 			m.FollowMode = true
-			// When returning to follow mode, find the running task or last task
-			// For now, let's just re-enable follow mode. The next MsgTaskStart
-			// or manual navigation will handle selection.
-			// Actually, better user experience: jump to the currently running task if any.
+			// Jump to the currently running task if any.
 			for i, t := range m.Tasks {
 				if t.Status == StatusRunning {
 					m.SelectedIdx = i
@@ -137,12 +131,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.ActiveTaskName != "" {
 				if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
 					node.Term.Update(msg)
-					// If user scrolled manually up, disable follow mode
-					// Note: Vterm.Update handles scrolling. We can check if we are at bottom?
-					// For now, simpler: if key is up/pgup, disable follow mode?
-					// Or just let the user toggle FollowMode with 'f' or similar?
-					// The requirements say: "When FollowMode is active (or generally), forward relevant key messages"
-					// We just forward them.
 				}
 			}
 		}

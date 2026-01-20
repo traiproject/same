@@ -86,20 +86,6 @@ func (v *Vterm) SetWidth(w int) {
 	v.vt.ResizeX(cols)
 }
 
-// SetPrefix sets a prefix string for each line.
-func (v *Vterm) SetPrefix(s string) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
-	v.Prefix = s
-	// Trigger resize to account for new prefix width
-	cols := v.Width - len(v.Prefix)
-	if cols < 1 {
-		cols = 1
-	}
-	v.vt.ResizeX(cols)
-}
-
 // UsedHeight returns the total number of lines in the terminal buffer.
 func (v *Vterm) UsedHeight() int {
 	v.mu.Lock()
@@ -112,25 +98,6 @@ func (v *Vterm) View() string {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return string(v.viewBytes())
-}
-
-// Bytes returns the view content as bytes for a specific window.
-func (v *Vterm) Bytes(offset, height int) []byte {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
-	// Temporarily override view state for arbitrary rendering
-	originalOffset := v.Offset
-	originalHeight := v.Height
-	v.Offset = offset
-	v.Height = height
-
-	out := v.viewBytes()
-
-	v.Offset = originalOffset
-	v.Height = originalHeight
-
-	return out
 }
 
 func (v *Vterm) viewBytes() []byte {
@@ -196,7 +163,7 @@ func (v *Vterm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		v.Offset = limit
 	}
 
-	return nil, nil // generic tea.Model return, usually we return the parent model
+	return nil, nil
 }
 
 func (v *Vterm) maxOffset() int {
