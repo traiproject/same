@@ -101,7 +101,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 
 	// 3. Initialize TUI
 	// The TUI model holds the state of the UI.
-	tuiModel := tui.NewModel()
+	tuiModel := tui.NewModel(os.Stderr)
 	// The Program manages the TUI lifecycle.
 	// We capture the program to clean it up if needed.
 	optsTea := append([]tea.ProgramOption{tea.WithContext(ctx)}, a.teaOptions...)

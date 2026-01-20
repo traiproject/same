@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewModel(t *testing.T) {
-	m := tui.NewModel()
+	m := tui.NewModel(nil)
 
 	assert.NotNil(t, m.Tasks)
 	assert.Empty(t, m.Tasks)

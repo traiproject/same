@@ -3,6 +3,7 @@ package tui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"go.trai.ch/same/internal/adapters/telemetry"
 )
 
@@ -38,6 +39,7 @@ type Model struct {
 	Tasks          []*TaskNode
 	TaskMap        map[string]*TaskNode
 	SpanMap        map[string]*TaskNode
+	Output         *termenv.Output
 	AutoScroll     bool
 	ActiveTaskName string
 	SelectedIdx    int
