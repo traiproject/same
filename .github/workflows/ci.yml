@@ -54,6 +54,7 @@ jobs:
         run: nix build
 
       - name: Upload coverage reports to Codecov
+        if: matrix.os == 'ubuntu-24.04-arm'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
