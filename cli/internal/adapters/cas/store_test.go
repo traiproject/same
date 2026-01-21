@@ -22,7 +22,7 @@ func TestStore_PutGet(t *testing.T) {
 		TaskName:   "task-1",
 		InputHash:  "abc",
 		OutputHash: "def",
-		Timestamp:  time.Now().Truncate(time.Second), // Truncate because JSON unmarshal might lose precision
+		Timestamp:  time.Now().UTC().Truncate(time.Second), // Truncate because JSON unmarshal might lose precision
 	}
 
 	t.Run("put and get", func(t *testing.T) {
