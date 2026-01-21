@@ -2,7 +2,9 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"io"
+	"os"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -107,4 +109,158 @@ func TestApp_Wiring(t *testing.T) {
 		NoCache: true, // Force execution
 	})
 	assert.NoError(t, err, "App.Run should succeed")
+}
+
+func TestApp_Run_ConfigLoadFailure(t *testing.T) {
+	setupTestDir(t)
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLoader := mocks.NewMockConfigLoader(ctrl)
+	application := app.New(
+		mockLoader,
+		mocks.NewMockExecutor(ctrl),
+		mocks.NewMockLogger(ctrl),
+		mocks.NewMockBuildInfoStore(ctrl),
+		mocks.NewMockHasher(ctrl),
+		mocks.NewMockInputResolver(ctrl),
+		mocks.NewMockEnvironmentFactory(ctrl),
+	)
+	application.WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	expectedErr := errors.New("config load failed")
+	mockLoader.EXPECT().Load(".").Return(nil, expectedErr)
+
+	err := application.Run(ctx, []string{"target"}, app.RunOptions{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load configuration")
+	assert.ErrorIs(t, err, expectedErr)
+}
+
+func TestApp_Run_ExecutionFailure(t *testing.T) {
+	setupTestDir(t)
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockExecutor := mocks.NewMockExecutor(ctrl)
+	mockLoader := mocks.NewMockConfigLoader(ctrl)
+	mockHasher := mocks.NewMockHasher(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+	mockStore := mocks.NewMockBuildInfoStore(ctrl)
+
+	application := app.New(
+		mockLoader,
+		mockExecutor,
+		mocks.NewMockLogger(ctrl),
+		mockStore,
+		mockHasher,
+		mockResolver,
+		mockEnvFactory,
+	)
+	application.WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	// Defines a task that will be executed
+	targetStr := "foo:bar"
+	targetName := domain.NewInternedString(targetStr)
+	mockGraph := domain.NewGraph()
+	task := &domain.Task{
+		Name:    targetName,
+		Command: []string{"fail"},
+	}
+	_ = mockGraph.AddTask(task)
+	require.NoError(t, mockGraph.Validate())
+
+	mockLoader.EXPECT().Load(".").Return(mockGraph, nil)
+
+	// Scheduler dependencies
+	mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).AnyTimes()
+	mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash", nil).AnyTimes()
+	mockHasher.EXPECT().ComputeOutputHash(gomock.Any(), gomock.Any()).Return("out_hash", nil).AnyTimes()
+	mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+
+	// Execute returns an error
+	mockExecutor.EXPECT().Execute(
+		gomock.Any(),
+		task,
+		gomock.Any(),
+		gomock.Any(),
+		gomock.Any(),
+	).Return(errors.New("exec failed"))
+
+	err := application.Run(ctx, []string{targetStr}, app.RunOptions{NoCache: true})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrBuildExecutionFailed)
+}
+
+func TestApp_Run_LogSetupFailure(t *testing.T) {
+	// Custom setup to create conflict
+	tmp := t.TempDir()
+	cwd, _ := os.Getwd()
+	// Restore cwd when test is done
+	defer func() {
+		_ = os.Chdir(cwd)
+	}()
+	require.NoError(t, os.Chdir(tmp))
+
+	// Create .same as a file to cause mkdir to fail
+	require.NoError(t, os.WriteFile(domain.DefaultSamePath(), []byte("conflict"), 0o600))
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	application := app.New(
+		mocks.NewMockConfigLoader(ctrl),
+		mocks.NewMockExecutor(ctrl),
+		mocks.NewMockLogger(ctrl),
+		mocks.NewMockBuildInfoStore(ctrl),
+		mocks.NewMockHasher(ctrl),
+		mocks.NewMockInputResolver(ctrl),
+		mocks.NewMockEnvironmentFactory(ctrl),
+	)
+	application.WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	err := application.Run(context.Background(), []string{"target"}, app.RunOptions{})
+	require.Error(t, err)
+	// Expect error about creating internal directory
+	assert.Contains(t, err.Error(), "failed to create internal directory")
+}
+
+func TestApp_Run_TargetValidation(t *testing.T) {
+	setupTestDir(t)
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLoader := mocks.NewMockConfigLoader(ctrl)
+	application := app.New(
+		mockLoader,
+		mocks.NewMockExecutor(ctrl),
+		mocks.NewMockLogger(ctrl),
+		mocks.NewMockBuildInfoStore(ctrl),
+		mocks.NewMockHasher(ctrl),
+		mocks.NewMockInputResolver(ctrl),
+		mocks.NewMockEnvironmentFactory(ctrl),
+	)
+	application.WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	// Load succeeds
+	mockGraph := domain.NewGraph()
+	mockLoader.EXPECT().Load(".").Return(mockGraph, nil)
+
+	err := application.Run(ctx, []string{}, app.RunOptions{})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrNoTargetsSpecified)
+}
+
+func setupTestDir(t *testing.T) {
+	t.Helper()
+	tmp := t.TempDir()
+	cwd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
 }
