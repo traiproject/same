@@ -1,3 +1,4 @@
+// Package scheduler implements the scheduler node for the graft engine.
 package scheduler
 
 import (
