@@ -240,6 +240,13 @@ func (state *schedulerRunState) runExecutionLoop() error {
 			return errors.Join(state.errs, state.ctx.Err())
 		}
 
+		// If context is canceled, we only wait for results (draining)
+		if state.ctx.Err() != nil {
+			res := <-state.resultsCh
+			state.handleResult(res)
+			continue
+		}
+
 		select {
 		case res := <-state.resultsCh:
 			state.handleResult(res)
