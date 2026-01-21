@@ -99,3 +99,54 @@ func TestEnvFactory_GetEnvironment_CacheHit(t *testing.T) {
 	}
 	assert.True(t, foundTmp, "TMPDIR should be injected")
 }
+
+func TestEnvFactory_GetEnvironment_ResolutionError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockResolver := mocks.NewMockDependencyResolver(ctrl)
+	tmpDir := t.TempDir()
+	factory := nix.NewEnvFactoryWithCache(mockResolver, tmpDir)
+
+	tools := map[string]string{
+		"go": "go@1.21.0",
+	}
+
+	// Expect Resolve call and return error
+	mockResolver.EXPECT().
+		Resolve(gomock.Any(), "go", "1.21.0").
+		Return("", "", assert.AnError)
+
+	env, err := factory.GetEnvironment(context.Background(), tools)
+	require.Error(t, err)
+	assert.Nil(t, env)
+	assert.Contains(t, err.Error(), "failed to resolve tool")
+}
+
+func TestSaveEnvToCache_PermissionDenied(t *testing.T) {
+	// Create a read-only directory
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "env.json")
+
+	// Make dir read-only
+	//nolint:gosec // Directory permissions need to be read-only for verification
+	require.NoError(t, os.Chmod(tmpDir, 0o500))
+	defer func() {
+		//nolint:gosec // Restore permissions for cleanup
+		_ = os.Chmod(tmpDir, 0o700)
+	}()
+
+	env := []string{"VAR=val"}
+	err := nix.SaveEnvToCache(cachePath, env)
+
+	// Should return error
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create temp cache file")
+}
+
+func TestParseNixDevEnv_InvalidJSON(t *testing.T) {
+	invalidJSON := []byte(`{ invalid json `)
+	_, err := nix.ParseNixDevEnv(invalidJSON)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to unmarshal nix output")
+}
