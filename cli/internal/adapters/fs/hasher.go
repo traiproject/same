@@ -50,7 +50,12 @@ func (h *Hasher) ComputeInputHash(task *domain.Task, env map[string]string, inpu
 	h.hashTaskDefinition(task, hasher)
 	h.hashEnvironment(env, hasher)
 
-	for _, path := range inputs {
+	// Sort inputs for determinism
+	sortedInputs := make([]string, len(inputs))
+	copy(sortedInputs, inputs)
+	sort.Strings(sortedInputs)
+
+	for _, path := range sortedInputs {
 		if err := h.hashPath(path, hasher); err != nil {
 			return "", err
 		}
