@@ -4,6 +4,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 	"go.trai.ch/same/internal/app"
@@ -12,12 +13,17 @@ import (
 
 // CLI represents the command line interface for same.
 type CLI struct {
-	app     *app.App
+	app     Application
 	rootCmd *cobra.Command
 }
 
+// Application represents the application logic interface.
+type Application interface {
+	Run(ctx context.Context, targetNames []string, opts app.RunOptions) error
+}
+
 // New creates a new CLI instance with the given app.
-func New(a *app.App) *CLI {
+func New(a Application) *CLI {
 	rootCmd := &cobra.Command{
 		Use:           "same",
 		Short:         "A modern build tool for monorepos",
@@ -57,4 +63,10 @@ func (c *CLI) Execute(ctx context.Context) error {
 // SetArgs sets the arguments for the root command. Used for testing.
 func (c *CLI) SetArgs(args []string) {
 	c.rootCmd.SetArgs(args)
+}
+
+// SetOutput sets the output and error streams for the root command. Used for testing.
+func (c *CLI) SetOutput(out, err io.Writer) {
+	c.rootCmd.SetOut(out)
+	c.rootCmd.SetErr(err)
 }
