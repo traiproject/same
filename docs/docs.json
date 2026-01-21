@@ -56,7 +56,8 @@
             "group": "Internals",
             "pages": [
               "internals/architecture",
-              "internals/nix-integration"
+              "internals/nix-integration",
+              "internals/testing"
             ]
           }
         ]
