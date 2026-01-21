@@ -7,12 +7,6 @@ tasks:
     cmd: ["go", "mod", "download"]
     tools: ["go"]
 
-  # Format code
-  fmt:
-    input: ["cmd", "internal"]
-    cmd: ["go", "fmt", "./..."]
-    tools: ["go"]
-
   # Run linter
   lint:
     input: ["cmd", "internal"]
@@ -43,4 +37,4 @@ tasks:
     cmd: ["go", "build", "-o", "bin/same", "./cmd/same"]
     target: ["bin/same"]
     tools: ["go"]
-    dependsOn: ["test"]
+    dependsOn: ["generate"]
