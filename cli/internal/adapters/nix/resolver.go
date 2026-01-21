@@ -58,6 +58,19 @@ func newResolverWithPath(path string) (*Resolver, error) {
 	}, nil
 }
 
+// newResolverWithClient creates a Resolver with a custom http client and cache path (used for testing).
+func newResolverWithClient(path string, client *http.Client) (*Resolver, error) {
+	cleanPath := filepath.Clean(path)
+	if err := os.MkdirAll(cleanPath, domain.DirPerm); err != nil {
+		return nil, zerr.Wrap(err, domain.ErrNixCacheCreateFailed.Error())
+	}
+
+	return &Resolver{
+		cacheDir:   cleanPath,
+		httpClient: client,
+	}, nil
+}
+
 // Resolve resolves a tool alias and version to a Nixpkgs commit hash and attribute path.
 // It checks the cache first, then queries the NixHub API if needed.
 func (r *Resolver) Resolve(ctx context.Context, alias, version string) (commitHash, attrPath string, err error) {
