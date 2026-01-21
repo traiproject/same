@@ -42,13 +42,13 @@ jobs:
         run: nix flake check
 
       - name: Generate Go source files
-        run: nix develop -c sh -c "cd cli && go generate ./..."
+        run: nix develop -c  go generate ./cli/...
 
       - name: Run golangci-lint
-        run: nix develop -c sh -c "cd cli && golangci-lint run"
+        run: nix develop -c golangci-lint run ./cli/...
 
       - name: Run tests with race detection and cover profile
-        run: nix develop -c sh -c "cd cli && go test -v -race -coverprofile=coverage.txt ./..."
+        run: nix develop -c  go test -v -race -coverprofile=coverage.txt ./cli/...
 
       - name: Build binary with Nix
         run: nix build
