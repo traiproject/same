@@ -3,14 +3,13 @@ package tui_test
 import (
 	"testing"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/stretchr/testify/assert"
 	"go.trai.ch/same/internal/adapters/tui"
 )
 
 func TestView_Initialization(t *testing.T) {
 	m := tui.Model{
-		Viewport: viewport.Model{Height: 0},
+		ListHeight: 0,
 	}
 	assert.Contains(t, m.View(), "Initializing...")
 }
@@ -25,11 +24,7 @@ func TestView_TaskList(t *testing.T) {
 	}
 
 	m := tui.Model{
-		Tasks: tasks,
-		Viewport: viewport.Model{
-			Height: 20,
-			Width:  100,
-		},
+		Tasks:       tasks,
 		ListHeight:  20,
 		SelectedIdx: 0,
 		TaskMap:     make(map[string]*tui.TaskNode),
@@ -65,7 +60,7 @@ func TestView_TaskList(t *testing.T) {
 func TestView_LogPane(t *testing.T) {
 	// Case 1: No active task
 	m := tui.Model{
-		Viewport: viewport.Model{Height: 20, Width: 50},
+		ListHeight: 20,
 	}
 	output := m.View()
 	assert.Contains(t, output, "LOGS (Waiting...)")
@@ -85,11 +80,7 @@ func TestView_LogPane(t *testing.T) {
 func TestView_LipglossIntegration(t *testing.T) {
 	// Just ensure it renders something structure-wise
 	m := tui.Model{
-		Tasks: []*tui.TaskNode{{Name: "task1"}},
-		Viewport: viewport.Model{
-			Height: 10,
-			Width:  40,
-		},
+		Tasks:      []*tui.TaskNode{{Name: "task1"}},
 		ListHeight: 10,
 	}
 	// Force some styles if possible, but mainly just ensuring no panic and non-empty

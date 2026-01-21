@@ -120,6 +120,7 @@ func (bp *BatchProcessor) run() {
 }
 
 // flushLocked must be called with mu held.
+// It releases the lock before calling the callback, then re-acquires it.
 func (bp *BatchProcessor) flushLocked() {
 	if bp.buffer.Len() == 0 {
 		return
@@ -131,9 +132,10 @@ func (bp *BatchProcessor) flushLocked() {
 	copy(data, bp.buffer.Bytes())
 	bp.buffer.Reset()
 
-	// Using the callback while holding the lock ensures order,
-	// but creates a risk of blocking if onFlush is slow.
-	// We assume onFlush is fast (e.g., sending to a channel).
+	// Release lock to avoid blocking other writers if onFlush is slow
+	bp.mu.Unlock()
+	defer bp.mu.Lock()
+
 	if bp.onFlush != nil {
 		bp.onFlush(data)
 	}

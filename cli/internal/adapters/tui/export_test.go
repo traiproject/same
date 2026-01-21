@@ -1,4 +1,6 @@
 package tui
 
-// WrapLog exports wrapLog for testing purposes.
-var WrapLog = wrapLog
+// MaxOffset exposes the private maxOffset method for testing.
+func (v *Vterm) MaxOffset() int {
+	return v.maxOffset()
+}

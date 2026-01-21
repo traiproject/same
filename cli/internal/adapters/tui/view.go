@@ -11,7 +11,7 @@ import (
 //
 //nolint:gocritic // hugeParam ignored
 func (m *Model) View() string {
-	if m.Viewport.Height == 0 {
+	if m.ListHeight == 0 {
 		return "Initializing..."
 	}
 
@@ -102,6 +102,8 @@ func (m *Model) getTaskStyle(task *TaskNode) lipgloss.Style {
 //nolint:gocritic // hugeParam ignored
 func (m *Model) logPane() string {
 	var header string
+	var content string
+
 	if m.ActiveTaskName != "" {
 		status := ""
 		if m.FollowMode {
@@ -110,6 +112,10 @@ func (m *Model) logPane() string {
 			status = " (Manual)"
 		}
 		header = titleStyle.Render("LOGS: " + m.ActiveTaskName + status)
+
+		if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
+			content = node.Term.View()
+		}
 	} else {
 		header = titleStyle.Render("LOGS (Waiting...)")
 	}
@@ -118,7 +124,7 @@ func (m *Model) logPane() string {
 		lipgloss.JoinVertical(
 			lipgloss.Left,
 			header,
-			m.Viewport.View(),
+			content,
 		),
 	)
 }

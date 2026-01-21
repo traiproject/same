@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
@@ -12,21 +13,49 @@ import (
 	"go.trai.ch/same/internal/core/ports"
 )
 
+// LogBufferSize determines the size of the async log channel.
+const LogBufferSize = 4096
+
 // OTelTracer is a concrete implementation of ports.Tracer using OpenTelemetry.
 type OTelTracer struct {
 	tracer  trace.Tracer
 	program *tea.Program
+	logChan chan tea.Msg
+	mu      sync.RWMutex
 }
 
 // NewOTelTracer creates a new OTelTracer with the given instrumentation name.
 func NewOTelTracer(name string) *OTelTracer {
-	return &OTelTracer{
-		tracer: otel.Tracer(name),
+	t := &OTelTracer{
+		tracer:  otel.Tracer(name),
+		logChan: make(chan tea.Msg, LogBufferSize), // Buffered to handle bursts
 	}
+	go t.runLoop()
+	return t
+}
+
+func (t *OTelTracer) runLoop() {
+	for msg := range t.logChan {
+		t.mu.RLock()
+		prog := t.program
+		t.mu.RUnlock()
+
+		if prog != nil {
+			prog.Send(msg)
+		}
+	}
+}
+
+// Shutdown stops the background log processor.
+func (t *OTelTracer) Shutdown(_ context.Context) error {
+	close(t.logChan)
+	return nil
 }
 
 // WithProgram sets the tea.Program to send logs to.
 func (t *OTelTracer) WithProgram(p *tea.Program) *OTelTracer {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.program = p
 	return t
 }
@@ -42,14 +71,22 @@ func (t *OTelTracer) Start(ctx context.Context, name string, opts ...ports.SpanO
 	// Start OTel span
 	ctx, span := t.tracer.Start(ctx, name)
 
+	t.mu.RLock()
+	prog := t.program
+	t.mu.RUnlock()
+
 	var batcher *BatchProcessor
-	if t.program != nil {
+	if prog != nil {
 		spanID := span.SpanContext().SpanID().String()
 		cb := func(data []byte) {
-			t.program.Send(MsgTaskLog{
+			select {
+			case t.logChan <- MsgTaskLog{
 				SpanID: spanID,
 				Data:   data,
-			})
+			}:
+			default:
+				// Drop logs if buffer is full to prevent blocking the build
+			}
 		}
 		// Use generic defaults or smaller limits for UI responsiveness?
 		batcher = NewBatchProcessor(0, 0, cb)
@@ -67,10 +104,22 @@ func (t *OTelTracer) EmitPlan(ctx context.Context, taskNames []string) {
 		))
 	}
 
-	if t.program != nil {
-		t.program.Send(MsgInitTasks{
+	t.mu.RLock()
+	prog := t.program
+	t.mu.RUnlock()
+
+	if prog != nil {
+		select {
+		case t.logChan <- MsgInitTasks{
 			Tasks: taskNames,
-		})
+		}:
+		default:
+			// Ensure InitTasks is sent even if buffer is full (blocking fallback)
+			// This is critical for UI initialization
+			t.logChan <- MsgInitTasks{
+				Tasks: taskNames,
+			}
+		}
 	}
 }
 

@@ -1,13 +1,9 @@
 package tui
 
 import (
-	"bytes"
-	"unicode/utf8"
-
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/wordwrap"
+	"github.com/muesli/termenv"
 	"go.trai.ch/same/internal/adapters/telemetry"
 )
 
@@ -32,11 +28,10 @@ const (
 
 // TaskNode represents a single task in the UI list.
 type TaskNode struct {
-	Name        string
-	Status      TaskStatus
-	Logs        []byte
-	ViewContent string
-	Cached      bool
+	Name   string
+	Status TaskStatus
+	Term   *Vterm
+	Cached bool
 }
 
 // Model represents the main TUI state.
@@ -44,12 +39,14 @@ type Model struct {
 	Tasks          []*TaskNode
 	TaskMap        map[string]*TaskNode
 	SpanMap        map[string]*TaskNode
-	Viewport       viewport.Model
+	Output         *termenv.Output
 	AutoScroll     bool
 	ActiveTaskName string
 	SelectedIdx    int
 	ListOffset     int
 	ListHeight     int
+	LogWidth       int
+	LogHeight      int
 	FollowMode     bool
 }
 
@@ -81,10 +78,15 @@ func (m *Model) getSelectedTask() *TaskNode {
 func (m *Model) updateActiveView() {
 	if node := m.getSelectedTask(); node != nil {
 		m.ActiveTaskName = node.Name
-		m.Viewport.SetContent(node.ViewContent)
-		// If following, auto-scroll to bottom
+
+		// Ensure term size is correct if we just switched
 		if m.FollowMode && m.AutoScroll {
-			m.Viewport.GotoBottom()
+			// Calculate max offset: UsedHeight - Height
+			maxOff := node.Term.UsedHeight() - node.Term.Height
+			if maxOff < 0 {
+				maxOff = 0
+			}
+			node.Term.Offset = maxOff
 		}
 	}
 }
@@ -116,10 +118,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "esc":
 			m.FollowMode = true
-			// When returning to follow mode, find the running task or last task
-			// For now, let's just re-enable follow mode. The next MsgTaskStart
-			// or manual navigation will handle selection.
-			// Actually, better user experience: jump to the currently running task if any.
+			// Jump to the currently running task if any.
 			for i, t := range m.Tasks {
 				if t.Status == StatusRunning {
 					m.SelectedIdx = i
@@ -128,6 +127,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.ensureVisible()
 			m.updateActiveView()
+
+		default:
+			// Forward keys to the active task's terminal if applicable
+			if m.ActiveTaskName != "" {
+				if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
+					node.Term.Update(msg)
+				}
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -135,11 +142,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		listWidth := int(float64(msg.Width) * taskListWidthRatio)
 		logWidth := msg.Width - listWidth - logPaneBorderWidth // minus margins/borders
 
-		m.Viewport.Width = logWidth
-
 		// Calculate header height dynamically
 		headerHeight := lipgloss.Height(titleStyle.Render("TEST"))
-		m.Viewport.Height = msg.Height - headerHeight
+		logHeight := msg.Height - headerHeight
+
+		// Store calculated dimensions for future tasks
+		m.LogWidth = logWidth
+		m.LogHeight = logHeight
 
 		// Calculate ListHeight with full header including newlines
 		fullHeader := titleStyle.Render("TASKS") + "\n\n"
@@ -147,16 +156,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ListHeight = msg.Height - listInfoHeight
 		m.ensureVisible()
 
-		// Re-wrap ALL content on window resize
+		// Update all terminals
 		for _, node := range m.Tasks {
-			node.ViewContent = wrapLog(string(node.Logs), m.Viewport.Width)
-		}
-
-		// Update viewport if we have an active task
-		if m.ActiveTaskName != "" {
-			if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
-				m.Viewport.SetContent(node.ViewContent)
-			}
+			node.Term.SetWidth(logWidth)
+			node.Term.SetHeight(logHeight)
 		}
 
 	case telemetry.MsgInitTasks:
@@ -164,9 +167,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.TaskMap = make(map[string]*TaskNode, len(msg.Tasks))
 		m.SpanMap = make(map[string]*TaskNode)
 		for i, name := range msg.Tasks {
+			term := NewVterm()
+			// If we know the dimensions, set them immediately
+			if m.LogWidth > 0 && m.LogHeight > 0 {
+				term.SetWidth(m.LogWidth)
+				term.SetHeight(m.LogHeight)
+			}
+
 			m.Tasks[i] = &TaskNode{
 				Name:   name,
 				Status: StatusPending,
+				Term:   term,
 			}
 			m.TaskMap[name] = m.Tasks[i]
 		}
@@ -187,74 +198,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 				m.ensureVisible()
-				m.Viewport.SetContent(node.ViewContent)
-				if m.AutoScroll {
-					m.Viewport.GotoBottom()
-				}
+				m.updateActiveView()
 			}
 		}
 
 	case telemetry.MsgTaskLog:
 		if node, ok := m.SpanMap[msg.SpanID]; ok {
-			node.Logs = append(node.Logs, msg.Data...)
-
-			truncated := false
-
-			// Truncate if too large (keep last 1MB just to be safe and efficient)
-			const maxLogSize = 1024 * 1024
-			if len(node.Logs) > maxLogSize {
-				targetStart := len(node.Logs) - maxLogSize
-				cutIndex := targetStart
-
-				// 1. Try to find a newline after the target start to keep log lines intact
-				// We scan a bit forward from the cut point.
-				// Slice from targetStart to end
-				searchSlice := node.Logs[targetStart:]
-				if idx := bytes.IndexByte(searchSlice, '\n'); idx != -1 {
-					// Found a newline, cut right after it
-					cutIndex = targetStart + idx + 1
-				} else {
-					// 2. If no newline found (extremely long line), ensure we don't split a UTF-8 rune.
-					// Check if we are incorrectly starting in the middle of a rune.
-					// utf8.RuneStart returns true if the byte is a start of a rune (or ASCII).
-					// If node.Logs[cutIndex] is not a start byte, we advance until we find one.
-					for cutIndex < len(node.Logs) && !utf8.RuneStart(node.Logs[cutIndex]) {
-						cutIndex++
-					}
-				}
-
-				// Apply the cut
-				if cutIndex < len(node.Logs) {
-					// Check if we are actually cutting something
-					if cutIndex > 0 {
-						node.Logs = node.Logs[cutIndex:]
-						truncated = true
-					}
-				} else {
-					// If we advanced past the end (should be rare/impossible unless trailing partial rune), clear logs
-					node.Logs = nil
-					truncated = true
-				}
-			}
-
-			if truncated {
-				// Slow Path: Truncation occurred, so we must regenerate the view content
-				// to ensure it matches the new state of Logs.
-				node.ViewContent = wrapLog(string(node.Logs), m.Viewport.Width)
-			} else {
-				// Fast Path: No truncation, just append the new wrapped content.
-				// Incremental update: wrap only the new data and append
-				newContent := wrapLog(string(msg.Data), m.Viewport.Width)
-				node.ViewContent += newContent
-			}
-
-			// Update viewport if we are looking at this task
-			if node.Name == m.ActiveTaskName {
-				m.Viewport.SetContent(node.ViewContent)
-				if m.AutoScroll {
-					m.Viewport.GotoBottom()
-				}
-			}
+			_, _ = node.Term.Write(msg.Data)
 		}
 
 	case telemetry.MsgTaskComplete:
@@ -268,15 +218,4 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, cmd
-}
-
-func wrapLog(text string, width int) string {
-	if width <= 0 {
-		return text
-	}
-	if text == "" {
-		return ""
-	}
-
-	return wordwrap.String(text, width)
 }
