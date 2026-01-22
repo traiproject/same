@@ -34,11 +34,11 @@ tools:
 projects:
   - "pkg-*"
 `
-	createFile(t, rootDir, "same.work.yaml", workfileContent)
+	createFile(t, rootDir, domain.WorkFileName, workfileContent)
 
 	// 2. pkg-a (inherits tools)
 	pkgADir := filepath.Join(rootDir, "pkg-a")
-	err := os.Mkdir(pkgADir, 0o700)
+	err := os.Mkdir(pkgADir, domain.DirPerm)
 	require.NoError(t, err)
 
 	pkgASamefile := `
@@ -49,11 +49,11 @@ tasks:
     cmd: ["go", "build"]
     tools: ["go"]
 `
-	createFile(t, pkgADir, "same.yaml", pkgASamefile)
+	createFile(t, pkgADir, domain.SameFileName, pkgASamefile)
 
 	// 3. pkg-b (overrides tools)
 	pkgBDir := filepath.Join(rootDir, "pkg-b")
-	err = os.Mkdir(pkgBDir, 0o700)
+	err = os.Mkdir(pkgBDir, domain.DirPerm)
 	require.NoError(t, err)
 
 	pkgBSamefile := `
@@ -66,7 +66,7 @@ tasks:
     cmd: ["go", "test"]
     tools: ["go"]
 `
-	createFile(t, pkgBDir, "same.yaml", pkgBSamefile)
+	createFile(t, pkgBDir, domain.SameFileName, pkgBSamefile)
 
 	// Load
 	g, err := loader.Load(rootDir)
@@ -96,7 +96,7 @@ func TestLoader_Load_PathResolution(t *testing.T) {
 	rootDir := t.TempDir()
 
 	// same.work.yaml
-	createFile(t, rootDir, "same.work.yaml", `
+	createFile(t, rootDir, domain.WorkFileName, `
 version: "1"
 root: .
 projects: ["pkg-c"]
@@ -105,9 +105,9 @@ tools: {}
 
 	// pkg-c with relative paths
 	pkgCDir := filepath.Join(rootDir, "pkg-c")
-	require.NoError(t, os.Mkdir(pkgCDir, 0o700))
+	require.NoError(t, os.Mkdir(pkgCDir, domain.DirPerm))
 
-	createFile(t, pkgCDir, "same.yaml", `
+	createFile(t, pkgCDir, domain.SameFileName, `
 version: "1"
 project: pkg-c
 tasks:
@@ -145,7 +145,7 @@ func TestLoader_Load_ValidationErrors(t *testing.T) {
 			name: "Duplicate Project Names",
 			setup: func(t *testing.T, rootDir string) {
 				t.Helper()
-				createFile(t, rootDir, "same.work.yaml", `
+				createFile(t, rootDir, domain.WorkFileName, `
 version: "1"
 root: .
 projects: ["dir1", "dir2"]
@@ -160,7 +160,7 @@ projects: ["dir1", "dir2"]
 			setup: func(t *testing.T, rootDir string) {
 				t.Helper()
 				// Standalone mode: only same.yaml in root.
-				createFile(t, rootDir, "same.yaml", `
+				createFile(t, rootDir, domain.SameFileName, `
 version: "1"
 project: myproj
 tasks:
@@ -174,15 +174,15 @@ tasks:
 			name: "Reserved Task Name 'all'",
 			setup: func(t *testing.T, rootDir string) {
 				t.Helper()
-				createFile(t, rootDir, "same.work.yaml", `
+				createFile(t, rootDir, domain.WorkFileName, `
 version: "1"
 root: .
 projects: ["dir1"]
 `)
 				dir1 := filepath.Join(rootDir, "dir1")
-				err := os.Mkdir(dir1, 0o700)
+				err := os.Mkdir(dir1, domain.DirPerm)
 				require.NoError(t, err)
-				createFile(t, dir1, "same.yaml", `
+				createFile(t, dir1, domain.SameFileName, `
 version: "1"
 project: dir1
 tasks:
@@ -196,15 +196,15 @@ tasks:
 			name: "Invalid YAML Syntax",
 			setup: func(t *testing.T, rootDir string) {
 				t.Helper()
-				createFile(t, rootDir, "same.work.yaml", `
+				createFile(t, rootDir, domain.WorkFileName, `
 version: "1"
 root: .
 projects: ["dir1"]
 `)
 				dir1 := filepath.Join(rootDir, "dir1")
-				err := os.Mkdir(dir1, 0o700)
+				err := os.Mkdir(dir1, domain.DirPerm)
 				require.NoError(t, err)
-				createFile(t, dir1, "same.yaml", `
+				createFile(t, dir1, domain.SameFileName, `
 version: "1"
 project: dir1
 tasks: [ INVALID YAML ]
@@ -217,16 +217,16 @@ tasks: [ INVALID YAML ]
 			name: "Missing Tool",
 			setup: func(t *testing.T, rootDir string) {
 				t.Helper()
-				createFile(t, rootDir, "same.work.yaml", `
+				createFile(t, rootDir, domain.WorkFileName, `
 version: "1"
 root: .
 projects: ["dir1"]
 tools: {}
 `)
 				dir1 := filepath.Join(rootDir, "dir1")
-				err := os.Mkdir(dir1, 0o700)
+				err := os.Mkdir(dir1, domain.DirPerm)
 				require.NoError(t, err)
-				createFile(t, dir1, "same.yaml", `
+				createFile(t, dir1, domain.SameFileName, `
 version: "1"
 project: dir1
 tasks:
@@ -273,14 +273,14 @@ tasks:
 
 func createFile(t *testing.T, dir, name, content string) {
 	t.Helper()
-	err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600)
+	err := os.WriteFile(filepath.Join(dir, name), []byte(content), domain.PrivateFilePerm)
 	require.NoError(t, err)
 }
 
 func createPkg(t *testing.T, rootDir, dirName, projectName string) {
 	t.Helper()
 	dir := filepath.Join(rootDir, dirName)
-	err := os.MkdirAll(dir, 0o700)
+	err := os.MkdirAll(dir, domain.DirPerm)
 	require.NoError(t, err)
 
 	content := fmt.Sprintf(`
@@ -288,5 +288,5 @@ version: "1"
 project: "%s"
 tasks: {}
 `, projectName)
-	createFile(t, dir, "same.yaml", content)
+	createFile(t, dir, domain.SameFileName, content)
 }

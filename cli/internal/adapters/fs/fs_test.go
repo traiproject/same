@@ -110,12 +110,12 @@ func TestHasher_ComputeOutputHash_Deterministic(t *testing.T) {
 	// AND if we pass a directory, we want to ensure the verification of contents is deterministic.
 	// (Note: Implementation of walker needs to be deterministic for directory hashing to be stable if walker is used)
 
-	err := os.MkdirAll(filepath.Join(tmpDir, "subdir"), 0o750)
+	err := os.MkdirAll(filepath.Join(tmpDir, "subdir"), domain.DirPerm)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("content1"), 0o600)
+	err = os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("content1"), domain.PrivateFilePerm)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(tmpDir, "subdir", "file2.txt"), []byte("content2"), 0o600)
+	err = os.WriteFile(filepath.Join(tmpDir, "subdir", "file2.txt"), []byte("content2"), domain.PrivateFilePerm)
 	require.NoError(t, err)
 
 	walker := fs.NewWalker()
@@ -143,7 +143,7 @@ func TestHasher_ComputeOutputHash_StatError(t *testing.T) {
 
 	// Ensure we restore permissions so cleanup works
 	defer func() {
-		_ = os.Chmod(filePath, 0o600)
+		_ = os.Chmod(filePath, domain.PrivateFilePerm)
 	}()
 
 	walker := fs.NewWalker()

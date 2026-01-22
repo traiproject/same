@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/adapters/fs"
+	"go.trai.ch/same/internal/core/domain"
 )
 
 func TestWalker_WalkFiles(t *testing.T) {
@@ -78,7 +79,7 @@ func TestWalker_WalkFiles(t *testing.T) {
 
 func mustCreateDir(t *testing.T, root, name string) {
 	t.Helper()
-	err := os.MkdirAll(filepath.Join(root, name), 0o750)
+	err := os.MkdirAll(filepath.Join(root, name), domain.DirPerm)
 	require.NoError(t, err)
 }
 
@@ -86,6 +87,6 @@ func mustCreateFile(t *testing.T, root, name string) {
 	t.Helper()
 	path := filepath.Join(root, name)
 	//nolint:gosec // 0600 is fine for test
-	err := os.WriteFile(path, []byte("content"), 0o600)
+	err := os.WriteFile(path, []byte("content"), domain.PrivateFilePerm)
 	require.NoError(t, err)
 }

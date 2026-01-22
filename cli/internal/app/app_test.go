@@ -206,7 +206,7 @@ func TestApp_Run_LogSetupFailure(t *testing.T) {
 	require.NoError(t, os.Chdir(tmp))
 
 	// Create .same as a file to cause mkdir to fail
-	require.NoError(t, os.WriteFile(domain.DefaultSamePath(), []byte("conflict"), 0o600))
+	require.NoError(t, os.WriteFile(domain.DefaultSamePath(), []byte("conflict"), domain.PrivateFilePerm))
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

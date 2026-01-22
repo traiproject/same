@@ -62,7 +62,7 @@ func TestStore_PutGet(t *testing.T) {
 
 		filename := entries[0].Name()
 		//nolint:gosec // 0644 is fine for test
-		err = os.WriteFile(tmpDir2+"/"+filename, []byte("{ invalid json"), 0o600)
+		err = os.WriteFile(tmpDir2+"/"+filename, []byte("{ invalid json"), domain.PrivateFilePerm)
 		require.NoError(t, err)
 
 		_, err = store2.Get("task-2")

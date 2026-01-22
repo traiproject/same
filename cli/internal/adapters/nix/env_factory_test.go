@@ -85,8 +85,8 @@ func TestEnvFactory_GetEnvironment_CacheHit(t *testing.T) {
 	data, err := json.Marshal(cachedEnv)
 	require.NoError(t, err)
 
-	require.NoError(t, os.MkdirAll(filepath.Dir(cachePath), 0o700))
-	require.NoError(t, os.WriteFile(cachePath, data, 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Dir(cachePath), domain.DirPerm))
+	require.NoError(t, os.WriteFile(cachePath, data, domain.PrivateFilePerm))
 
 	// 2. Call GetEnvironment
 	env, err := factory.GetEnvironment(context.Background(), tools)
@@ -139,7 +139,7 @@ func TestSaveEnvToCache_PermissionDenied(t *testing.T) {
 	require.NoError(t, os.Chmod(tmpDir, 0o500))
 	defer func() {
 		//nolint:gosec // Restore permissions for cleanup
-		_ = os.Chmod(tmpDir, 0o700)
+		_ = os.Chmod(tmpDir, domain.DirPerm)
 	}()
 
 	env := []string{"VAR=val"}
@@ -212,13 +212,13 @@ func TestEnvFactory_GetEnvironment_FastPath(t *testing.T) {
 
 	// Pre-populate cache
 	cacheDir := filepath.Join(tmpDir, "environments")
-	require.NoError(t, os.MkdirAll(cacheDir, 0o700))
+	require.NoError(t, os.MkdirAll(cacheDir, domain.DirPerm))
 	cachePath := filepath.Join(cacheDir, envID+".json")
 
 	cachedEnv := []string{"CACHED=true"}
 	data, err := json.Marshal(cachedEnv)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(cachePath, data, 0o600))
+	require.NoError(t, os.WriteFile(cachePath, data, domain.PrivateFilePerm))
 
 	// Mock Resolver should NOT be called (Fast Path)
 	// No EXPECT() on mockResolver implies any call will fail the test.
@@ -244,9 +244,9 @@ func TestEnvFactory_GetEnvironment_CacheCorruption(t *testing.T) {
 
 	// Pre-populate corrupt cache
 	cacheDir := filepath.Join(tmpDir, "environments")
-	require.NoError(t, os.MkdirAll(cacheDir, 0o700))
+	require.NoError(t, os.MkdirAll(cacheDir, domain.DirPerm))
 	cachePath := filepath.Join(cacheDir, envID+".json")
-	require.NoError(t, os.WriteFile(cachePath, []byte("invalid json"), 0o600))
+	require.NoError(t, os.WriteFile(cachePath, []byte("invalid json"), domain.PrivateFilePerm))
 
 	// Expect proper resolution fallback
 	mockResolver.EXPECT().
@@ -359,7 +359,7 @@ func TestResolver_Resolve_EdgeCases(t *testing.T) {
 		require.NoError(t, os.Chmod(tmpDir, 0o500))
 		defer func() {
 			//nolint:gosec // Cleanup
-			_ = os.Chmod(tmpDir, 0o700)
+			_ = os.Chmod(tmpDir, domain.DirPerm)
 		}()
 
 		// Setup client to return success
