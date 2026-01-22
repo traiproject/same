@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"encoding"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -236,4 +237,142 @@ func TestGenerateEnvID(t *testing.T) {
 		// sha256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 		assert.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hash)
 	})
+}
+
+// Ensure InternedString implements the interfaces.
+var (
+	_ encoding.TextMarshaler   = domain.InternedString{}
+	_ encoding.TextUnmarshaler = (*domain.InternedString)(nil)
+)
+
+func TestInternedString_MarshalText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty_string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "simple_string",
+			input:    "hello",
+			expected: "hello",
+		},
+		{
+			name:     "special_chars",
+			input:    "hello\n\tworld",
+			expected: "hello\n\tworld",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := domain.NewInternedString(tt.input)
+			b, err := is.MarshalText()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, string(b))
+		})
+	}
+}
+
+func TestInternedString_UnmarshalText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty_string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "simple_string",
+			input:    "hello",
+			expected: "hello",
+		},
+		{
+			name:     "special_chars",
+			input:    "hello\n\tworld",
+			expected: "hello\n\tworld",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var is domain.InternedString
+			err := is.UnmarshalText([]byte(tt.input))
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, is.String())
+		})
+	}
+}
+
+func TestGraph_Cycle_Self(t *testing.T) {
+	g := domain.NewGraph()
+	taskName := domain.NewInternedString("A")
+
+	task := &domain.Task{
+		Name:         taskName,
+		Dependencies: []domain.InternedString{taskName},
+	}
+
+	err := g.AddTask(task)
+	require.NoError(t, err)
+
+	err = g.Validate()
+	require.Error(t, err)
+	// zerr wrapping might obscure the sentinel error for Is(), so we check the string
+	// consistent with existing domain_test.go
+	assert.Contains(t, err.Error(), "cycle detected")
+}
+
+func TestGraph_Cycle_Disconnected(t *testing.T) {
+	// A <-> B (disconnected from root C)
+	// C (root)
+
+	g := domain.NewGraph()
+
+	a := domain.NewInternedString("A")
+	b := domain.NewInternedString("B")
+	c := domain.NewInternedString("C")
+
+	taskA := &domain.Task{
+		Name:         a,
+		Dependencies: []domain.InternedString{b},
+	}
+	taskB := &domain.Task{
+		Name:         b,
+		Dependencies: []domain.InternedString{a},
+	}
+	taskC := &domain.Task{
+		Name:         c,
+		Dependencies: []domain.InternedString{},
+	}
+
+	require.NoError(t, g.AddTask(taskA))
+	require.NoError(t, g.AddTask(taskB))
+	require.NoError(t, g.AddTask(taskC))
+
+	err := g.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cycle detected")
+}
+
+func TestGraph_DuplicateTask(t *testing.T) {
+	g := domain.NewGraph()
+	name := domain.NewInternedString("task1")
+
+	task1 := &domain.Task{Name: name}
+	task2 := &domain.Task{Name: name}
+
+	err := g.AddTask(task1)
+	require.NoError(t, err)
+
+	err = g.AddTask(task2)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "task already exists")
 }
