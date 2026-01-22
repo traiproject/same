@@ -1,6 +1,10 @@
 package nix
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+	"os/exec"
+)
 
 // Export constants and functions for testing purposes.
 
@@ -18,4 +22,14 @@ type (
 
 func (e *EnvFactory) GenerateNixExprRaw(system string, commits map[string][]string) string {
 	return e.generateNixExpr(system, commits)
+}
+
+// SetExecCommandContext allows mocking exec.CommandContext.
+// It returns a restore function.
+func SetExecCommandContext(f func(ctx context.Context, name string, args ...string) *exec.Cmd) func() {
+	original := execCommandContext
+	execCommandContext = f
+	return func() {
+		execCommandContext = original
+	}
 }

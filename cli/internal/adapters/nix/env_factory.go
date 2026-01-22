@@ -21,6 +21,8 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+var execCommandContext = exec.CommandContext
+
 // EnvFactory implements ports.EnvironmentFactory using Nix.
 type EnvFactory struct {
 	resolver ports.DependencyResolver
@@ -74,7 +76,7 @@ func (e *EnvFactory) GetEnvironment(ctx context.Context, tools map[string]string
 
 		// Execute nix print-dev-env
 		//nolint:gosec // tmpPath is a trusted temp file created by us
-		cmd := exec.CommandContext(ctx, "nix", "print-dev-env", "--json", "--file", tmpPath)
+		cmd := execCommandContext(ctx, "nix", "print-dev-env", "--json", "--file", tmpPath)
 		output, err := cmd.Output()
 		if err != nil {
 			return nil, zerr.Wrap(err, "failed to execute nix print-dev-env")
