@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"go.trai.ch/same/internal/adapters/nix"
 	"go.trai.ch/same/internal/core/domain"
@@ -449,48 +449,68 @@ func TestSaveEnvToCache_MkdirError(t *testing.T) {
 }
 
 func TestGetEnvironment_Concurrency(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	resolver := mocks.NewMockDependencyResolver(ctrl)
+		resolver := mocks.NewMockDependencyResolver(ctrl)
 
-	// Use atomic counter to verify single execution
-	var callCount int32
+		// Use atomic counter to verify single execution
+		var callCount int32
 
-	// Mock Resolve to sleep to ensure overlaps
-	resolver.EXPECT().
-		Resolve(gomock.Any(), "go", "1.25.4").
-		DoAndReturn(func(_ context.Context, _, _ string) (string, string, error) {
-			atomic.AddInt32(&callCount, 1)
-			time.Sleep(100 * time.Millisecond) // Simulate work to ensure other goroutines blocked
-			return "2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.go", nil
-		}).
-		Times(1)
+		started := make(chan struct{})
+		proceed := make(chan struct{})
 
-	tmpDir := t.TempDir()
-	factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
-	ctx := context.Background()
+		// Mock Resolve to wait for signal
+		resolver.EXPECT().
+			Resolve(gomock.Any(), "go", "1.25.4").
+			DoAndReturn(func(_ context.Context, _, _ string) (string, string, error) {
+				atomic.AddInt32(&callCount, 1)
+				close(started)
+				<-proceed // Wait for signal to complete
+				return "2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.go", nil
+			}).
+			Times(1)
 
-	tools := map[string]string{
-		"go": "go@1.25.4",
-	}
+		tmpDir := t.TempDir()
+		factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
+		ctx := context.Background()
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+		tools := map[string]string{
+			"go": "go@1.25.4",
+		}
 
-	// Start two concurrent requests
-	for i := 0; i < 2; i++ {
-		go func() {
-			defer wg.Done()
-			_, _ = factory.GetEnvironment(ctx, tools)
-		}()
-	}
+		var wg sync.WaitGroup
+		wg.Add(2)
 
-	wg.Wait()
+		// Start two concurrent requests
+		for i := 0; i < 2; i++ {
+			go func() {
+				defer wg.Done()
+				_, _ = factory.GetEnvironment(ctx, tools)
+			}()
+		}
 
-	if atomic.LoadInt32(&callCount) != 1 {
-		t.Errorf("Resolve called %d times, want 1", callCount)
-	}
+		// Wait for one routine to hit the mock
+		synctest.Wait()
+
+		select {
+		case <-started:
+			// One routine has started processing
+		default:
+			t.Fatal("Resolve was not called")
+		}
+
+		// Allow processing to complete
+		close(proceed)
+		synctest.Wait()
+
+		wg.Wait()
+
+		if atomic.LoadInt32(&callCount) != 1 {
+			t.Errorf("Resolve called %d times, want 1", callCount)
+		}
+	})
 }
 
 func TestSaveEnvToCache_WriteError(t *testing.T) {
