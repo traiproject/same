@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
 	"sync"
@@ -12,6 +13,17 @@ import (
 
 	"github.com/muesli/termenv"
 )
+
+var colorPalette = []termenv.Color{
+	termenv.ANSICyan,
+	termenv.ANSIMagenta,
+	termenv.ANSIYellow,
+	termenv.ANSIBlue,
+	termenv.ANSIBrightCyan,
+	termenv.ANSIBrightMagenta,
+	termenv.ANSIBrightYellow,
+	termenv.ANSIBrightBlue,
+}
 
 // Renderer implements ports.Renderer for CI/non-interactive environments.
 // It outputs linear, chronological logs with task name prefixes.
@@ -28,6 +40,7 @@ type Renderer struct {
 type taskState struct {
 	name      string
 	startTime time.Time
+	color     termenv.Color
 }
 
 // NewRenderer creates a new LinearRenderer.
@@ -60,6 +73,14 @@ func colorProfile() termenv.Profile {
 	}
 	// Use ANSI for basic color support in CI
 	return termenv.ANSI
+}
+
+func assignColor(taskName string) termenv.Color {
+	h := fnv.New32a()
+	h.Write([]byte(taskName))
+	hash := h.Sum32()
+	idx := hash % uint32(len(colorPalette)) //nolint:gosec // palette size is small and constant
+	return colorPalette[idx]
 }
 
 // Start is a no-op for linear renderer (synchronous).
@@ -99,14 +120,16 @@ func (r *Renderer) OnTaskStart(spanID, _ /* parentID */, name string, startTime 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	color := assignColor(name)
 	r.tasks[spanID] = &taskState{
 		name:      name,
 		startTime: startTime,
+		color:     color,
 	}
 	r.buffers[spanID] = new(bytes.Buffer)
 
 	// Print start message to stderr
-	prefix := r.output.String(fmt.Sprintf("[%s]", name)).Faint().String()
+	prefix := r.output.String(fmt.Sprintf("[%s]", name)).Foreground(color).String()
 	_, _ = fmt.Fprintf(r.stderr, "%s Starting...\n", prefix)
 }
 
@@ -138,7 +161,7 @@ func (r *Renderer) OnTaskLog(spanID string, data []byte) {
 		}
 
 		// Print complete line with prefix
-		r.printLineLocked(task.name, line)
+		r.printLineLocked(task.name, task.color, line)
 	}
 }
 
@@ -157,16 +180,16 @@ func (r *Renderer) OnTaskComplete(spanID string, endTime time.Time, err error) {
 
 	// Print completion message
 	duration := endTime.Sub(task.startTime)
-	prefix := fmt.Sprintf("[%s]", task.name)
+	coloredPrefix := r.output.String(fmt.Sprintf("[%s]", task.name)).Foreground(task.color).String()
 
 	if err != nil {
 		symbol := r.output.String("✗").Foreground(termenv.ANSIRed).String()
 		_, _ = fmt.Fprintf(r.stderr, "%s %s Failed after %v: %v\n",
-			prefix, symbol, duration, err)
+			coloredPrefix, symbol, duration, err)
 	} else {
 		symbol := r.output.String("✓").Foreground(termenv.ANSIGreen).String()
 		_, _ = fmt.Fprintf(r.stderr, "%s %s Completed in %v\n",
-			prefix, symbol, duration)
+			coloredPrefix, symbol, duration)
 	}
 
 	// Cleanup
@@ -185,14 +208,14 @@ func (r *Renderer) flushBufferLocked(spanID string) {
 	buf := r.buffers[spanID]
 	if buf.Len() > 0 {
 		// Print the remaining partial line
-		r.printLineLocked(task.name, buf.Bytes())
+		r.printLineLocked(task.name, task.color, buf.Bytes())
 		buf.Reset()
 	}
 }
 
 // printLineLocked prints a line with the task name prefix.
 // Must be called with r.mu held.
-func (r *Renderer) printLineLocked(taskName string, line []byte) {
+func (r *Renderer) printLineLocked(taskName string, color termenv.Color, line []byte) {
 	// Trim trailing newline for cleaner output
 	line = bytes.TrimSuffix(line, []byte("\n"))
 	line = bytes.TrimSuffix(line, []byte("\r"))
@@ -201,6 +224,6 @@ func (r *Renderer) printLineLocked(taskName string, line []byte) {
 		return
 	}
 
-	prefix := fmt.Sprintf("[%s]", taskName)
+	prefix := r.output.String(fmt.Sprintf("[%s]", taskName)).Foreground(color).String()
 	_, _ = fmt.Fprintf(r.stdout, "%s %s\n", prefix, string(line))
 }

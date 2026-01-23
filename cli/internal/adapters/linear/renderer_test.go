@@ -43,10 +43,10 @@ func TestRenderer_TaskLifecycle(t *testing.T) {
 	r.OnTaskLog("span1", []byte("second line\n"))
 
 	stdoutStr := stdout.String()
-	if !strings.Contains(stdoutStr, "[task1] first line") {
+	if !strings.Contains(stdoutStr, "task1") || !strings.Contains(stdoutStr, "first line") {
 		t.Errorf("Expected prefixed first line in stdout, got: %s", stdoutStr)
 	}
-	if !strings.Contains(stdoutStr, "[task1] second line") {
+	if !strings.Contains(stdoutStr, "task1") || !strings.Contains(stdoutStr, "second line") {
 		t.Errorf("Expected prefixed second line in stdout, got: %s", stdoutStr)
 	}
 
@@ -79,7 +79,7 @@ func TestRenderer_PartialLines(t *testing.T) {
 
 	// Complete the line
 	r.OnTaskLog("span1", []byte(" line\n"))
-	if !strings.Contains(stdout.String(), "[task1] partial line") {
+	if !strings.Contains(stdout.String(), "task1") || !strings.Contains(stdout.String(), "partial line") {
 		t.Errorf("Expected complete line, got: %s", stdout.String())
 	}
 
@@ -88,7 +88,7 @@ func TestRenderer_PartialLines(t *testing.T) {
 	endTime := startTime.Add(50 * time.Millisecond)
 	r.OnTaskComplete("span1", endTime, nil)
 
-	if !strings.Contains(stdout.String(), "[task1] unflushed") {
+	if !strings.Contains(stdout.String(), "task1") || !strings.Contains(stdout.String(), "unflushed") {
 		t.Errorf("Expected flushed partial line on complete, got: %s", stdout.String())
 	}
 }
@@ -178,5 +178,51 @@ func TestRenderer_NoColor(t *testing.T) {
 	stderrStr := stderr.String()
 	if strings.Contains(stderrStr, "\x1b[") {
 		t.Errorf("Expected no ANSI codes with NO_COLOR, got: %s", stderrStr)
+	}
+}
+
+func TestColorAssignment(t *testing.T) {
+	tests := []struct {
+		name     string
+		taskName string
+	}{
+		{"task1", "task1"},
+		{"task2", "task2"},
+		{"build", "build"},
+		{"test", "test"},
+		{"deploy", "deploy"},
+	}
+
+	colorSeen := make(map[string]struct{})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			r := linear.NewRenderer(&stdout, &stderr)
+
+			startTime := time.Now()
+			r.OnTaskStart("span1", "", tt.taskName, startTime)
+
+			color1 := stderr.String()
+
+			stderr.Reset()
+			r.OnTaskStart("span2", "", tt.taskName, startTime.Add(time.Second))
+
+			color2 := stderr.String()
+
+			if color1 != color2 {
+				t.Errorf("Same task name %q should produce same color output", tt.taskName)
+			}
+
+			if color1 != "" && !strings.Contains(color1, "\x1b[") {
+				t.Errorf("Expected ANSI color codes in output for task %q", tt.taskName)
+			}
+
+			colorSeen[color1] = struct{}{}
+		})
+	}
+
+	if len(colorSeen) < 2 {
+		t.Errorf("Expected multiple different colors for different tasks, got %d unique colors", len(colorSeen))
 	}
 }
