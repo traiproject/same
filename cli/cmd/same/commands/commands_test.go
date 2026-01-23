@@ -3,6 +3,8 @@ package commands_test
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -196,6 +198,22 @@ func TestVersionCmd(t *testing.T) {
 // setupCleanTest creates a test CLI with mocked dependencies for clean command tests.
 func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger) {
 	t.Helper()
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current working directory: %v", err)
+	}
+	defer func() {
+		if errChdir := os.Chdir(cwd); errChdir != nil {
+			t.Fatalf("Failed to restore working directory: %v", errChdir)
+		}
+	}()
+
+	tmpDir := t.TempDir()
+	if errChdir := os.Chdir(tmpDir); errChdir != nil {
+		t.Fatalf("Failed to change into temp directory: %v", errChdir)
+	}
+
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -217,10 +235,23 @@ func TestCleanCmd_Default(t *testing.T) {
 	cli, mockLogger := setupCleanTest(t)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
+	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
+	if err := os.MkdirAll(storePath, domain.DirPerm); err != nil {
+		t.Fatalf("Failed to create store directory: %v", err)
+	}
+	markerFile := filepath.Join(storePath, "marker.txt")
+	if err := os.WriteFile(markerFile, []byte("test"), domain.FilePerm); err != nil {
+		t.Fatalf("Failed to create marker file: %v", err)
+	}
+
 	cli.SetArgs([]string{"clean"})
 	err := cli.Execute(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
+	}
+
+	if _, err := os.Stat(storePath); !os.IsNotExist(err) {
+		t.Errorf("Expected store directory to be removed, but it still exists")
 	}
 }
 
@@ -228,10 +259,35 @@ func TestCleanCmd_Tools(t *testing.T) {
 	cli, mockLogger := setupCleanTest(t)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
+	nixHubPath := domain.DefaultNixHubCachePath()
+	if err := os.MkdirAll(nixHubPath, domain.DirPerm); err != nil {
+		t.Fatalf("Failed to create nixhub cache directory: %v", err)
+	}
+	nixMarker := filepath.Join(nixHubPath, "marker.txt")
+	if err := os.WriteFile(nixMarker, []byte("test"), domain.FilePerm); err != nil {
+		t.Fatalf("Failed to create marker file: %v", err)
+	}
+
+	envPath := domain.DefaultEnvCachePath()
+	if err := os.MkdirAll(envPath, domain.DirPerm); err != nil {
+		t.Fatalf("Failed to create env cache directory: %v", err)
+	}
+	envMarker := filepath.Join(envPath, "marker.txt")
+	if err := os.WriteFile(envMarker, []byte("test"), domain.FilePerm); err != nil {
+		t.Fatalf("Failed to create marker file: %v", err)
+	}
+
 	cli.SetArgs([]string{"clean", "--tools"})
 	err := cli.Execute(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
+	}
+
+	if _, err := os.Stat(nixHubPath); !os.IsNotExist(err) {
+		t.Errorf("Expected nixhub cache directory to be removed, but it still exists")
+	}
+	if _, err := os.Stat(envPath); !os.IsNotExist(err) {
+		t.Errorf("Expected environment cache directory to be removed, but it still exists")
 	}
 }
 
@@ -239,9 +295,46 @@ func TestCleanCmd_All(t *testing.T) {
 	cli, mockLogger := setupCleanTest(t)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
+	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
+	if err := os.MkdirAll(storePath, domain.DirPerm); err != nil {
+		t.Fatalf("Failed to create store directory: %v", err)
+	}
+	storeMarker := filepath.Join(storePath, "marker.txt")
+	if err := os.WriteFile(storeMarker, []byte("test"), domain.FilePerm); err != nil {
+		t.Fatalf("Failed to create marker file: %v", err)
+	}
+
+	nixHubPath := domain.DefaultNixHubCachePath()
+	if err := os.MkdirAll(nixHubPath, domain.DirPerm); err != nil {
+		t.Fatalf("Failed to create nixhub cache directory: %v", err)
+	}
+	nixMarker := filepath.Join(nixHubPath, "marker.txt")
+	if err := os.WriteFile(nixMarker, []byte("test"), domain.FilePerm); err != nil {
+		t.Fatalf("Failed to create marker file: %v", err)
+	}
+
+	envPath := domain.DefaultEnvCachePath()
+	if err := os.MkdirAll(envPath, domain.DirPerm); err != nil {
+		t.Fatalf("Failed to create env cache directory: %v", err)
+	}
+	envMarker := filepath.Join(envPath, "marker.txt")
+	if err := os.WriteFile(envMarker, []byte("test"), domain.FilePerm); err != nil {
+		t.Fatalf("Failed to create marker file: %v", err)
+	}
+
 	cli.SetArgs([]string{"clean", "--all"})
 	err := cli.Execute(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
+	}
+
+	if _, err := os.Stat(storePath); !os.IsNotExist(err) {
+		t.Errorf("Expected store directory to be removed, but it still exists")
+	}
+	if _, err := os.Stat(nixHubPath); !os.IsNotExist(err) {
+		t.Errorf("Expected nixhub cache directory to be removed, but it still exists")
+	}
+	if _, err := os.Stat(envPath); !os.IsNotExist(err) {
+		t.Errorf("Expected environment cache directory to be removed, but it still exists")
 	}
 }
