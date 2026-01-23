@@ -146,4 +146,7 @@ var (
 
 	// ErrEnvironmentNotCached is returned when an environment should have been cached but wasn't.
 	ErrEnvironmentNotCached = zerr.New("environment not found in cache")
+
+	// ErrCacheMiss is returned when a requested item is not found in the cache.
+	ErrCacheMiss = zerr.New("cache miss")
 )

@@ -216,7 +216,7 @@ func LoadEnvFromCache(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("cache miss")
+			return nil, domain.ErrCacheMiss
 		}
 		return nil, zerr.Wrap(err, "failed to read cache file")
 	}
@@ -379,7 +379,7 @@ func (e *EnvFactory) resolveTools(ctx context.Context, tools map[string]string) 
 			parts := strings.SplitN(spec, "@", 2)
 			if len(parts) != 2 {
 				return zerr.Wrap(
-					fmt.Errorf("invalid tool spec format: %s", spec),
+					zerr.Wrap(domain.ErrInvalidToolSpec, spec),
 					"expected format: package@version",
 				)
 			}

@@ -74,6 +74,7 @@ func TestStore_PutAndGet(t *testing.T) {
 	}
 	if got == nil {
 		t.Fatal("Get returned nil")
+		return
 	}
 
 	if got.TaskName != info.TaskName {
@@ -111,6 +112,7 @@ func TestStore_Persistence(t *testing.T) {
 	}
 	if got == nil {
 		t.Fatal("Get returned nil")
+		return
 	}
 	if got.InputHash != "xyz" {
 		t.Errorf("expected InputHash %q, got %q", "xyz", got.InputHash)

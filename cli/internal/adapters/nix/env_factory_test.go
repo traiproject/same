@@ -122,8 +122,8 @@ func TestGetEnvironment_InvalidSpec(t *testing.T) {
 		t.Error("GetEnvironment() expected error for invalid spec")
 	}
 
-	if !strings.Contains(err.Error(), "invalid tool spec format") {
-		t.Errorf("GetEnvironment() error = %v, want error containing 'invalid tool spec format'", err)
+	if !strings.Contains(err.Error(), "invalid tool specification") {
+		t.Errorf("GetEnvironment() error = %v, want error containing 'invalid tool specification'", err)
 	}
 }
 
