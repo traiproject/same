@@ -85,6 +85,19 @@ Each entry in the `tasks` map defines a specific unit of work.
   The working directory for the command execution, relative to the project root.
 </ParamField>
 
+### `rebuild`
+
+<ParamField path="rebuild" type="string" default="on-change">
+  Controls when the task should execute.
+  
+  - `on-change` (default): Execute only if inputs have changed (cache-based)
+  - `always`: Execute on every run, bypassing the cache
+  
+  Use `always` for tasks that produce non-deterministic outputs (e.g., timestamps, fetching external data, debugging).
+  
+  **Note**: Downstream tasks still honor their own rebuild strategy. If an "always" task produces identical outputs, dependent tasks with `on-change` won't re-execute.
+</ParamField>
+
 ## Example
 
 ```yaml same.yaml
@@ -116,4 +129,10 @@ tasks:
     target: ["bin/same"]
     tools: ["go"]
     dependsOn: ["lint"]
+
+  # Generate build timestamp (always runs)
+  timestamp:
+    cmd: ["sh", "-c", "date +%s > build-time.txt"]
+    target: ["build-time.txt"]
+    rebuild: always
 ```

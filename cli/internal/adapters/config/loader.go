@@ -99,46 +99,59 @@ func (l *Loader) loadSamefile(configPath string) (*domain.Graph, error) {
 	g := domain.NewGraph()
 	g.SetRoot(resolveRoot(configPath, samefile.Root))
 
-	taskNames := make(map[string]bool)
-
-	// First pass: Collect all task names to verify dependencies later
-	for name := range samefile.Tasks {
-		taskNames[name] = true
+	taskNames := collectTaskNames(samefile.Tasks)
+	if err := addSamefileTasks(g, samefile, taskNames); err != nil {
+		return nil, err
 	}
 
-	// Second pass: Create tasks and add to graph
+	return g, nil
+}
+
+func collectTaskNames(tasks map[string]*TaskDTO) map[string]bool {
+	taskNames := make(map[string]bool)
+	for name := range tasks {
+		taskNames[name] = true
+	}
+	return taskNames
+}
+
+func addSamefileTasks(g *domain.Graph, samefile Samefile, taskNames map[string]bool) error {
 	for name := range samefile.Tasks {
 		dto := samefile.Tasks[name]
 		if err := validateTaskName(name); err != nil {
-			return nil, err
+			return err
 		}
 
-		// Validate dependencies exist
-		for _, dep := range dto.DependsOn {
-			if !taskNames[dep] {
-				return nil, zerr.With(domain.ErrMissingDependency, "missing_dependency", dep)
-			}
+		if err := validateTaskDependencies(dto.DependsOn, taskNames); err != nil {
+			return err
 		}
 
 		workingDir := resolveTaskWorkingDir(g.Root(), dto.WorkingDir)
 
-		// Resolve tool aliases to flake references
 		taskTools, err := resolveTaskTools(dto.Tools, samefile.Tools)
 		if err != nil {
-			return nil, zerr.With(err, "task", name)
+			return zerr.With(err, "task", name)
 		}
 
 		task, err := buildTask(name, dto, workingDir, dto.DependsOn, taskTools)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if err := g.AddTask(task); err != nil {
-			return nil, err
+			return err
 		}
 	}
+	return nil
+}
 
-	return g, nil
+func validateTaskDependencies(deps []string, taskNames map[string]bool) error {
+	for _, dep := range deps {
+		if !taskNames[dep] {
+			return zerr.With(domain.ErrMissingDependency, "missing_dependency", dep)
+		}
+	}
+	return nil
 }
 
 func (l *Loader) loadWorkfile(configPath string) (*domain.Graph, error) {
