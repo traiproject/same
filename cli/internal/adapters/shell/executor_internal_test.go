@@ -129,3 +129,26 @@ func TestFindExecutable_Directory(t *testing.T) {
 		t.Error("findExecutable() expected error for directory")
 	}
 }
+
+func TestPtyProcess_Resize_BoundsChecking(t *testing.T) {
+	proc := &ptyProcess{}
+
+	tests := []struct {
+		name string
+		rows int
+		cols int
+	}{
+		{"negative rows", -1, 80},
+		{"negative cols", 24, -1},
+		{"rows too large", 100000, 80},
+		{"cols too large", 24, 100000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := proc.Resize(tt.rows, tt.cols)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "out of bounds")
+		})
+	}
+}

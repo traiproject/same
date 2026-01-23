@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
@@ -348,4 +349,94 @@ func TestModel_ensureVisible(t *testing.T) {
 
 	assert.Equal(t, 3, m.SelectedIdx)
 	assert.Positive(t, m.ListOffset)
+}
+
+func TestModel_Update_TaskExecStart(t *testing.T) {
+	t.Parallel()
+
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
+	m := &tui.Model{
+		TaskMap: map[string]*tui.TaskNode{"task1": task},
+		SpanMap: make(map[string]*tui.TaskNode),
+	}
+
+	spanID := "span-exec-123"
+	m.SpanMap[spanID] = task
+
+	msgExecStart := telemetry.MsgTaskExecStart{
+		SpanID:        spanID,
+		ExecStartTime: time.Now(),
+	}
+	m.Update(msgExecStart)
+
+	assert.False(t, task.ExecStartTime.IsZero())
+}
+
+func TestModel_getSelectedTask_OutOfBounds(t *testing.T) {
+	t.Parallel()
+
+	tasks := []*tui.TaskNode{
+		{Name: "t1", Term: tui.NewVterm()},
+	}
+
+	m := &tui.Model{
+		FlatList:    tasks,
+		SelectedIdx: -1,
+	}
+
+	assert.Nil(t, m.GetSelectedTask())
+
+	m.SelectedIdx = 10
+	assert.Nil(t, m.GetSelectedTask())
+
+	m.SelectedIdx = 0
+	assert.NotNil(t, m.GetSelectedTask())
+	assert.Equal(t, "t1", m.GetSelectedTask().Name)
+}
+
+func TestModel_updateActiveView_WithAutoScroll(t *testing.T) {
+	t.Parallel()
+
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
+	task.Term.SetHeight(10)
+
+	for i := 0; i < 20; i++ {
+		_, _ = task.Term.Write([]byte("line\n"))
+	}
+
+	m := &tui.Model{
+		FlatList:    []*tui.TaskNode{task},
+		SelectedIdx: 0,
+		FollowMode:  true,
+		AutoScroll:  true,
+	}
+
+	m.UpdateActiveView()
+
+	assert.Equal(t, "task1", m.ActiveTaskName)
+	maxOff := task.Term.UsedHeight() - task.Term.Height
+	if maxOff < 0 {
+		maxOff = 0
+	}
+	assert.Equal(t, maxOff, task.Term.Offset)
+}
+
+func TestModel_ensureVisible_ZeroHeight(t *testing.T) {
+	t.Parallel()
+
+	tasks := []*tui.TaskNode{
+		{Name: "t1", Term: tui.NewVterm()},
+		{Name: "t2", Term: tui.NewVterm()},
+	}
+
+	m := &tui.Model{
+		FlatList:    tasks,
+		ListHeight:  0,
+		SelectedIdx: 1,
+		ListOffset:  0,
+	}
+
+	m.EnsureVisible()
+
+	assert.Equal(t, 0, m.ListOffset)
 }

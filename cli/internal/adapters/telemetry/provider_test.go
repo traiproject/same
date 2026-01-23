@@ -165,3 +165,186 @@ func (m *testModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 func (m *testModel) View() string { return "" }
+
+func TestOTelTracer_Shutdown_AfterStart(t *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-shutdown")
+
+	ctx := context.Background()
+	err := tracer.Shutdown(ctx)
+	require.NoError(t, err)
+
+	_, span := tracer.Start(ctx, "after-shutdown")
+	span.End()
+}
+
+func TestOTelTracer_WithProgram_Concurrency(_ *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-concurrent")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	prog := tea.NewProgram(nil)
+
+	done := make(chan bool)
+	go func() {
+		tracer.WithProgram(prog)
+		done <- true
+	}()
+
+	go func() {
+		_, span := tracer.Start(context.Background(), "concurrent-span")
+		span.End()
+		done <- true
+	}()
+
+	<-done
+	<-done
+}
+
+func TestOTelTracer_Start_WithoutProgram(t *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-no-program")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	ctx, span := tracer.Start(context.Background(), "no-program-span")
+	otelSpan, ok := span.(*telemetry.OTelSpan)
+	require.True(t, ok)
+
+	assert.Nil(t, otelSpan.Batcher())
+	span.End()
+	_ = ctx
+}
+
+func TestOTelTracer_Start_WithProgram(t *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-with-program")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	prog := tea.NewProgram(nil)
+	tracer.WithProgram(prog)
+
+	ctx, span := tracer.Start(context.Background(), "with-program-span")
+	otelSpan, ok := span.(*telemetry.OTelSpan)
+	require.True(t, ok)
+
+	assert.NotNil(t, otelSpan.Batcher())
+	span.End()
+	_ = ctx
+}
+
+func TestOTelTracer_EmitPlan_BufferFull(t *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-buffer-full")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	model := &testModel{msgs: make(chan tea.Msg, 10)}
+	prog := tea.NewProgram(model, tea.WithInput(nil), tea.WithOutput(nil))
+	
+	go func() {
+		_, _ = prog.Run()
+	}()
+
+	tracer.WithProgram(prog)
+
+	ctx, span := tracer.Start(context.Background(), "test-span")
+
+	for i := 0; i < 5; i++ {
+		tracer.EmitPlan(ctx, []string{"task1"}, map[string][]string{}, []string{})
+	}
+
+	span.End()
+
+	prog.Quit()
+}
+
+func TestOTelTracer_runLoop(_ *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-runloop")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	model := &testModel{msgs: make(chan tea.Msg, 10)}
+	prog := tea.NewProgram(model, tea.WithInput(nil), tea.WithOutput(nil))
+
+	tracer.WithProgram(prog)
+
+	ctx, span := tracer.Start(context.Background(), "runloop-test")
+	_, _ = span.Write([]byte("test message"))
+	span.End()
+
+	_ = ctx
+}
+
+func TestOTelSpan_Write_WithBatcher(t *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-write-batcher")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	model := &testModel{msgs: make(chan tea.Msg, 10)}
+	prog := tea.NewProgram(model, tea.WithInput(nil), tea.WithOutput(nil))
+	tracer.WithProgram(prog)
+
+	ctx, span := tracer.Start(context.Background(), "batcher-write-test")
+
+	n, err := span.Write([]byte("test data"))
+	require.NoError(t, err)
+	assert.Equal(t, 9, n)
+
+	span.End()
+	_ = ctx
+}
+
+func TestOTelSpan_RecordError_WithStatus(t *testing.T) {
+	sr, tp := setupMonitor()
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+
+	tracer := telemetry.NewOTelTracer("test-error")
+	ctx, span := tracer.Start(context.Background(), "error-test")
+
+	testErr := assert.AnError
+	span.RecordError(testErr)
+	span.End()
+
+	_ = tp.ForceFlush(ctx)
+	spans := sr.Ended()
+	require.Len(t, spans, 1)
+
+	assert.Contains(t, spans[0].Status().Description, testErr.Error())
+}
+
+func TestOTelSpan_MarkExecStart_WithoutEventSender(_ *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-mark-exec-no-sender")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	ctx, span := tracer.Start(context.Background(), "no-event-sender")
+
+	span.MarkExecStart()
+
+	span.End()
+	_ = ctx
+}
+
+func TestOTelSpan_MarkExecStart_WithEventSender(_ *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-mark-exec-sender")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	model := &testModel{msgs: make(chan tea.Msg, 10)}
+	prog := tea.NewProgram(model, tea.WithInput(nil), tea.WithOutput(nil))
+	tracer.WithProgram(prog)
+
+	ctx, span := tracer.Start(context.Background(), "event-sender-test")
+
+	span.MarkExecStart()
+
+	span.End()
+	_ = ctx
+}
+
+func TestOTelSpan_End_WithBatcher(_ *testing.T) {
+	tracer := telemetry.NewOTelTracer("test-end-batcher")
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+
+	model := &testModel{msgs: make(chan tea.Msg, 10)}
+	prog := tea.NewProgram(model, tea.WithInput(nil), tea.WithOutput(nil))
+	tracer.WithProgram(prog)
+
+	ctx, span := tracer.Start(context.Background(), "end-batcher-test")
+
+	_, _ = span.Write([]byte("data before end"))
+
+	span.End()
+
+	_ = ctx
+}
