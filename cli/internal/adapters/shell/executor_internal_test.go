@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveEnvironment(t *testing.T) {
@@ -147,7 +148,7 @@ func TestPtyProcess_Resize_BoundsChecking(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := proc.Resize(tt.rows, tt.cols)
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), "out of bounds")
 		})
 	}

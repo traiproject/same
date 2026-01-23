@@ -228,13 +228,13 @@ func TestOTelTracer_Start_WithProgram(t *testing.T) {
 	_ = ctx
 }
 
-func TestOTelTracer_EmitPlan_BufferFull(t *testing.T) {
+func TestOTelTracer_EmitPlan_BufferFull(_ *testing.T) {
 	tracer := telemetry.NewOTelTracer("test-buffer-full")
 	defer func() { _ = tracer.Shutdown(context.Background()) }()
 
 	model := &testModel{msgs: make(chan tea.Msg, 10)}
 	prog := tea.NewProgram(model, tea.WithInput(nil), tea.WithOutput(nil))
-	
+
 	go func() {
 		_, _ = prog.Run()
 	}()

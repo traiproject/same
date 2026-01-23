@@ -306,4 +306,3 @@ func TestExecutor_Execute_WithoutMarkExecStartSpan(t *testing.T) {
 	err := executor.Execute(context.Background(), task, nil, &stdout, io.Discard)
 	require.NoError(t, err)
 }
-
