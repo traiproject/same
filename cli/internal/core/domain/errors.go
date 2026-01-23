@@ -39,6 +39,9 @@ var (
 	// ErrInvalidTaskName is returned when a task name contains invalid characters.
 	ErrInvalidTaskName = zerr.New("invalid task name")
 
+	// ErrInvalidRebuildStrategy is returned when a rebuild strategy is invalid.
+	ErrInvalidRebuildStrategy = zerr.New("invalid rebuild strategy, expected 'always' or 'on-change'")
+
 	// ErrStoreCreateFailed is returned when the build info store directory cannot be created.
 	ErrStoreCreateFailed = zerr.New("failed to create build info store directory")
 
