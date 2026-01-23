@@ -153,6 +153,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			m.ensureVisible()
+			m.updateActiveView()
 
 		case "enter":
 			if m.ViewMode == ViewModeTree {

@@ -16,21 +16,23 @@ func TestView_Initialization(t *testing.T) {
 
 func TestView_TaskList(t *testing.T) {
 	tasks := []*tui.TaskNode{
-		{Name: "task1", Status: tui.StatusRunning},
-		{Name: "task2", Status: tui.StatusDone},
-		{Name: "task3", Status: tui.StatusError},
-		{Name: "task4", Status: tui.StatusPending},
-		{Name: "task5", Status: tui.StatusDone, Cached: true},
+		{Name: "task1", Status: tui.StatusRunning, Term: tui.NewVterm()},
+		{Name: "task2", Status: tui.StatusDone, Term: tui.NewVterm()},
+		{Name: "task3", Status: tui.StatusError, Term: tui.NewVterm()},
+		{Name: "task4", Status: tui.StatusPending, Term: tui.NewVterm()},
+		{Name: "task5", Status: tui.StatusDone, Cached: true, Term: tui.NewVterm()},
 	}
 
 	m := tui.Model{
-		Tasks:       tasks,
+		FlatList:    tasks,
+		TreeRoots:   tasks,
 		ListHeight:  20,
 		SelectedIdx: 0,
 		TaskMap:     make(map[string]*tui.TaskNode),
+		ViewMode:    tui.ViewModeTree,
 	}
-	for i := range m.Tasks {
-		m.TaskMap[m.Tasks[i].Name] = m.Tasks[i]
+	for i := range tasks {
+		m.TaskMap[tasks[i].Name] = tasks[i]
 	}
 
 	output := m.View()
@@ -58,30 +60,39 @@ func TestView_TaskList(t *testing.T) {
 }
 
 func TestView_LogPane(t *testing.T) {
-	// Case 1: No active task
+	// Case 1: No active task - use full screen log view
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
 	m := tui.Model{
+		FlatList:   []*tui.TaskNode{task},
 		ListHeight: 20,
+		ViewMode:   tui.ViewModeLogs,
+		TaskMap:    map[string]*tui.TaskNode{"task1": task},
 	}
 	output := m.View()
-	assert.Contains(t, output, "LOGS (Waiting...)")
+	assert.Contains(t, output, "No task selected")
 
-	// Case 2: Active task, FollowMode = true
+	// Case 2: Active task in full-screen log view
 	m.ActiveTaskName = "task1"
-	m.FollowMode = true
+	task.Status = tui.StatusRunning
 	output = m.View()
-	assert.Contains(t, output, "LOGS: task1 (Following)")
+	assert.Contains(t, output, "LOGS: task1")
+	assert.Contains(t, output, "Running")
 
-	// Case 3: Active task, FollowMode = false
-	m.FollowMode = false
+	// Case 3: Active task completed
+	task.Status = tui.StatusDone
 	output = m.View()
-	assert.Contains(t, output, "LOGS: task1 (Manual)")
+	assert.Contains(t, output, "LOGS: task1")
+	assert.Contains(t, output, "Completed")
 }
 
 func TestView_LipglossIntegration(t *testing.T) {
 	// Just ensure it renders something structure-wise
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
 	m := tui.Model{
-		Tasks:      []*tui.TaskNode{{Name: "task1"}},
+		FlatList:   []*tui.TaskNode{task},
+		TreeRoots:  []*tui.TaskNode{task},
 		ListHeight: 10,
+		ViewMode:   tui.ViewModeTree,
 	}
 	// Force some styles if possible, but mainly just ensuring no panic and non-empty
 	output := m.View()

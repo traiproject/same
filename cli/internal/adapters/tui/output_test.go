@@ -2,7 +2,6 @@ package tui_test
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
 	"github.com/muesli/termenv"
@@ -12,13 +11,12 @@ import (
 
 func TestColorProfile(t *testing.T) {
 	// Default
-	_ = os.Unsetenv("NO_COLOR")
+	t.Setenv("NO_COLOR", "")
 	p := tui.ColorProfile()
 	assert.Equal(t, termenv.TrueColor, p)
 
 	// No Color
-	_ = os.Setenv("NO_COLOR", "1")
-	defer func() { _ = os.Unsetenv("NO_COLOR") }()
+	t.Setenv("NO_COLOR", "1")
 	p = tui.ColorProfile()
 	assert.Equal(t, termenv.Ascii, p)
 }
