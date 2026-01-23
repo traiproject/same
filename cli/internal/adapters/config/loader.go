@@ -128,7 +128,10 @@ func (l *Loader) loadSamefile(configPath string) (*domain.Graph, error) {
 			return nil, zerr.With(err, "task", name)
 		}
 
-		task := buildTask(name, dto, workingDir, dto.DependsOn, taskTools)
+		task, err := buildTask(name, dto, workingDir, dto.DependsOn, taskTools)
+		if err != nil {
+			return nil, err
+		}
 
 		if err := g.AddTask(task); err != nil {
 			return nil, err
@@ -325,7 +328,10 @@ func (l *Loader) addProjectTasks(
 			return zerr.With(err, "task", namespacedTaskName)
 		}
 
-		task := buildTask(namespacedTaskName, dto, workingDir, namespacedDeps, taskTools)
+		task, err := buildTask(namespacedTaskName, dto, workingDir, namespacedDeps, taskTools)
+		if err != nil {
+			return err
+		}
 
 		if err := g.AddTask(task); err != nil {
 			return err
@@ -451,17 +457,23 @@ func buildTask(
 	workingDir domain.InternedString,
 	deps []string,
 	tools map[string]string,
-) *domain.Task {
-	return &domain.Task{
-		Name:         domain.NewInternedString(name),
-		Command:      dto.Cmd,
-		Inputs:       canonicalizeStrings(dto.Input),
-		Outputs:      canonicalizeStrings(dto.Target),
-		Dependencies: domain.NewInternedStrings(deps),
-		Environment:  dto.Environment,
-		WorkingDir:   workingDir,
-		Tools:        tools,
+) (*domain.Task, error) {
+	rebuildStrategy, err := validateRebuildStrategy(dto.Rebuild)
+	if err != nil {
+		return nil, zerr.With(err, "task", name)
 	}
+
+	return &domain.Task{
+		Name:            domain.NewInternedString(name),
+		Command:         dto.Cmd,
+		Inputs:          canonicalizeStrings(dto.Input),
+		Outputs:         canonicalizeStrings(dto.Target),
+		Dependencies:    domain.NewInternedStrings(deps),
+		Environment:     dto.Environment,
+		WorkingDir:      workingDir,
+		Tools:           tools,
+		RebuildStrategy: rebuildStrategy,
+	}, nil
 }
 
 // resolveTaskWorkingDir resolves the working directory for a task.
@@ -478,4 +490,19 @@ func resolveTaskWorkingDir(baseDir, configuredWorkingDir string) domain.Interned
 	}
 
 	return domain.NewInternedString(filepath.Clean(filepath.Join(baseDir, configuredWorkingDir)))
+}
+
+// validateRebuildStrategy validates and converts a rebuild strategy string to domain.RebuildStrategy.
+// Empty string defaults to RebuildOnChange for backward compatibility.
+func validateRebuildStrategy(value string) (domain.RebuildStrategy, error) {
+	switch value {
+	case "":
+		return domain.RebuildOnChange, nil
+	case "on-change":
+		return domain.RebuildOnChange, nil
+	case "always":
+		return domain.RebuildAlways, nil
+	default:
+		return "", domain.ErrInvalidRebuildStrategy
+	}
 }
