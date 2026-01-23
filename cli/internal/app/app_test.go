@@ -302,3 +302,134 @@ func TestApp_Run_LogSetupFailure(t *testing.T) {
 		}
 	})
 }
+
+//nolint:cyclop // Table-driven test
+func TestApp_Clean(t *testing.T) {
+	tests := []struct {
+		name    string
+		options app.CleanOptions
+		setup   func(createDir func(string))
+		check   func(t *testing.T, exists func(string) bool)
+	}{
+		{
+			name:    "Clean Build Only",
+			options: app.CleanOptions{Build: true, Tools: false},
+			setup: func(createDir func(string)) {
+				createDir(domain.DefaultStorePath())
+				createDir(domain.DefaultNixHubCachePath())
+			},
+			check: func(t *testing.T, exists func(string) bool) {
+				t.Helper()
+				if exists(domain.DefaultStorePath()) {
+					t.Error("Store should be removed")
+				}
+				if !exists(domain.DefaultNixHubCachePath()) {
+					t.Error("Nix cache should remain")
+				}
+			},
+		},
+		{
+			name:    "Clean Tools Only",
+			options: app.CleanOptions{Build: false, Tools: true},
+			setup: func(createDir func(string)) {
+				createDir(domain.DefaultStorePath())
+				createDir(domain.DefaultNixHubCachePath())
+				createDir(domain.DefaultEnvCachePath())
+			},
+			check: func(t *testing.T, exists func(string) bool) {
+				t.Helper()
+				if !exists(domain.DefaultStorePath()) {
+					t.Error("Store should remain")
+				}
+				if exists(domain.DefaultNixHubCachePath()) {
+					t.Error("Nix cache should be removed")
+				}
+				if exists(domain.DefaultEnvCachePath()) {
+					t.Error("Env cache should be removed")
+				}
+			},
+		},
+		{
+			name:    "Clean All",
+			options: app.CleanOptions{Build: true, Tools: true},
+			setup: func(createDir func(string)) {
+				createDir(domain.DefaultStorePath())
+				createDir(domain.DefaultNixHubCachePath())
+			},
+			check: func(t *testing.T, exists func(string) bool) {
+				t.Helper()
+				if exists(domain.DefaultStorePath()) {
+					t.Error("Store should be removed")
+				}
+				if exists(domain.DefaultNixHubCachePath()) {
+					t.Error("Nix cache should be removed")
+				}
+			},
+		},
+		{
+			name:    "Idempotent",
+			options: app.CleanOptions{Build: true, Tools: true},
+			setup:   func(_ func(string)) {}, // Nothing created
+			check: func(_ *testing.T, _ func(string) bool) {
+				// Should not error
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				// Use a temporary directory for the test
+				cwd, err := os.Getwd()
+				if err != nil {
+					t.Fatalf("Failed to get current working directory: %v", err)
+				}
+				defer func() {
+					if errChdir := os.Chdir(cwd); errChdir != nil {
+						t.Fatalf("Failed to restore working directory: %v", errChdir)
+					}
+				}()
+
+				tmpDir := t.TempDir()
+				if errChdir := os.Chdir(tmpDir); errChdir != nil {
+					t.Fatalf("Failed to change into temp directory: %v", errChdir)
+				}
+
+				// Helper to create directories
+				createDir := func(path string) {
+					if mkdirErr := os.MkdirAll(path, domain.DirPerm); mkdirErr != nil {
+						t.Fatalf("Failed to create directory %s: %v", path, mkdirErr)
+					}
+				}
+
+				// Helper to check if directory exists
+				exists := func(path string) bool {
+					_, statErr := os.Stat(path)
+					return statErr == nil
+				}
+
+				// Clean everything before setup (technically fresh tmpDir but good practice)
+				_ = os.RemoveAll(domain.DefaultSamePath())
+
+				tt.setup(createDir)
+
+				ctrl := gomock.NewController(t)
+				defer ctrl.Finish()
+
+				mockLogger := mocks.NewMockLogger(ctrl)
+				// We expect some logs, but we can be loose or strict.
+				// Let's just allow any Info calls.
+				mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+
+				// Null dependencies for others
+				a := app.New(nil, nil, mockLogger, nil, nil, nil, nil)
+
+				err = a.Clean(context.Background(), tt.options)
+				if err != nil {
+					t.Errorf("Clean() error = %v", err)
+				}
+				tt.check(t, exists)
+			})
+		})
+	}
+}

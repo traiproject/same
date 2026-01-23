@@ -1,0 +1,58 @@
+---
+title: "Clean"
+description: "Clean the build cache and artifacts"
+---
+
+The `clean` command removes cached data and artifacts from your workspace to help resolve issues or free up disk space.
+
+```bash
+same clean [flags]
+```
+
+## Behavior
+
+By default, when run without any flags, the `clean` command removes the Build Info Store, which contains the cache of task outputs and execution metadata. This is useful when you want to force a clean rebuild of all tasks.
+
+## Flags
+
+### `--tools`
+
+**Short flag:** `-t`
+
+Removes the tool resolution caches, including NixHub and Environment caches. This is useful if tool provisioning is broken or you're experiencing issues with tools not being resolved correctly.
+
+```bash
+same clean --tools
+```
+
+### `--all`
+
+**Short flag:** `-a`
+
+Removes all caches, including Build, Tools, and Environments. This performs a complete cleanup of all cached data.
+
+```bash
+same clean --all
+```
+
+## Examples
+
+Clean only the build cache (default behavior):
+```bash
+same clean
+```
+
+Clean only the tool resolution caches:
+```bash
+same clean --tools
+```
+
+Clean all caches:
+```bash
+same clean --all
+```
+
+Clean all caches using the short flag:
+```bash
+same clean -a
+```

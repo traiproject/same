@@ -49,6 +49,7 @@
             "pages": [
               "cli/global-flags",
               "cli/run",
+              "cli/clean",
               "cli/version"
             ]
           },

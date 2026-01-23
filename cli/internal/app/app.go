@@ -175,6 +175,39 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 	return g.Wait()
 }
 
+// CleanOptions configuration for the Clean method.
+type CleanOptions struct {
+	Build bool
+	Tools bool
+}
+
+// Clean removes cache and build artifacts based on the provided options.
+func (a *App) Clean(_ context.Context, options CleanOptions) error {
+	var errs error
+
+	// Helper to remove a directory and log the action
+	remove := func(path string, name string) {
+		// Log what we are doing
+		a.logger.Info(fmt.Sprintf("removing %s...", name))
+		if err := os.RemoveAll(path); err != nil {
+			errs = errors.Join(errs, zerr.Wrap(err, fmt.Sprintf("failed to remove %s", name)))
+			return
+		}
+		a.logger.Info(fmt.Sprintf("removed %s", name))
+	}
+
+	if options.Build {
+		remove(domain.DefaultStorePath(), "build info store")
+	}
+
+	if options.Tools {
+		remove(domain.DefaultNixHubCachePath(), "nix tool cache")
+		remove(domain.DefaultEnvCachePath(), "environment cache")
+	}
+
+	return errs
+}
+
 // setupOTel configures the OpenTelemetry SDK with the TUI bridge.
 func setupOTel(bridge *telemetry.TUIBridge) {
 	// Create a new TracerProvider with the TUI bridge as a SpanProcessor.
