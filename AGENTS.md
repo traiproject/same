@@ -64,11 +64,9 @@ Do not use legacy Go patterns.
 
 ### 6. Version Control & Atomicity
 
-- **Tooling:** Use `jj` (Jujutsu) for version control.
 - **Frequency:** You must separate work into atomic commits. Create a commit
   immediately after a logical unit of work passes the **Verification** steps
   (Format, Lint, Test).
-- **Command:** `jj commit -m "<message>"`
 - **Message Format:** Strictly follow **Conventional Commits**
   (`type(scope): description`).
   - **Types:** `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `perf`.
