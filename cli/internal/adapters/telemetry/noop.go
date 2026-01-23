@@ -39,3 +39,6 @@ func (s *NoOpSpan) SetAttribute(_ string, _ any) {}
 func (s *NoOpSpan) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
+
+// MarkExecStart does nothing.
+func (s *NoOpSpan) MarkExecStart() {}
