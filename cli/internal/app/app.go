@@ -31,6 +31,7 @@ type App struct {
 	resolver     ports.InputResolver
 	envFactory   ports.EnvironmentFactory
 	teaOptions   []tea.ProgramOption
+	disableTick  bool
 }
 
 // New creates a new App instance.
@@ -61,6 +62,13 @@ func (a *App) WithTeaOptions(opts ...tea.ProgramOption) *App {
 	return a
 }
 
+// WithDisableTick disables the TUI tick loop.
+// This is primarily used for testing with synctest to avoid goroutine deadlocks.
+func (a *App) WithDisableTick() *App {
+	a.disableTick = true
+	return a
+}
+
 // RunOptions configuration for the Run method.
 type RunOptions struct {
 	NoCache bool
@@ -68,6 +76,8 @@ type RunOptions struct {
 }
 
 // Run executes the build process for the specified targets.
+//
+//nolint:cyclop // orchestration function
 func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
 	// 0. Redirect Logs for TUI
 	// We want to avoid polluting the terminal with app logs while the TUI is running.
@@ -102,6 +112,9 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 	// 3. Initialize TUI
 	// The TUI model holds the state of the UI.
 	tuiModel := tui.NewModel(os.Stderr)
+	if a.disableTick {
+		tuiModel = tuiModel.WithDisableTick()
+	}
 	// The Program manages the TUI lifecycle.
 	// We capture the program to clean it up if needed.
 	optsTea := append([]tea.ProgramOption{tea.WithContext(ctx)}, a.teaOptions...)

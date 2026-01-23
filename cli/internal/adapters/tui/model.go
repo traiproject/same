@@ -75,6 +75,7 @@ type Model struct {
 	FlatList     []*TaskNode
 	ViewMode     ViewMode
 	TickInterval time.Duration
+	DisableTick  bool // Disable tick loop for testing
 }
 
 // Init initializes the model.
@@ -136,9 +137,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ViewMode = ViewModeTree
 				m.FollowMode = true
 				m.ensureVisible()
-				return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
-					return MsgTick(t)
-				})
+				if !m.DisableTick {
+					return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
+						return MsgTick(t)
+					})
+				}
 			}
 			// Existing esc logic for follow mode
 			m.FollowMode = true
@@ -263,9 +266,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ViewMode = ViewModeTree
 		m.TickInterval = defaultTickInterval * time.Millisecond
 
-		return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
-			return MsgTick(t)
-		})
+		if !m.DisableTick {
+			return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
+				return MsgTick(t)
+			})
+		}
+		return m, nil
 
 	case telemetry.MsgTaskStart:
 		if node, ok := m.TaskMap[msg.Name]; ok {
@@ -304,7 +310,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case MsgTick:
-		if m.ViewMode == ViewModeTree {
+		if m.ViewMode == ViewModeTree && !m.DisableTick {
 			return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
 				return MsgTick(t)
 			})

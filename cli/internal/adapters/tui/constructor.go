@@ -33,3 +33,11 @@ func NewModel(w io.Writer) Model {
 		TickInterval: defaultTickInterval * time.Millisecond,
 	}
 }
+
+// WithDisableTick disables the tick loop for testing.
+//
+//nolint:gocritic // hugeParam ignored
+func (m Model) WithDisableTick() Model {
+	m.DisableTick = true
+	return m
+}
