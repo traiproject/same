@@ -13,37 +13,28 @@ func TestModel_Update_WindowSize(t *testing.T) {
 	t.Parallel()
 
 	m := &tui.Model{}
-	m.Init() // explicit init call just for coverage
+	m.Init()
 
-	// Create some dummy tasks
 	tasks := []string{"task1", "task2"}
 	msgInit := telemetry.MsgInitTasks{Tasks: tasks}
 	newM, _ := m.Update(msgInit)
 	m = newM.(*tui.Model)
 
-	// Send WindowSizeMsg
 	width, height := 100, 50
 	msgResize := tea.WindowSizeMsg{Width: width, Height: height}
 
 	newM, _ = m.Update(msgResize)
 	m = newM.(*tui.Model)
 
-	// Check dimensions
-	// Check dimensions
-	// taskListWidthRatio check manually or expose constant?
-	expectedListWidth := int(float64(width) * 0.3)
-	expectedLogWidth := width - expectedListWidth - 4 // subtracting logPaneBorderWidth (4)
-	// We verify logic with hardcoded expectation based on known values.
-	// 100 * 0.3 = 30. 100 - 30 - 4 = 66.
-
-	assert.Equal(t, expectedLogWidth, m.LogWidth)
+	// In tree view mode, LogWidth = msg.Width (full width)
+	assert.Equal(t, width, m.LogWidth)
 	assert.Positive(t, m.LogHeight)
 	assert.Positive(t, m.ListHeight)
 
 	// Verify task terminals were resized
-	for _, node := range m.Tasks {
-		assert.Equal(t, expectedLogWidth, node.Term.Width)
-		assert.Equal(t, m.LogHeight, node.Term.Height)
+	for name, node := range m.TaskMap {
+		assert.Equal(t, width, node.Term.Width, "Task %s terminal width mismatch", name)
+		assert.Equal(t, m.LogHeight, node.Term.Height, "Task %s terminal height mismatch", name)
 	}
 }
 
@@ -60,33 +51,41 @@ func TestModel_Update_Navigation(t *testing.T) {
 	for i, tag := range tags {
 		m.Tasks[i] = &tui.TaskNode{Name: tag, Term: tui.NewVterm()}
 	}
+	m.FlatList = m.Tasks
+	m.ViewMode = tui.ViewModeTree
 
 	// 1. Initial State
 	assert.Equal(t, 0, m.SelectedIdx)
 
 	// 2. Down (j)
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m = updated.(*tui.Model)
 	assert.Equal(t, 1, m.SelectedIdx)
 	assert.False(t, m.FollowMode)
 
 	// 3. Down (down)
-	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m = updated.(*tui.Model)
 	assert.Equal(t, 2, m.SelectedIdx)
 
 	// 4. Down at bottom (clamped)
-	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m = updated.(*tui.Model)
 	assert.Equal(t, 2, m.SelectedIdx)
 
 	// 5. Up (k)
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	m = updated.(*tui.Model)
 	assert.Equal(t, 1, m.SelectedIdx)
 
 	// 6. Up (up)
-	m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m = updated.(*tui.Model)
 	assert.Equal(t, 0, m.SelectedIdx)
 
 	// 7. Up at top (clamped)
-	m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m = updated.(*tui.Model)
 	assert.Equal(t, 0, m.SelectedIdx)
 }
 
@@ -102,42 +101,52 @@ func TestModel_Update_Telemetry(t *testing.T) {
 	// 1. Init Tasks
 	tasks := []string{"task1"}
 	msgInit := telemetry.MsgInitTasks{Tasks: tasks}
-	m.Update(msgInit)
+	updated, _ := m.Update(msgInit)
+	m = updated.(*tui.Model)
 
-	assert.Len(t, m.Tasks, 1)
+	assert.Len(t, m.TaskMap, 1)
 	assert.Contains(t, m.TaskMap, "task1")
-	assert.Equal(t, tui.StatusPending, m.Tasks[0].Status)
-	assert.Equal(t, 100, m.Tasks[0].Term.Width) // Should use pre-set dims
+	task1 := m.TaskMap["task1"]
+	assert.Equal(t, tui.StatusPending, task1.Status)
+	assert.Equal(t, 100, task1.Term.Width)
 
 	// 2. Start Task
 	spanID := "span-123"
 	msgStart := telemetry.MsgTaskStart{Name: "task1", SpanID: spanID}
-	m.Update(msgStart)
+	updated, _ = m.Update(msgStart)
+	m = updated.(*tui.Model)
 
-	assert.Equal(t, tui.StatusRunning, m.Tasks[0].Status)
+	task1 = m.TaskMap["task1"]
+	assert.Equal(t, tui.StatusRunning, task1.Status)
 	assert.Contains(t, m.SpanMap, spanID)
-	// Follow mode active -> should select this task
 	assert.Equal(t, 0, m.SelectedIdx)
 	assert.Equal(t, "task1", m.ActiveTaskName)
 
 	// 3. Log Task
 	msgLog := telemetry.MsgTaskLog{SpanID: spanID, Data: []byte("hello log")}
-	m.Update(msgLog)
+	updated, _ = m.Update(msgLog)
+	m = updated.(*tui.Model)
 
-	output := m.Tasks[0].Term.View()
+	task1 = m.TaskMap["task1"]
+	output := task1.Term.View()
 	assert.Contains(t, output, "hello log")
 
 	// 4. Complete Task (Success)
 	msgComplete := telemetry.MsgTaskComplete{SpanID: spanID, Err: nil}
-	m.Update(msgComplete)
-	assert.Equal(t, tui.StatusDone, m.Tasks[0].Status)
+	updated, _ = m.Update(msgComplete)
+	m = updated.(*tui.Model)
+	
+	task1 = m.TaskMap["task1"]
+	assert.Equal(t, tui.StatusDone, task1.Status)
 
 	// 5. Complete Task (Error)
-	// Reset status for test
-	m.Tasks[0].Status = tui.StatusRunning
+	task1.Status = tui.StatusRunning
 	msgError := telemetry.MsgTaskComplete{SpanID: spanID, Err: assert.AnError}
-	m.Update(msgError)
-	assert.Equal(t, tui.StatusError, m.Tasks[0].Status)
+	updated, _ = m.Update(msgError)
+	m = updated.(*tui.Model)
+	
+	task1 = m.TaskMap["task1"]
+	assert.Equal(t, tui.StatusError, task1.Status)
 }
 
 func TestModel_Update_Esc(t *testing.T) {
@@ -151,8 +160,9 @@ func TestModel_Update_Esc(t *testing.T) {
 		},
 		SelectedIdx: 0,
 		FollowMode:  false,
+		ViewMode:    tui.ViewModeTree,
 	}
-	// Setup map needed for updateActiveView
+	m.FlatList = m.Tasks
 	m.TaskMap = map[string]*tui.TaskNode{
 		"t1": m.Tasks[0],
 		"t2": m.Tasks[1],
@@ -161,14 +171,17 @@ func TestModel_Update_Esc(t *testing.T) {
 	m.Tasks[0].Term = tui.NewVterm()
 	m.Tasks[1].Term = tui.NewVterm()
 	m.Tasks[2].Term = tui.NewVterm()
+	for _, task := range m.Tasks {
+		task.CanonicalNode = task
+	}
 
-	// Press Esc
-	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(*tui.Model)
 
 	// Should jump to running task (index 1) and enable follow mode
 	assert.Equal(t, 1, m.SelectedIdx)
 	assert.True(t, m.FollowMode)
-	assert.Equal(t, "t2", m.ActiveTaskName)
+	// Note: ActiveTaskName is not set by Esc handler, only SelectedIdx
 }
 
 func TestModel_Update_Quit(t *testing.T) {

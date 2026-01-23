@@ -22,9 +22,11 @@ func TestUpdate_SlidingWindow_Scrolling(t *testing.T) {
 	m := &tui.Model{
 		Tasks:       tasks,
 		TaskMap:     make(map[string]*tui.TaskNode),
+		FlatList:    tasks,
 		ListHeight:  5,
 		ListOffset:  0,
 		SelectedIdx: 0,
+		ViewMode:    tui.ViewModeTree,
 	}
 	for _, task := range tasks {
 		m.TaskMap[task.Name] = task
@@ -93,6 +95,7 @@ func TestUpdate_SlidingWindow_AutoFollow(t *testing.T) {
 	}
 	m := &tui.Model{
 		Tasks:      tasks,
+		FlatList:   tasks,
 		TaskMap:    make(map[string]*tui.TaskNode),
 		SpanMap:    make(map[string]*tui.TaskNode),
 		ListHeight: 5,
@@ -121,29 +124,16 @@ func TestUpdate_SlidingWindow_AutoFollow(t *testing.T) {
 
 func TestUpdate_SlidingWindow_Resize(t *testing.T) {
 	m := &tui.Model{
-		Tasks: []*tui.TaskNode{{Name: "t1", Term: tui.NewVterm()}},
+		Tasks:    []*tui.TaskNode{{Name: "t1", Term: tui.NewVterm()}},
+		TaskMap:  make(map[string]*tui.TaskNode),
+		ViewMode: tui.ViewModeTree,
 	}
-
-	// Helper to calculate expected height same way as implementation
-	// We need to match the implementation logic:
-	// fullHeader := titleStyle.Render("TASKS") + "\n\n"
-	// listInfoHeight := lipgloss.Height(fullHeader)
-	// m.ListHeight = msg.Height - listInfoHeight
-
-	// Only way to match exactly is to rely on lipgloss behaving consistently.
-	// We know "TASKS" + "\n\n" is at least 3 lines if styling adds nothing excessive.
-	// But styling might add borders.
+	m.TaskMap["t1"] = m.Tasks[0]
 
 	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
 	updatedModel, _ := m.Update(msg)
 	m = updatedModel.(*tui.Model)
 
-	// We can't assert exact number easily without duplicating style logic or exporting it.
-	// But we can assert it is < 50 and > 40 (assuming header is small).
 	assert.Less(t, m.ListHeight, 50)
 	assert.Greater(t, m.ListHeight, 40)
-
-	// Check offset adjustment?
-	// If we set SelectedIdx high, it should clamp?
-	// Implementation ensureVisible checks bounds.
 }
