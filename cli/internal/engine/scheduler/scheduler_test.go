@@ -60,7 +60,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
 
 		// Telemetry Expectations
-		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C", "D"}))
+		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C", "D"}), gomock.Any(), gomock.Any())
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
 		mockSpan.EXPECT().End().Times(4) // 1x Hydration, 3x Tasks (D, B, C)
 		mockSpan.EXPECT().RecordError(gomock.Any()).Do(func(err error) {
@@ -172,7 +172,7 @@ func TestScheduler_Run_Partial(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
 
 		// Expectations
-		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C"}))
+		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C"}), gomock.Any(), gomock.Any())
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
 
 		// Tasks C, B, A run
@@ -231,7 +231,7 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
 
-		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C"}))
+		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C"}), gomock.Any(), gomock.Any())
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
 
 		mockTracer.EXPECT().Start(gomock.Any(), "A").Return(context.Background(), mockSpan)
@@ -272,7 +272,7 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
 
-		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{})
+		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{}, gomock.Any(), gomock.Any())
 		mockSpan := mocks.NewMockSpan(ctrl)
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
 		mockSpan.EXPECT().End()
@@ -389,7 +389,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		const outputHash = "outHash"
 
 		// 1. First Run: Cache Miss
-		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"})
+		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
 		mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
 		mockSpan.EXPECT().End().Times(2)
@@ -405,7 +405,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		require.NoError(t, err)
 
 		// 2. Second Run: Cache Hit
-		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"})
+		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
 		mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
 		mockSpan.EXPECT().End().Times(2)

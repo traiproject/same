@@ -58,7 +58,7 @@ func TestOTelTracer_WithProgram(t *testing.T) {
 	ctx := context.Background()
 
 	// Test EmitPlan
-	tracer.EmitPlan(ctx, []string{"task1"})
+	tracer.EmitPlan(ctx, []string{"task1"}, map[string][]string{}, []string{})
 
 	select {
 	case msg := <-msgCh:
@@ -184,7 +184,7 @@ func TestTracer_NoProgram(t *testing.T) {
 	ctx := context.Background()
 
 	// EmitPlan
-	tracer.EmitPlan(ctx, []string{"task"})
+	tracer.EmitPlan(ctx, []string{"task"}, map[string][]string{}, []string{})
 
 	// Start
 	_, span := tracer.Start(ctx, "task")

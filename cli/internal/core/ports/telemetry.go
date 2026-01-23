@@ -12,7 +12,7 @@ type Tracer interface {
 	// Start creates a new span.
 	Start(ctx context.Context, name string, opts ...SpanOption) (context.Context, Span)
 	// EmitPlan signals that a set of tasks is planned for execution.
-	EmitPlan(ctx context.Context, taskNames []string)
+	EmitPlan(ctx context.Context, taskNames []string, dependencies map[string][]string, targets []string)
 }
 
 // Span represents a unit of work.

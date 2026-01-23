@@ -1,9 +1,9 @@
-// Package tui provides a textual user interface for the build system.
 package tui
 
 import (
 	"io"
 	"os"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -18,10 +18,15 @@ func NewModel(w io.Writer) Model {
 	lipgloss.SetColorProfile(out.Profile)
 
 	return Model{
-		Tasks:      make([]*TaskNode, 0),
-		TaskMap:    make(map[string]*TaskNode),
-		SpanMap:    make(map[string]*TaskNode),
-		Output:     out,
-		AutoScroll: true,
+		Tasks:        make([]*TaskNode, 0),
+		TaskMap:      make(map[string]*TaskNode),
+		SpanMap:      make(map[string]*TaskNode),
+		TreeRoots:    make([]*TaskNode, 0),
+		FlatList:     make([]*TaskNode, 0),
+		Output:       out,
+		AutoScroll:   true,
+		ViewMode:     ViewModeTree,
+		FollowMode:   true,
+		TickInterval: 100 * time.Millisecond,
 	}
 }

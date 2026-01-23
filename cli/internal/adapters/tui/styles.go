@@ -53,4 +53,12 @@ var (
 			Padding(0, 1).
 			Background(colorIris).
 			Foreground(colorWhite)
+
+	// Tree connector styles.
+	treeConnectorStyle = lipgloss.NewStyle().
+				Foreground(colorSlate).
+				Faint(true)
+
+	expanderStyle = lipgloss.NewStyle().
+			Foreground(colorIris)
 )

@@ -124,7 +124,18 @@ func (s *Scheduler) Run(
 		}
 	}
 
-	s.tracer.EmitPlan(ctx, plannedTasks)
+	// Build dependency map
+	depMap := make(map[string][]string)
+	for _, taskName := range plannedTasks {
+		task, _ := graph.GetTask(domain.NewInternedString(taskName))
+		deps := make([]string, len(task.Dependencies))
+		for i, dep := range task.Dependencies {
+			deps[i] = dep.String()
+		}
+		depMap[taskName] = deps
+	}
+
+	s.tracer.EmitPlan(ctx, plannedTasks, depMap, targetNames)
 
 	// Phase 1: Batch Environment Hydration
 	// Resolve all unique environments concurrently before execution starts

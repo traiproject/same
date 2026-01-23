@@ -44,7 +44,7 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	// Mock Expectations
 
 	// 1. EmitPlan
-	mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"})
+	mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
 	mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
 	// We expect hydration to be called.
 	// 4. Env Factory Resolution

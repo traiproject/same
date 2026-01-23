@@ -1,15 +1,12 @@
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"go.trai.ch/same/internal/adapters/telemetry"
-)
-
-const (
-	taskListWidthRatio = 0.3
-	logPaneBorderWidth = 4
 )
 
 // TaskStatus represents the current state of a task.
@@ -32,7 +29,31 @@ type TaskNode struct {
 	Status TaskStatus
 	Term   *Vterm
 	Cached bool
+
+	// Tree structure
+	Children      []*TaskNode
+	Parent        *TaskNode
+	IsExpanded    bool
+	Depth         int
+	CanonicalNode *TaskNode // Reference to the node in TaskMap for live status
+
+	// Duration tracking
+	StartTime time.Time
+	EndTime   time.Time
 }
+
+// ViewMode represents the current view state of the TUI.
+type ViewMode string
+
+const (
+	// ViewModeTree displays the task tree with dependencies.
+	ViewModeTree ViewMode = "tree"
+	// ViewModeLogs displays full-screen logs for a specific task.
+	ViewModeLogs ViewMode = "logs"
+)
+
+// MsgTick is sent periodically to update running task durations.
+type MsgTick time.Time
 
 // Model represents the main TUI state.
 type Model struct {
@@ -48,6 +69,12 @@ type Model struct {
 	LogWidth       int
 	LogHeight      int
 	FollowMode     bool
+
+	// Tree view
+	TreeRoots    []*TaskNode
+	FlatList     []*TaskNode
+	ViewMode     ViewMode
+	TickInterval time.Duration
 }
 
 // Init initializes the model.
@@ -69,8 +96,8 @@ func (m *Model) ensureVisible() {
 }
 
 func (m *Model) getSelectedTask() *TaskNode {
-	if m.SelectedIdx >= 0 && m.SelectedIdx < len(m.Tasks) {
-		return m.Tasks[m.SelectedIdx]
+	if m.SelectedIdx >= 0 && m.SelectedIdx < len(m.FlatList) {
+		return m.FlatList[m.SelectedIdx]
 	}
 	return nil
 }
@@ -102,96 +129,155 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
-		case "k", "up":
-			if m.SelectedIdx > 0 {
-				m.SelectedIdx--
-				m.FollowMode = false
-				m.ensureVisible()
-				m.updateActiveView()
-			}
-		case "j", "down":
-			if m.SelectedIdx < len(m.Tasks)-1 {
-				m.SelectedIdx++
-				m.FollowMode = false
-				m.ensureVisible()
-				m.updateActiveView()
-			}
+
 		case "esc":
-			m.FollowMode = true
-			// Jump to the currently running task if any.
-			for i, t := range m.Tasks {
-				if t.Status == StatusRunning {
-					m.SelectedIdx = i
-					break
+			if m.ViewMode == ViewModeLogs {
+				// Return to tree view
+				m.ViewMode = ViewModeTree
+				m.FollowMode = true
+				m.ensureVisible()
+				return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
+					return MsgTick(t)
+				})
+			} else {
+				// Existing esc logic for follow mode
+				m.FollowMode = true
+				for i, node := range m.FlatList {
+					canonical := node.CanonicalNode
+					if canonical == nil {
+						canonical = node
+					}
+					if canonical.Status == StatusRunning {
+						m.SelectedIdx = i
+						break
+					}
+				}
+				m.ensureVisible()
+			}
+
+		case "enter":
+			if m.ViewMode == ViewModeTree {
+				// Switch to full-screen log view for selected task
+				m.ViewMode = ViewModeLogs
+				if node := m.getSelectedTask(); node != nil {
+					m.ActiveTaskName = node.Name
 				}
 			}
-			m.ensureVisible()
-			m.updateActiveView()
+
+		case " ": // Space
+			if m.ViewMode == ViewModeTree {
+				// Toggle expansion of selected node
+				if node := m.getSelectedTask(); node != nil && len(node.Children) > 0 {
+					node.IsExpanded = !node.IsExpanded
+					// Rebuild flat list
+					m.FlatList = flattenTree(m.TreeRoots)
+					m.ensureVisible()
+				}
+			}
+
+		case "k", "up":
+			if m.ViewMode == ViewModeTree {
+				if m.SelectedIdx > 0 {
+					m.SelectedIdx--
+					m.FollowMode = false
+					m.ensureVisible()
+				}
+			} else {
+				// Forward to terminal for log scrolling
+				if node := m.getSelectedTask(); node != nil {
+					node.Term.Update(msg)
+				}
+			}
+
+		case "j", "down":
+			if m.ViewMode == ViewModeTree {
+				if m.SelectedIdx < len(m.FlatList)-1 {
+					m.SelectedIdx++
+					m.FollowMode = false
+					m.ensureVisible()
+				}
+			} else {
+				// Forward to terminal
+				if node := m.getSelectedTask(); node != nil {
+					node.Term.Update(msg)
+				}
+			}
 
 		default:
-			// Forward keys to the active task's terminal if applicable
-			if m.ActiveTaskName != "" {
-				if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
+			// Forward other keys to terminal when in log view
+			if m.ViewMode == ViewModeLogs {
+				if node := m.getSelectedTask(); node != nil {
 					node.Term.Update(msg)
 				}
 			}
 		}
 
 	case tea.WindowSizeMsg:
-		// Split screen: 30% for task list, 70% for logs
-		listWidth := int(float64(msg.Width) * taskListWidthRatio)
-		logWidth := msg.Width - listWidth - logPaneBorderWidth // minus margins/borders
+		headerHeight := lipgloss.Height(titleStyle.Render("BUILD PLAN"))
 
-		// Calculate header height dynamically
-		headerHeight := lipgloss.Height(titleStyle.Render("TEST"))
-		logHeight := msg.Height - headerHeight
+		if m.ViewMode == ViewModeTree {
+			// Tree view: full width list
+			m.LogWidth = msg.Width
+			m.LogHeight = msg.Height - headerHeight - 2 // Reserve space for header
 
-		// Store calculated dimensions for future tasks
-		m.LogWidth = logWidth
-		m.LogHeight = logHeight
+			fullHeader := titleStyle.Render("BUILD PLAN") + "\n\n"
+			listInfoHeight := lipgloss.Height(fullHeader)
+			m.ListHeight = msg.Height - listInfoHeight
+			m.ensureVisible()
+		} else {
+			// Logs view: full screen terminal
+			m.LogWidth = msg.Width
+			m.LogHeight = msg.Height - headerHeight
+		}
 
-		// Calculate ListHeight with full header including newlines
-		fullHeader := titleStyle.Render("TASKS") + "\n\n"
-		listInfoHeight := lipgloss.Height(fullHeader)
-		m.ListHeight = msg.Height - listInfoHeight
-		m.ensureVisible()
-
-		// Update all terminals
-		for _, node := range m.Tasks {
-			node.Term.SetWidth(logWidth)
-			node.Term.SetHeight(logHeight)
+		// Update all terminals with new dimensions
+		for _, node := range m.TaskMap {
+			node.Term.SetWidth(m.LogWidth)
+			node.Term.SetHeight(m.LogHeight)
 		}
 
 	case telemetry.MsgInitTasks:
-		m.Tasks = make([]*TaskNode, len(msg.Tasks))
+		// Initialize TaskMap with all tasks
 		m.TaskMap = make(map[string]*TaskNode, len(msg.Tasks))
 		m.SpanMap = make(map[string]*TaskNode)
-		for i, name := range msg.Tasks {
+
+		for _, name := range msg.Tasks {
 			term := NewVterm()
-			// If we know the dimensions, set them immediately
 			if m.LogWidth > 0 && m.LogHeight > 0 {
 				term.SetWidth(m.LogWidth)
 				term.SetHeight(m.LogHeight)
 			}
 
-			m.Tasks[i] = &TaskNode{
+			m.TaskMap[name] = &TaskNode{
 				Name:   name,
 				Status: StatusPending,
 				Term:   term,
 			}
-			m.TaskMap[name] = m.Tasks[i]
 		}
+
+		// Build tree structure
+		m.TreeRoots = buildTree(msg.Targets, msg.Dependencies, m.TaskMap)
+		m.FlatList = flattenTree(m.TreeRoots)
+
+		// Initialize view mode
+		m.ViewMode = ViewModeTree
+		m.TickInterval = 100 * time.Millisecond
+
+		return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
+			return MsgTick(t)
+		})
 
 	case telemetry.MsgTaskStart:
 		if node, ok := m.TaskMap[msg.Name]; ok {
 			node.Status = StatusRunning
+			node.StartTime = msg.StartTime
 			m.SpanMap[msg.SpanID] = node
 
 			// Focus follows activity ONLY if FollowMode is true
 			if m.FollowMode {
 				m.ActiveTaskName = msg.Name
-				// Find index of this task
-				for i, t := range m.Tasks {
+				// Find index of this task in FlatList
+				for i, t := range m.FlatList {
 					if t.Name == msg.Name {
 						m.SelectedIdx = i
 						break
@@ -209,11 +295,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case telemetry.MsgTaskComplete:
 		if node, ok := m.SpanMap[msg.SpanID]; ok {
+			node.EndTime = msg.EndTime
 			if msg.Err != nil {
 				node.Status = StatusError
 			} else {
 				node.Status = StatusDone
 			}
+		}
+
+	case MsgTick:
+		if m.ViewMode == ViewModeTree {
+			return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
+				return MsgTick(t)
+			})
 		}
 	}
 
