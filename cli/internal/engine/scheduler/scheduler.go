@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -289,6 +290,7 @@ func (state *schedulerRunState) prepareEnvironments(ctx context.Context) error {
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(runtime.NumCPU())
 
 	for _, item := range envsToResolve {
 		item := item // capture loop var
