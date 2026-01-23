@@ -71,7 +71,6 @@ func TestBuildTree_StatusUpdates(t *testing.T) {
 	assert.Equal(t, tui.StatusDone, roots[0].Children[0].CanonicalNode.Status)
 }
 
-
 func TestBuildTree_SharedDependency(t *testing.T) {
 	t.Parallel()
 
@@ -131,8 +130,8 @@ func TestBuildTree_NoDependencies(t *testing.T) {
 	assert.Len(t, roots, 2)
 	assert.Equal(t, "A", roots[0].Name)
 	assert.Equal(t, "B", roots[1].Name)
-	assert.Len(t, roots[0].Children, 0)
-	assert.Len(t, roots[1].Children, 0)
+	assert.Empty(t, roots[0].Children)
+	assert.Empty(t, roots[1].Children)
 }
 
 func TestBuildTree_MultipleTargets(t *testing.T) {

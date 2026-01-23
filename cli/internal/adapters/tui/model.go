@@ -139,21 +139,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
 					return MsgTick(t)
 				})
-			} else {
-				// Existing esc logic for follow mode
-				m.FollowMode = true
-				for i, node := range m.FlatList {
-					canonical := node.CanonicalNode
-					if canonical == nil {
-						canonical = node
-					}
-					if canonical.Status == StatusRunning {
-						m.SelectedIdx = i
-						break
-					}
-				}
-				m.ensureVisible()
 			}
+			// Existing esc logic for follow mode
+			m.FollowMode = true
+			for i, node := range m.FlatList {
+				canonical := node.CanonicalNode
+				if canonical == nil {
+					canonical = node
+				}
+				if canonical.Status == StatusRunning {
+					m.SelectedIdx = i
+					break
+				}
+			}
+			m.ensureVisible()
 
 		case "enter":
 			if m.ViewMode == ViewModeTree {
@@ -261,7 +260,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Initialize view mode
 		m.ViewMode = ViewModeTree
-		m.TickInterval = 100 * time.Millisecond
+		m.TickInterval = defaultTickInterval * time.Millisecond
 
 		return m, tea.Tick(m.TickInterval, func(t time.Time) tea.Msg {
 			return MsgTick(t)

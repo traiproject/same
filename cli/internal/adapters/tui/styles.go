@@ -14,16 +14,6 @@ var (
 	_          = colorInk // Silence unused warning
 	_          = colorMist
 
-	// Pane Styles.
-	listStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), false, true, false, false).
-			BorderForeground(colorSlate).
-			MarginRight(1).
-			PaddingRight(1)
-
-	logStyle = lipgloss.NewStyle().
-			PaddingLeft(1)
-
 	// Task Status Styles.
 	taskPendingStyle = lipgloss.NewStyle().
 				Foreground(colorSlate)
@@ -53,12 +43,4 @@ var (
 			Padding(0, 1).
 			Background(colorIris).
 			Foreground(colorWhite)
-
-	// Tree connector styles.
-	treeConnectorStyle = lipgloss.NewStyle().
-				Foreground(colorSlate).
-				Faint(true)
-
-	expanderStyle = lipgloss.NewStyle().
-			Foreground(colorIris)
 )

@@ -1,3 +1,4 @@
+// Package tui provides a terminal user interface for the build system.
 package tui
 
 import (
@@ -7,6 +8,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 )
+
+const defaultTickInterval = 100
 
 // NewModel creates a new TUI model with default settings.
 func NewModel(w io.Writer) Model {
@@ -27,6 +30,6 @@ func NewModel(w io.Writer) Model {
 		AutoScroll:   true,
 		ViewMode:     ViewModeTree,
 		FollowMode:   true,
-		TickInterval: 100 * time.Millisecond,
+		TickInterval: defaultTickInterval * time.Millisecond,
 	}
 }

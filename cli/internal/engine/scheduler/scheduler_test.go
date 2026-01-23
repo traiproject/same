@@ -60,7 +60,12 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
 
 		// Telemetry Expectations
-		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C", "D"}), gomock.Any(), gomock.Any())
+		mockTracer.EXPECT().EmitPlan(
+			gomock.Any(),
+			gomock.InAnyOrder([]string{"A", "B", "C", "D"}),
+			gomock.Any(),
+			gomock.Any(),
+		)
 		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
 		mockSpan.EXPECT().End().Times(4) // 1x Hydration, 3x Tasks (D, B, C)
 		mockSpan.EXPECT().RecordError(gomock.Any()).Do(func(err error) {

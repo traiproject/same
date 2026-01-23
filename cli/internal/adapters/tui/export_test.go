@@ -1,6 +1,6 @@
 package tui
 
-// Export functions for testing
+// Export functions for testing.
 var (
 	BuildTree   = buildTree
 	FlattenTree = flattenTree
