@@ -21,7 +21,7 @@ func (t *NoOpTracer) Start(ctx context.Context, _ string, _ ...ports.SpanOption)
 }
 
 // EmitPlan does nothing.
-func (t *NoOpTracer) EmitPlan(_ context.Context, _ []string) {}
+func (t *NoOpTracer) EmitPlan(_ context.Context, _ []string, _ map[string][]string, _ []string) {}
 
 // NoOpSpan is a no-op implementation of ports.Span.
 type NoOpSpan struct{}

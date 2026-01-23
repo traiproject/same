@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -15,54 +16,161 @@ func (m *Model) View() string {
 		return "Initializing..."
 	}
 
-	return lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.taskList(),
-		m.logPane(),
-	)
+	switch m.ViewMode {
+	case ViewModeTree:
+		return m.treeView()
+	case ViewModeLogs:
+		return m.fullScreenLogView()
+	default:
+		return m.treeView()
+	}
 }
 
 //nolint:gocritic // hugeParam ignored
-func (m *Model) taskList() string {
+func (m *Model) treeView() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render("TASKS") + "\n\n")
+	s.WriteString(titleStyle.Render("BUILD PLAN") + "\n\n")
+
+	// Handle empty plan
+	if len(m.FlatList) == 0 {
+		s.WriteString("  No tasks planned\n")
+		return s.String()
+	}
 
 	start := m.ListOffset
 	end := m.ListOffset + m.ListHeight
-	if end > len(m.Tasks) {
-		end = len(m.Tasks)
+	if end > len(m.FlatList) {
+		end = len(m.FlatList)
 	}
 	if start > end {
 		start = end
 	}
 
 	for i := start; i < end; i++ {
-		task := m.Tasks[i]
-		s.WriteString(m.renderTaskRow(i, task) + "\n")
+		node := m.FlatList[i]
+		s.WriteString(m.renderTreeRow(i, node) + "\n")
 	}
 
-	return listStyle.Render(s.String())
+	return s.String()
 }
 
-func (m *Model) renderTaskRow(index int, task *TaskNode) string {
-	icon := m.getTaskIcon(task)
-	style := m.getTaskStyle(task)
+func (m *Model) renderTreeRow(index int, node *TaskNode) string {
+	// Get live status from canonical node
+	canonical := node.CanonicalNode
+	if canonical == nil {
+		canonical = node // Fallback if no canonical node set
+	}
 
-	// Highlight selected task
+	icon := m.getTaskIcon(canonical)
+	style := m.getTaskStyle(canonical)
+
+	// Build tree connector based on depth
+	indent := strings.Repeat("  ", node.Depth)
+	var connector string
+	if node.Depth > 0 {
+		if isLastChild(node) {
+			connector = "└── "
+		} else {
+			connector = "├── "
+		}
+	}
+
+	// Expansion indicator
+	var expander string
+	if len(node.Children) > 0 {
+		if node.IsExpanded {
+			expander = "▼ "
+		} else {
+			expander = "▶ "
+		}
+	} else {
+		expander = "  "
+	}
+
+	// Duration display (use canonical node for times)
+	duration := m.formatDuration(canonical)
+
+	// Selection cursor
 	var cursor string
 	if index == m.SelectedIdx {
 		cursor = selectedStyle.Render("> ")
-		// If not Done/Error, highlight the text with Iris as well
-		if task.Status != StatusDone && task.Status != StatusError {
+		if canonical.Status != StatusDone && canonical.Status != StatusError {
 			style = selectedStyle
 		}
 	} else {
 		cursor = "  "
 	}
 
-	content := fmt.Sprintf("%s %s", icon, task.Name)
+	content := fmt.Sprintf("%s%s%s%s %s %s",
+		indent, connector, expander, icon, node.Name, duration)
+
 	return cursor + style.Render(content)
+}
+
+func isLastChild(node *TaskNode) bool {
+	if node.Parent == nil {
+		return false
+	}
+	children := node.Parent.Children
+	return len(children) > 0 && children[len(children)-1] == node
+}
+
+func (m *Model) formatDuration(node *TaskNode) string {
+	if node.Status == StatusPending {
+		return ""
+	}
+
+	var duration time.Duration
+	if node.Status == StatusRunning {
+		duration = time.Since(node.StartTime)
+	} else {
+		duration = node.EndTime.Sub(node.StartTime)
+	}
+
+	if duration < time.Second {
+		return fmt.Sprintf("[%dms]", duration.Milliseconds())
+	}
+	return fmt.Sprintf("[%.1fs]", duration.Seconds())
+}
+
+//nolint:gocritic // hugeParam ignored
+func (m *Model) fullScreenLogView() string {
+	var header string
+	var content string
+
+	if m.ActiveTaskName == "" {
+		return "No task selected"
+	}
+
+	node, ok := m.TaskMap[m.ActiveTaskName]
+	if !ok {
+		return "Task not found"
+	}
+
+	status := ""
+	switch node.Status {
+	case StatusRunning:
+		status = " (Running)"
+	case StatusDone:
+		status = " (Completed)"
+	case StatusError:
+		status = " (Failed)"
+	default:
+		status = " (Pending)"
+	}
+
+	duration := m.formatDuration(node)
+	header = titleStyle.Render(fmt.Sprintf("LOGS: %s%s %s | Press ESC to return",
+		node.Name, status, duration))
+
+	content = node.Term.View()
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		content,
+	)
 }
 
 func (m *Model) getTaskIcon(task *TaskNode) string {
@@ -97,34 +205,4 @@ func (m *Model) getTaskStyle(task *TaskNode) lipgloss.Style {
 	default: // Pending
 		return taskPendingStyle
 	}
-}
-
-//nolint:gocritic // hugeParam ignored
-func (m *Model) logPane() string {
-	var header string
-	var content string
-
-	if m.ActiveTaskName != "" {
-		status := ""
-		if m.FollowMode {
-			status = " (Following)"
-		} else {
-			status = " (Manual)"
-		}
-		header = titleStyle.Render("LOGS: " + m.ActiveTaskName + status)
-
-		if node, ok := m.TaskMap[m.ActiveTaskName]; ok {
-			content = node.Term.View()
-		}
-	} else {
-		header = titleStyle.Render("LOGS (Waiting...)")
-	}
-
-	return logStyle.Render(
-		lipgloss.JoinVertical(
-			lipgloss.Left,
-			header,
-			content,
-		),
-	)
 }

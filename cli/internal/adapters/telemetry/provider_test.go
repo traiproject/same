@@ -36,7 +36,7 @@ func TestOTelTracer_EmitPlan(t *testing.T) {
 	tracer.WithProgram(prog)
 
 	ctx := context.Background()
-	tracer.EmitPlan(ctx, []string{"task1", "task2"})
+	tracer.EmitPlan(ctx, []string{"task1", "task2"}, map[string][]string{}, []string{})
 
 	// Wait for span
 	_ = tp.ForceFlush(ctx)
@@ -47,7 +47,7 @@ func TestOTelTracer_EmitPlan(t *testing.T) {
 
 	// Create a span context
 	ctx, span := tp.Tracer("test").Start(ctx, "root")
-	tracer.EmitPlan(ctx, []string{"task1", "task2"})
+	tracer.EmitPlan(ctx, []string{"task1", "task2"}, map[string][]string{}, []string{})
 	span.End()
 
 	_ = tp.ForceFlush(ctx)

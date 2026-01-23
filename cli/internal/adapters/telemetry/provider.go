@@ -96,7 +96,12 @@ func (t *OTelTracer) Start(ctx context.Context, name string, opts ...ports.SpanO
 }
 
 // EmitPlan signals that a set of tasks is planned for execution by adding an event to the current span.
-func (t *OTelTracer) EmitPlan(ctx context.Context, taskNames []string) {
+func (t *OTelTracer) EmitPlan(
+	ctx context.Context,
+	taskNames []string,
+	dependencies map[string][]string,
+	targets []string,
+) {
 	span := trace.SpanFromContext(ctx)
 	if span.IsRecording() {
 		span.AddEvent("plan_emitted", trace.WithAttributes(
@@ -111,13 +116,17 @@ func (t *OTelTracer) EmitPlan(ctx context.Context, taskNames []string) {
 	if prog != nil {
 		select {
 		case t.logChan <- MsgInitTasks{
-			Tasks: taskNames,
+			Tasks:        taskNames,
+			Dependencies: dependencies,
+			Targets:      targets,
 		}:
 		default:
 			// Ensure InitTasks is sent even if buffer is full (blocking fallback)
 			// This is critical for UI initialization
 			t.logChan <- MsgInitTasks{
-				Tasks: taskNames,
+				Tasks:        taskNames,
+				Dependencies: dependencies,
+				Targets:      targets,
 			}
 		}
 	}

@@ -27,5 +27,7 @@ type MsgTaskLog struct {
 
 // MsgInitTasks serves as a signal to initialize or reset the task list in the UI.
 type MsgInitTasks struct {
-	Tasks []string
+	Tasks        []string
+	Dependencies map[string][]string
+	Targets      []string
 }

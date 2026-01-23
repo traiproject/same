@@ -58,7 +58,8 @@ func TestApp_Build(t *testing.T) {
 				tea.WithOutput(io.Discard),
 				tea.WithoutSignalHandler(),
 				tea.WithoutRenderer(),
-			)
+			).
+			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		// Expectations
@@ -112,7 +113,8 @@ func TestApp_Run_NoTargets(t *testing.T) {
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
 				tea.WithoutSignalHandler(),
-			)
+			).
+			WithDisableTick()
 
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
@@ -163,7 +165,8 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
 				tea.WithoutSignalHandler(),
-			)
+			).
+			WithDisableTick()
 
 		// Expectations - loader fails
 		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))
@@ -224,7 +227,8 @@ func TestApp_Run_BuildExecutionFailed(t *testing.T) {
 				tea.WithOutput(io.Discard),
 				tea.WithoutSignalHandler(),
 				tea.WithoutRenderer(),
-			)
+			).
+			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		// Expectations
@@ -288,7 +292,8 @@ func TestApp_Run_LogSetupFailure(t *testing.T) {
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
 				tea.WithoutSignalHandler(),
-			)
+			).
+			WithDisableTick()
 
 		// Execute - should fail before calling Load
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})

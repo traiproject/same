@@ -13,11 +13,15 @@ func TestModel_Update_WindowSize(t *testing.T) {
 	t.Parallel()
 
 	m := &tui.Model{}
-	m.Init() // explicit init call just for coverage
+	m.Init()
 
 	// Create some dummy tasks
 	tasks := []string{"task1", "task2"}
-	msgInit := telemetry.MsgInitTasks{Tasks: tasks}
+	msgInit := telemetry.MsgInitTasks{
+		Tasks:        tasks,
+		Targets:      tasks,
+		Dependencies: map[string][]string{},
+	}
 	newM, _ := m.Update(msgInit)
 	m = newM.(*tui.Model)
 
@@ -28,21 +32,14 @@ func TestModel_Update_WindowSize(t *testing.T) {
 	newM, _ = m.Update(msgResize)
 	m = newM.(*tui.Model)
 
-	// Check dimensions
-	// Check dimensions
-	// taskListWidthRatio check manually or expose constant?
-	expectedListWidth := int(float64(width) * 0.3)
-	expectedLogWidth := width - expectedListWidth - 4 // subtracting logPaneBorderWidth (4)
-	// We verify logic with hardcoded expectation based on known values.
-	// 100 * 0.3 = 30. 100 - 30 - 4 = 66.
-
-	assert.Equal(t, expectedLogWidth, m.LogWidth)
+	// In tree view mode, log width should be full width
+	assert.Equal(t, width, m.LogWidth)
 	assert.Positive(t, m.LogHeight)
 	assert.Positive(t, m.ListHeight)
 
 	// Verify task terminals were resized
-	for _, node := range m.Tasks {
-		assert.Equal(t, expectedLogWidth, node.Term.Width)
+	for _, node := range m.TaskMap {
+		assert.Equal(t, width, node.Term.Width)
 		assert.Equal(t, m.LogHeight, node.Term.Height)
 	}
 }
@@ -50,15 +47,16 @@ func TestModel_Update_WindowSize(t *testing.T) {
 func TestModel_Update_Navigation(t *testing.T) {
 	t.Parallel()
 
-	m := &tui.Model{
-		Tasks:      make([]*tui.TaskNode, 3),
-		ListHeight: 2, // Small height to test scrolling
+	tasks := []*tui.TaskNode{
+		{Name: "t1", Term: tui.NewVterm()},
+		{Name: "t2", Term: tui.NewVterm()},
+		{Name: "t3", Term: tui.NewVterm()},
 	}
 
-	// Initialize tasks
-	tags := []string{"t1", "t2", "t3"}
-	for i, tag := range tags {
-		m.Tasks[i] = &tui.TaskNode{Name: tag, Term: tui.NewVterm()}
+	m := &tui.Model{
+		FlatList:   tasks,
+		ListHeight: 2,
+		ViewMode:   tui.ViewModeTree,
 	}
 
 	// 1. Initial State
@@ -101,20 +99,24 @@ func TestModel_Update_Telemetry(t *testing.T) {
 
 	// 1. Init Tasks
 	tasks := []string{"task1"}
-	msgInit := telemetry.MsgInitTasks{Tasks: tasks}
+	msgInit := telemetry.MsgInitTasks{
+		Tasks:        tasks,
+		Targets:      tasks,
+		Dependencies: map[string][]string{},
+	}
 	m.Update(msgInit)
 
-	assert.Len(t, m.Tasks, 1)
+	assert.Len(t, m.FlatList, 1)
 	assert.Contains(t, m.TaskMap, "task1")
-	assert.Equal(t, tui.StatusPending, m.Tasks[0].Status)
-	assert.Equal(t, 100, m.Tasks[0].Term.Width) // Should use pre-set dims
+	assert.Equal(t, tui.StatusPending, m.TaskMap["task1"].Status)
+	assert.Equal(t, 100, m.TaskMap["task1"].Term.Width) // Should use pre-set dims
 
 	// 2. Start Task
 	spanID := "span-123"
 	msgStart := telemetry.MsgTaskStart{Name: "task1", SpanID: spanID}
 	m.Update(msgStart)
 
-	assert.Equal(t, tui.StatusRunning, m.Tasks[0].Status)
+	assert.Equal(t, tui.StatusRunning, m.TaskMap["task1"].Status)
 	assert.Contains(t, m.SpanMap, spanID)
 	// Follow mode active -> should select this task
 	assert.Equal(t, 0, m.SelectedIdx)
@@ -124,43 +126,42 @@ func TestModel_Update_Telemetry(t *testing.T) {
 	msgLog := telemetry.MsgTaskLog{SpanID: spanID, Data: []byte("hello log")}
 	m.Update(msgLog)
 
-	output := m.Tasks[0].Term.View()
+	output := m.TaskMap["task1"].Term.View()
 	assert.Contains(t, output, "hello log")
 
 	// 4. Complete Task (Success)
 	msgComplete := telemetry.MsgTaskComplete{SpanID: spanID, Err: nil}
 	m.Update(msgComplete)
-	assert.Equal(t, tui.StatusDone, m.Tasks[0].Status)
+	assert.Equal(t, tui.StatusDone, m.TaskMap["task1"].Status)
 
 	// 5. Complete Task (Error)
 	// Reset status for test
-	m.Tasks[0].Status = tui.StatusRunning
+	m.TaskMap["task1"].Status = tui.StatusRunning
 	msgError := telemetry.MsgTaskComplete{SpanID: spanID, Err: assert.AnError}
 	m.Update(msgError)
-	assert.Equal(t, tui.StatusError, m.Tasks[0].Status)
+	assert.Equal(t, tui.StatusError, m.TaskMap["task1"].Status)
 }
 
 func TestModel_Update_Esc(t *testing.T) {
 	t.Parallel()
 
+	tasks := []*tui.TaskNode{
+		{Name: "t1", Status: tui.StatusDone, Term: tui.NewVterm()},
+		{Name: "t2", Status: tui.StatusRunning, Term: tui.NewVterm()},
+		{Name: "t3", Status: tui.StatusPending, Term: tui.NewVterm()},
+	}
+
 	m := &tui.Model{
-		Tasks: []*tui.TaskNode{
-			{Name: "t1", Status: tui.StatusDone},
-			{Name: "t2", Status: tui.StatusRunning},
-			{Name: "t3", Status: tui.StatusPending},
-		},
+		FlatList:    tasks,
 		SelectedIdx: 0,
 		FollowMode:  false,
+		TaskMap: map[string]*tui.TaskNode{
+			"t1": tasks[0],
+			"t2": tasks[1],
+			"t3": tasks[2],
+		},
+		ViewMode: tui.ViewModeTree,
 	}
-	// Setup map needed for updateActiveView
-	m.TaskMap = map[string]*tui.TaskNode{
-		"t1": m.Tasks[0],
-		"t2": m.Tasks[1],
-		"t3": m.Tasks[2],
-	}
-	m.Tasks[0].Term = tui.NewVterm()
-	m.Tasks[1].Term = tui.NewVterm()
-	m.Tasks[2].Term = tui.NewVterm()
 
 	// Press Esc
 	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -180,4 +181,171 @@ func TestModel_Update_Quit(t *testing.T) {
 
 	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	assert.Equal(t, tea.Quit(), cmd())
+}
+
+func TestModel_Update_SpaceToggle(t *testing.T) {
+	t.Parallel()
+
+	child := &tui.TaskNode{Name: "child", Term: tui.NewVterm()}
+	parent := &tui.TaskNode{
+		Name:       "parent",
+		Term:       tui.NewVterm(),
+		Children:   []*tui.TaskNode{child},
+		IsExpanded: false,
+	}
+	child.Parent = parent
+
+	m := &tui.Model{
+		FlatList:    []*tui.TaskNode{parent},
+		TreeRoots:   []*tui.TaskNode{parent},
+		SelectedIdx: 0,
+		ListHeight:  10,
+		ViewMode:    tui.ViewModeTree,
+	}
+
+	assert.False(t, parent.IsExpanded)
+	assert.Len(t, m.FlatList, 1)
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
+	assert.True(t, parent.IsExpanded)
+	assert.Len(t, m.FlatList, 2)
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
+	assert.False(t, parent.IsExpanded)
+	assert.Len(t, m.FlatList, 1)
+}
+
+func TestModel_Update_EnterFullScreenLogs(t *testing.T) {
+	t.Parallel()
+
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
+	m := &tui.Model{
+		FlatList:  []*tui.TaskNode{task},
+		TreeRoots: []*tui.TaskNode{task},
+		ViewMode:  tui.ViewModeTree,
+		TaskMap:   map[string]*tui.TaskNode{"task1": task},
+	}
+
+	assert.Equal(t, tui.ViewModeTree, m.ViewMode)
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	assert.Equal(t, tui.ViewModeLogs, m.ViewMode)
+	assert.Equal(t, "task1", m.ActiveTaskName)
+}
+
+func TestModel_Update_EscFromLogsView(t *testing.T) {
+	t.Parallel()
+
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
+	m := &tui.Model{
+		FlatList:    []*tui.TaskNode{task},
+		TreeRoots:   []*tui.TaskNode{task},
+		ViewMode:    tui.ViewModeLogs,
+		DisableTick: true,
+		ListHeight:  10,
+	}
+
+	assert.Equal(t, tui.ViewModeLogs, m.ViewMode)
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	assert.Equal(t, tui.ViewModeTree, m.ViewMode)
+	assert.True(t, m.FollowMode)
+}
+
+func TestModel_Update_NavigationInLogsView(t *testing.T) {
+	t.Parallel()
+
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
+	m := &tui.Model{
+		FlatList:  []*tui.TaskNode{task},
+		TreeRoots: []*tui.TaskNode{task},
+		ViewMode:  tui.ViewModeLogs,
+		TaskMap:   map[string]*tui.TaskNode{"task1": task},
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+}
+
+func TestModel_Update_MsgTick(t *testing.T) {
+	t.Parallel()
+
+	m := &tui.Model{
+		ViewMode:    tui.ViewModeTree,
+		DisableTick: false,
+	}
+
+	_, cmd := m.Update(tui.MsgTick{})
+	assert.NotNil(t, cmd)
+
+	m.ViewMode = tui.ViewModeLogs
+	_, cmd = m.Update(tui.MsgTick{})
+	assert.Nil(t, cmd)
+}
+
+func TestModel_Update_WindowSizeInLogsMode(t *testing.T) {
+	t.Parallel()
+
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
+	m := &tui.Model{
+		ViewMode: tui.ViewModeLogs,
+		TaskMap:  map[string]*tui.TaskNode{"task1": task},
+	}
+
+	width, height := 120, 60
+	msgResize := tea.WindowSizeMsg{Width: width, Height: height}
+
+	m.Update(msgResize)
+
+	assert.Equal(t, width, m.LogWidth)
+	assert.Positive(t, m.LogHeight)
+	assert.Equal(t, width, task.Term.Width)
+}
+
+func TestModel_Update_TaskStartWithoutFollowMode(t *testing.T) {
+	t.Parallel()
+
+	m := &tui.Model{
+		TaskMap: map[string]*tui.TaskNode{
+			"task1": {Name: "task1", Term: tui.NewVterm()},
+		},
+		SpanMap:    make(map[string]*tui.TaskNode),
+		FlatList:   []*tui.TaskNode{{Name: "task1", Term: tui.NewVterm()}},
+		FollowMode: false,
+	}
+
+	msgStart := telemetry.MsgTaskStart{Name: "task1", SpanID: "span-456"}
+	m.Update(msgStart)
+
+	assert.Equal(t, tui.StatusRunning, m.TaskMap["task1"].Status)
+	assert.Empty(t, m.ActiveTaskName)
+}
+
+func TestModel_ensureVisible(t *testing.T) {
+	t.Parallel()
+
+	tasks := []*tui.TaskNode{
+		{Name: "t1", Term: tui.NewVterm()},
+		{Name: "t2", Term: tui.NewVterm()},
+		{Name: "t3", Term: tui.NewVterm()},
+		{Name: "t4", Term: tui.NewVterm()},
+		{Name: "t5", Term: tui.NewVterm()},
+	}
+
+	m := &tui.Model{
+		FlatList:    tasks,
+		ListHeight:  2,
+		SelectedIdx: 4,
+		ListOffset:  0,
+		ViewMode:    tui.ViewModeTree,
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+
+	assert.Equal(t, 3, m.SelectedIdx)
+	assert.Positive(t, m.ListOffset)
 }
