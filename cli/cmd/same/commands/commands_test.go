@@ -192,3 +192,56 @@ func TestVersionCmd(t *testing.T) {
 		t.Errorf("Expected no error for version command, got: %v", err)
 	}
 }
+
+// setupCleanTest creates a test CLI with mocked dependencies for clean command tests.
+func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger) {
+	t.Helper()
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockLoader := mocks.NewMockConfigLoader(ctrl)
+	mockExecutor := mocks.NewMockExecutor(ctrl)
+	mockStore := mocks.NewMockBuildInfoStore(ctrl)
+	mockHasher := mocks.NewMockHasher(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+	mockLogger := mocks.NewMockLogger(ctrl)
+
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	return commands.New(a), mockLogger
+}
+
+func TestCleanCmd_Default(t *testing.T) {
+	cli, mockLogger := setupCleanTest(t)
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+
+	cli.SetArgs([]string{"clean"})
+	err := cli.Execute(context.Background())
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestCleanCmd_Tools(t *testing.T) {
+	cli, mockLogger := setupCleanTest(t)
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+
+	cli.SetArgs([]string{"clean", "--tools"})
+	err := cli.Execute(context.Background())
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestCleanCmd_All(t *testing.T) {
+	cli, mockLogger := setupCleanTest(t)
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+
+	cli.SetArgs([]string{"clean", "--all"})
+	err := cli.Execute(context.Background())
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
