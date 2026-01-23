@@ -231,6 +231,17 @@ func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger) {
 	return commands.New(a), mockLogger
 }
 
+func createDirWithMarker(t *testing.T, dirPath string) {
+	t.Helper()
+	if err := os.MkdirAll(dirPath, domain.DirPerm); err != nil {
+		t.Fatalf("Failed to create directory %s: %v", dirPath, err)
+	}
+	markerFile := filepath.Join(dirPath, "marker.txt")
+	if err := os.WriteFile(markerFile, []byte("test"), domain.FilePerm); err != nil {
+		t.Fatalf("Failed to create marker file in %s: %v", dirPath, err)
+	}
+}
+
 func TestCleanCmd_Default(t *testing.T) {
 	cli, mockLogger := setupCleanTest(t)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
@@ -296,31 +307,13 @@ func TestCleanCmd_All(t *testing.T) {
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
-	if err := os.MkdirAll(storePath, domain.DirPerm); err != nil {
-		t.Fatalf("Failed to create store directory: %v", err)
-	}
-	storeMarker := filepath.Join(storePath, "marker.txt")
-	if err := os.WriteFile(storeMarker, []byte("test"), domain.FilePerm); err != nil {
-		t.Fatalf("Failed to create marker file: %v", err)
-	}
+	createDirWithMarker(t, storePath)
 
 	nixHubPath := domain.DefaultNixHubCachePath()
-	if err := os.MkdirAll(nixHubPath, domain.DirPerm); err != nil {
-		t.Fatalf("Failed to create nixhub cache directory: %v", err)
-	}
-	nixMarker := filepath.Join(nixHubPath, "marker.txt")
-	if err := os.WriteFile(nixMarker, []byte("test"), domain.FilePerm); err != nil {
-		t.Fatalf("Failed to create marker file: %v", err)
-	}
+	createDirWithMarker(t, nixHubPath)
 
 	envPath := domain.DefaultEnvCachePath()
-	if err := os.MkdirAll(envPath, domain.DirPerm); err != nil {
-		t.Fatalf("Failed to create env cache directory: %v", err)
-	}
-	envMarker := filepath.Join(envPath, "marker.txt")
-	if err := os.WriteFile(envMarker, []byte("test"), domain.FilePerm); err != nil {
-		t.Fatalf("Failed to create marker file: %v", err)
-	}
+	createDirWithMarker(t, envPath)
 
 	cli.SetArgs([]string{"clean", "--all"})
 	err := cli.Execute(context.Background())
