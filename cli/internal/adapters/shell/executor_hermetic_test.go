@@ -1,8 +1,8 @@
 package shell_test
 
 import (
+	"bytes"
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,20 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/adapters/shell"
 	"go.trai.ch/same/internal/core/domain"
-	"go.trai.ch/same/internal/core/ports/mocks"
-	"go.uber.org/mock/gomock"
 )
 
 func TestExecutor_Execute_HermeticBinaryOnly(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	// Expect implicit failure log if it fails, or success log if it succeeds
-	// If it succeeds, the script prints "success", which executor logs as Info
-	mockLogger.EXPECT().Info("success").Times(1)
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 
 	// Create a temp directory to act as our "hermetic" bin path
 	hermeticDir := t.TempDir()
@@ -46,6 +36,10 @@ func TestExecutor_Execute_HermeticBinaryOnly(t *testing.T) {
 	// Provide the hermetic PATH in env
 	nixEnv := []string{"PATH=" + hermeticDir}
 
-	err = executor.Execute(context.Background(), task, nixEnv, io.Discard, io.Discard)
+	var stdout bytes.Buffer
+	err = executor.Execute(context.Background(), task, nixEnv, &stdout, &stdout)
 	require.NoError(t, err)
+
+	output := stdout.String()
+	require.Contains(t, output, "success")
 }
