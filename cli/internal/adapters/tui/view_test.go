@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.trai.ch/same/internal/adapters/tui"
@@ -105,4 +106,120 @@ func TestView_LipglossIntegration(t *testing.T) {
 
 	// Let's verify that the output width is roughly what we expect or has newlines
 	assert.Contains(t, output, "\n")
+}
+
+func TestView_EmptyTaskList(t *testing.T) {
+	m := tui.Model{
+		FlatList:   []*tui.TaskNode{},
+		TreeRoots:  []*tui.TaskNode{},
+		ListHeight: 10,
+		ViewMode:   tui.ViewModeTree,
+	}
+
+	output := m.View()
+	assert.Contains(t, output, "No tasks planned")
+}
+
+func TestView_TreeStructure(t *testing.T) {
+	child1 := &tui.TaskNode{Name: "child1", Status: tui.StatusDone, Term: tui.NewVterm(), Depth: 1}
+	child2 := &tui.TaskNode{Name: "child2", Status: tui.StatusPending, Term: tui.NewVterm(), Depth: 1}
+	parent := &tui.TaskNode{
+		Name:       "parent",
+		Status:     tui.StatusRunning,
+		Term:       tui.NewVterm(),
+		Depth:      0,
+		Children:   []*tui.TaskNode{child1, child2},
+		IsExpanded: true,
+	}
+	child1.Parent = parent
+	child2.Parent = parent
+
+	m := tui.Model{
+		FlatList:    []*tui.TaskNode{parent, child1, child2},
+		TreeRoots:   []*tui.TaskNode{parent},
+		ListHeight:  10,
+		SelectedIdx: 0,
+		TaskMap:     map[string]*tui.TaskNode{"parent": parent, "child1": child1, "child2": child2},
+		ViewMode:    tui.ViewModeTree,
+	}
+
+	output := m.View()
+
+	assert.Contains(t, output, "parent")
+	assert.Contains(t, output, "child1")
+	assert.Contains(t, output, "child2")
+	assert.Contains(t, output, "▼")
+	assert.Contains(t, output, "└──")
+}
+
+func TestView_DurationFormat(t *testing.T) {
+	task := &tui.TaskNode{Name: "task1", Status: tui.StatusPending, Term: tui.NewVterm()}
+	m := tui.Model{
+		FlatList:   []*tui.TaskNode{task},
+		TreeRoots:  []*tui.TaskNode{task},
+		ListHeight: 10,
+		ViewMode:   tui.ViewModeTree,
+		TaskMap:    map[string]*tui.TaskNode{"task1": task},
+	}
+
+	output := m.View()
+	assert.NotContains(t, output, "ms")
+	assert.NotContains(t, output, "s]")
+
+	task.Status = tui.StatusDone
+	task.StartTime = task.StartTime.Add(-500 * time.Millisecond)
+	output = m.View()
+	assert.Contains(t, output, "ms")
+}
+
+func TestView_LogViewStatuses(t *testing.T) {
+	tests := []struct {
+		status   tui.TaskStatus
+		expected string
+	}{
+		{tui.StatusPending, "Pending"},
+		{tui.StatusError, "Failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			task := &tui.TaskNode{Name: "task1", Status: tt.status, Term: tui.NewVterm()}
+			m := tui.Model{
+				FlatList:       []*tui.TaskNode{task},
+				ListHeight:     10,
+				ViewMode:       tui.ViewModeLogs,
+				ActiveTaskName: "task1",
+				TaskMap:        map[string]*tui.TaskNode{"task1": task},
+			}
+
+			output := m.View()
+			assert.Contains(t, output, tt.expected)
+		})
+	}
+}
+
+func TestView_LogViewTaskNotFound(t *testing.T) {
+	m := tui.Model{
+		FlatList:       []*tui.TaskNode{},
+		ListHeight:     10,
+		ViewMode:       tui.ViewModeLogs,
+		ActiveTaskName: "nonexistent",
+		TaskMap:        map[string]*tui.TaskNode{},
+	}
+
+	output := m.View()
+	assert.Contains(t, output, "Task not found")
+}
+
+func TestView_DefaultViewMode(t *testing.T) {
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
+	m := tui.Model{
+		FlatList:   []*tui.TaskNode{task},
+		TreeRoots:  []*tui.TaskNode{task},
+		ListHeight: 10,
+		ViewMode:   "invalid",
+	}
+
+	output := m.View()
+	assert.Contains(t, output, "task1")
 }

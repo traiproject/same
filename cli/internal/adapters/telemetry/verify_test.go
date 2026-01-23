@@ -18,25 +18,7 @@ func TestInterfaceSatisfaction(_ *testing.T) {
 }
 
 func TestOTelTracer_Start(t *testing.T) {
-	// This test assumes OTel SDK is available.
-	// We just check for no panic during instantiation and Start.
 	tracer := telemetry.NewOTelTracer("test-tracer")
-	assert.NotNil(t, tracer)
-
-	ctx := context.Background()
-	_, span := tracer.Start(ctx, "test-span")
-	assert.NotNil(t, span)
-
-	span.SetAttribute("key", "value")
-	n, err := span.Write([]byte("test log"))
-	require.NoError(t, err)
-	assert.Equal(t, 8, n)
-
-	span.End()
-}
-
-func TestNoOpTracer_Start(t *testing.T) {
-	tracer := telemetry.NewNoOpTracer()
 	assert.NotNil(t, tracer)
 
 	ctx := context.Background()

@@ -265,3 +265,87 @@ func TestFlattenTree_PartialExpansion(t *testing.T) {
 	assert.Equal(t, "parent", flat[0].Name)
 	assert.Equal(t, "child", flat[1].Name)
 }
+
+func TestBuildTree_DeepTreeDepthGuard(t *testing.T) {
+	t.Parallel()
+
+	taskMap := make(map[string]*tui.TaskNode)
+	dependencies := make(map[string][]string)
+
+	for i := 0; i < 15; i++ {
+		name := string(rune('A' + i))
+		taskMap[name] = &tui.TaskNode{Name: name, Term: tui.NewVterm()}
+		if i < 14 {
+			dependencies[name] = []string{string(rune('A' + i + 1))}
+		} else {
+			dependencies[name] = []string{}
+		}
+	}
+
+	targets := []string{"A"}
+
+	roots := tui.BuildTree(targets, dependencies, taskMap)
+
+	var countDepth func(node *tui.TaskNode, depth int) int
+	countDepth = func(node *tui.TaskNode, depth int) int {
+		maxDepth := depth
+		for _, child := range node.Children {
+			childDepth := countDepth(child, depth+1)
+			if childDepth > maxDepth {
+				maxDepth = childDepth
+			}
+		}
+		return maxDepth
+	}
+
+	maxDepth := countDepth(roots[0], 0)
+	assert.LessOrEqual(t, maxDepth, 10)
+}
+
+func TestBuildTree_MissingTaskInMap(t *testing.T) {
+	t.Parallel()
+
+	taskMap := map[string]*tui.TaskNode{
+		"A": {Name: "A", Term: tui.NewVterm()},
+	}
+
+	dependencies := map[string][]string{
+		"A": {"B"},
+		"B": {},
+	}
+
+	targets := []string{"A"}
+
+	roots := tui.BuildTree(targets, dependencies, taskMap)
+
+	assert.Len(t, roots, 1)
+	assert.Equal(t, "A", roots[0].Name)
+	assert.Empty(t, roots[0].Children)
+}
+
+func TestBuildTree_MissingTargetInMap(t *testing.T) {
+	t.Parallel()
+
+	taskMap := map[string]*tui.TaskNode{
+		"A": {Name: "A", Term: tui.NewVterm()},
+	}
+
+	dependencies := map[string][]string{
+		"A": {},
+	}
+
+	targets := []string{"B"}
+
+	roots := tui.BuildTree(targets, dependencies, taskMap)
+
+	assert.Empty(t, roots)
+}
+
+func TestFlattenTree_EmptyRoots(t *testing.T) {
+	t.Parallel()
+
+	roots := []*tui.TaskNode{}
+	flat := tui.FlattenTree(roots)
+
+	assert.Empty(t, flat)
+}

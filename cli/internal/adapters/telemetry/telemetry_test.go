@@ -217,3 +217,45 @@ func TestBridge_NoProgram(t *testing.T) {
 
 	// No panic means success
 }
+
+func TestOTelTracer_Shutdown(t *testing.T) {
+	tracer := telemetry.NewOTelTracer("test")
+	ctx := context.Background()
+
+	err := tracer.Shutdown(ctx)
+	require.NoError(t, err)
+}
+
+func TestOTelSpan_RecordError(_ *testing.T) {
+	tracer := telemetry.NewOTelTracer("test")
+	ctx := context.Background()
+
+	_, span := tracer.Start(ctx, "test-error")
+	testErr := errors.New("test error")
+	span.RecordError(testErr)
+	span.End()
+}
+
+func TestOTelTracer_LogBufferFull(_ *testing.T) {
+	msgCh := make(chan tea.Msg, 1)
+	model := TestModel{MsgCh: msgCh}
+	prog := tea.NewProgram(model, tea.WithInput(nil), tea.WithOutput(io.Discard))
+	go func() {
+		_, _ = prog.Run()
+	}()
+	time.Sleep(10 * time.Millisecond)
+	defer prog.Quit()
+
+	tracer := telemetry.NewOTelTracer("test").WithProgram(prog)
+	ctx := context.Background()
+
+	_, span := tracer.Start(ctx, "test-span")
+
+	for i := 0; i < 10; i++ {
+		_, _ = span.Write([]byte("log"))
+	}
+
+	span.End()
+
+	time.Sleep(100 * time.Millisecond)
+}
