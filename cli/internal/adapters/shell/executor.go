@@ -2,7 +2,6 @@
 package shell
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/creack/pty"
 	"go.trai.ch/same/internal/core/domain"
-	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 )
 
@@ -63,15 +61,11 @@ func (p *ptyProcess) Resize(rows, cols int) error {
 }
 
 // Executor implements ports.Executor using os/exec and pty.
-type Executor struct {
-	logger ports.Logger
-}
+type Executor struct{}
 
 // NewExecutor creates a new ShellExecutor.
-func NewExecutor(logger ports.Logger) *Executor {
-	return &Executor{
-		logger: logger,
-	}
+func NewExecutor() *Executor {
+	return &Executor{}
 }
 
 // Start launches the task's command in a PTY (on supported systems) or standard pipes.
@@ -80,18 +74,9 @@ func (e *Executor) Start(
 	ctx context.Context,
 	task *domain.Task,
 	env []string,
-	stdout, stderr io.Writer,
+	stdout, _ io.Writer,
 ) (Process, error) {
-	// Combined writers:
-	// 1. Structural Logger (info/error)
-	// 2. Output Writers (Span, etc.)
-	stdoutLog := &logWriter{logger: e.logger, level: "info"}
-	stderrLog := &logWriter{logger: e.logger, level: "error"}
-
-	finalStdout := io.MultiWriter(stdoutLog, stdout)
-	finalStderr := io.MultiWriter(stderrLog, stderr)
-
-	return start(ctx, task, env, finalStdout, finalStderr, stdoutLog, stderrLog)
+	return start(ctx, task, env, stdout, nil)
 }
 
 func start(
@@ -99,7 +84,6 @@ func start(
 	task *domain.Task,
 	env []string,
 	stdout, _ io.Writer,
-	stdoutLog, stderrLog *logWriter,
 ) (Process, error) {
 	if len(task.Command) == 0 {
 		return nil, nil
@@ -141,15 +125,9 @@ func start(
 	go func() {
 		defer close(ioDone)
 		defer func() { _ = ptmx.Close() }()
-		// Ensure any remaining buffered logs are flushed when IO is done
-		defer func() {
-			_ = stdoutLog.Close()
-			_ = stderrLog.Close()
-		}()
 
 		// Copy output to both stdout and stderr (since PTY merges them)
 		// We use io.Copy which creates a 32k buffer. This is efficient enough.
-		// The MultiWriter will ensure it goes to both logic logger and Span.
 		_, _ = io.Copy(stdout, ptmx)
 	}()
 
@@ -187,52 +165,6 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string,
 	}
 
 	return nil
-}
-
-type logWriter struct {
-	logger ports.Logger
-	level  string
-	buf    []byte
-}
-
-func (w *logWriter) Write(p []byte) (n int, err error) {
-	w.buf = append(w.buf, p...)
-
-	// Scan for newlines
-	for {
-		i := bytes.IndexByte(w.buf, '\n')
-		if i < 0 {
-			break
-		}
-
-		line := w.buf[:i]
-		w.logLine(line)
-
-		// Advance buffer
-		w.buf = w.buf[i+1:]
-	}
-
-	return len(p), nil
-}
-
-func (w *logWriter) Close() error {
-	if len(w.buf) > 0 {
-		w.logLine(w.buf)
-		w.buf = nil
-	}
-	return nil
-}
-
-func (w *logWriter) logLine(line []byte) {
-	msg := string(line)
-	// PTYs may introduce \r. Remove it.
-	msg = strings.TrimSuffix(msg, "\r")
-
-	if w.level == "info" {
-		w.logger.Info(msg)
-	} else {
-		w.logger.Error(zerr.New(msg))
-	}
 }
 
 // allowListedEnvVars are the system environment variables that are allowed to be

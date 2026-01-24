@@ -11,7 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.trai.ch/same/internal/adapters/logger" //nolint:depguard // concrete type assertion
+	"go.trai.ch/same/internal/adapters/detector"
+	"go.trai.ch/same/internal/adapters/linear"
 	"go.trai.ch/same/internal/adapters/telemetry"
 	"go.trai.ch/same/internal/adapters/tui"
 	"go.trai.ch/same/internal/core/domain"
@@ -71,33 +72,15 @@ func (a *App) WithDisableTick() *App {
 
 // RunOptions configuration for the Run method.
 type RunOptions struct {
-	NoCache bool
-	Inspect bool
+	NoCache    bool
+	Inspect    bool
+	OutputMode string
 }
 
 // Run executes the build process for the specified targets.
 //
 //nolint:cyclop // orchestration function
 func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
-	// 0. Redirect Logs for TUI
-	// We want to avoid polluting the terminal with app logs while the TUI is running.
-	if err := os.MkdirAll(domain.DefaultSamePath(), domain.DirPerm); err != nil {
-		return zerr.Wrap(err, "failed to create internal directory")
-	}
-	f, err := os.OpenFile(domain.DefaultDebugLogPath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, domain.PrivateFilePerm)
-	if err != nil {
-		return zerr.Wrap(err, "failed to open debug log")
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-
-	// If we have the concrete logger type, redirect it.
-	if l, ok := a.logger.(*logger.Logger); ok {
-		l.SetOutput(f)
-		defer l.SetOutput(os.Stderr)
-	}
-
 	// 1. Load the graph
 	graph, err := a.configLoader.Load(".")
 	if err != nil {
@@ -109,29 +92,35 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		return domain.ErrNoTargetsSpecified
 	}
 
-	// 3. Initialize TUI
-	// The TUI model holds the state of the UI.
-	tuiModel := tui.NewModel(os.Stderr)
-	if a.disableTick {
-		tuiModel = tuiModel.WithDisableTick()
+	// 3. Initialize Renderer
+	// Detect environment and resolve output mode
+	autoMode := detector.DetectEnvironment()
+	mode := detector.ResolveMode(autoMode, opts.OutputMode)
+
+	var renderer ports.Renderer
+	if mode == detector.ModeTUI {
+		model := tui.NewModel(os.Stderr)
+		if a.disableTick {
+			model = model.WithDisableTick()
+		}
+		optsTea := append([]tea.ProgramOption{tea.WithContext(ctx)}, a.teaOptions...)
+		renderer = tui.NewRenderer(&model, optsTea...)
+	} else {
+		renderer = linear.NewRenderer(os.Stdout, os.Stderr)
 	}
-	// The Program manages the TUI lifecycle.
-	// We capture the program to clean it up if needed.
-	optsTea := append([]tea.ProgramOption{tea.WithContext(ctx)}, a.teaOptions...)
-	program := tea.NewProgram(&tuiModel, optsTea...)
 
 	// 4. Initialize Telemetry
-	// Create a bridge that sends OTel spans to the TUI program.
-	bridge := telemetry.NewTUIBridge(program)
+	// Create a bridge that sends OTel spans to the renderer.
+	bridge := telemetry.NewBridge(renderer)
 
-	// Configure the global OTel SDK to usage our bridge for spans.
+	// Configure the global OTel SDK to use our bridge for spans.
 	// This ensures that when OTelTracer uses otel.Tracer(), it uses a provider
 	// that forwards events to our bridge.
 	setupOTel(bridge)
 
 	// Create and configure the OTel Tracer adapter.
-	// We inject the program so it can stream logs directly via the batcher.
-	tracer := telemetry.NewOTelTracer("same").WithProgram(program)
+	// We inject the renderer so it can stream logs directly via the batcher.
+	tracer := telemetry.NewOTelTracer("same").WithRenderer(renderer)
 	defer func() {
 		_ = tracer.Shutdown(ctx)
 	}()
@@ -146,22 +135,16 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		a.envFactory,
 	)
 
-	// 6. Run TUI and Scheduler concurrently
-	// Use a cancelable context to coordinate shutdown.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
+	// 6. Run Renderer and Scheduler concurrently
 	g, ctx := errgroup.WithContext(ctx)
 
-	// TUI Routine
+	// Renderer Routine
 	g.Go(func() error {
-		// Program.Run blocks until the program exits.
-		if _, err := program.Run(); err != nil {
+		if err := renderer.Start(ctx); err != nil {
 			return err
 		}
-		// If TUI quits first (e.g. user triggers quit), ensure we cancel the scheduler.
-		cancel()
-		return nil
+		// Wait blocks until the renderer has terminated.
+		return renderer.Wait()
 	})
 
 	// Scheduler Routine
@@ -169,13 +152,12 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		defer func() {
 			// Handle panic recovery for the scheduler goroutine
 			if r := recover(); r != nil {
-				// We can't log easily here as TUI is running, but we should ensure quit.
-				// Program shutdown will restore terminal.
-				fmt.Printf("Scheduler panic: %v\n", r)
+				// Print panic info before renderer shutdown
+				fmt.Fprintf(os.Stderr, "Scheduler panic: %v\n", r)
 			}
-			// Ensure TUI hits tea.Quit when scheduler finishes, UNLESS inspection mode is on.
+			// Ensure renderer stops when scheduler finishes, UNLESS inspection mode is on.
 			if !opts.Inspect {
-				program.Quit()
+				_ = renderer.Stop()
 			}
 		}()
 
@@ -221,10 +203,10 @@ func (a *App) Clean(_ context.Context, options CleanOptions) error {
 	return errs
 }
 
-// setupOTel configures the OpenTelemetry SDK with the TUI bridge.
-func setupOTel(bridge *telemetry.TUIBridge) {
-	// Create a new TracerProvider with the TUI bridge as a SpanProcessor.
-	// This ensures that all started spans are reported to the TUI.
+// setupOTel configures the OpenTelemetry SDK with the renderer bridge.
+func setupOTel(bridge *telemetry.Bridge) {
+	// Create a new TracerProvider with the bridge as a SpanProcessor.
+	// This ensures that all started spans are reported to the renderer.
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bridge),
 	)

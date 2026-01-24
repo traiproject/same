@@ -11,23 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/adapters/shell"
 	"go.trai.ch/same/internal/core/domain"
-	"go.trai.ch/same/internal/core/ports/mocks"
-	"go.uber.org/mock/gomock"
 )
 
 func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-
-	// Expect Info to be called twice, once for each line
-	// We use gomock.InOrder to ensure order, though not strictly required by prompt, it's good practice.
-	// However, the prompt just says "exactly twice".
-	mockLogger.EXPECT().Info("line1").Times(1)
-	mockLogger.EXPECT().Info("line2").Times(1)
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 
 	// Use a valid temporary directory for the working directory
 	tmpDir := t.TempDir()
@@ -38,45 +25,37 @@ func TestExecutor_Execute_MultiLineOutput(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
+	var stdout bytes.Buffer
+	err := executor.Execute(context.Background(), task, nil, &stdout, io.Discard)
 	require.NoError(t, err)
+
+	output := stdout.String()
+	require.Contains(t, output, "line1")
+	require.Contains(t, output, "line2")
 }
 
 func TestExecutor_Execute_FragmentedOutput(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-
-	// Expect concatenated "part1part2"
-	mockLogger.EXPECT().Info("part1part2").Times(1)
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 	tmpDir := t.TempDir()
 
 	// Simulate fragmented write: "part1" then short sleep then "part2", then newline
-	// This ensures we test that the writer buffers until newline (or implicit close/flush)
-	// We use python or sh for this. Sh is simpler.
 	task := &domain.Task{
 		Name:       domain.NewInternedString("test-fragmented"),
 		Command:    []string{"sh", "-c", "printf part1; sleep 0.1; echo part2"},
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
+	var stdout bytes.Buffer
+	err := executor.Execute(context.Background(), task, nil, &stdout, io.Discard)
 	require.NoError(t, err)
+
+	output := stdout.String()
+	require.Contains(t, output, "part1")
+	require.Contains(t, output, "part2")
 }
 
 func TestExecutor_Execute_EnvironmentVariables(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-
-	// Expect the environment variable value to be logged
-	mockLogger.EXPECT().Info("test-value-123").Times(1)
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 
 	// Use a valid temporary directory for the working directory
 	tmpDir := t.TempDir()
@@ -90,20 +69,16 @@ func TestExecutor_Execute_EnvironmentVariables(t *testing.T) {
 		WorkingDir: domain.NewInternedString(tmpDir),
 	}
 
-	err := executor.Execute(context.Background(), task, nil, io.Discard, io.Discard)
+	var stdout bytes.Buffer
+	err := executor.Execute(context.Background(), task, nil, &stdout, io.Discard)
 	require.NoError(t, err)
+
+	output := stdout.String()
+	require.Contains(t, output, "test-value-123")
 }
 
 func TestExecutor_Execute_InvalidCommand(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-
-	// For non-existent command, expect error to be logged
-	mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 
 	tmpDir := t.TempDir()
 	task := &domain.Task{
@@ -119,15 +94,7 @@ func TestExecutor_Execute_InvalidCommand(t *testing.T) {
 }
 
 func TestExecutor_Execute_CommandFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-
-	// Command will output to stderr, so expect Error calls
-	mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 
 	tmpDir := t.TempDir()
 	task := &domain.Task{
@@ -148,11 +115,7 @@ func TestExecutor_Execute_CommandFailure(t *testing.T) {
 }
 
 func TestExecutor_Execute_EmptyCommand(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 
 	tmpDir := t.TempDir()
 	task := &domain.Task{
@@ -169,13 +132,7 @@ func TestExecutor_Execute_EmptyCommand(t *testing.T) {
 }
 
 func TestExecutor_Execute_AbsolutePath(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 
 	tmpDir := t.TempDir()
 	task := &domain.Task{
@@ -189,13 +146,7 @@ func TestExecutor_Execute_AbsolutePath(t *testing.T) {
 }
 
 func TestExecutor_Execute_WithNixEnv(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info("nix-value").Times(1)
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 
 	tmpDir := t.TempDir()
 	task := &domain.Task{
@@ -205,29 +156,22 @@ func TestExecutor_Execute_WithNixEnv(t *testing.T) {
 	}
 
 	nixEnv := []string{"NIX_VAR=nix-value"}
-	err := executor.Execute(context.Background(), task, nixEnv, io.Discard, io.Discard)
+	var stdout bytes.Buffer
+	err := executor.Execute(context.Background(), task, nixEnv, &stdout, io.Discard)
 	require.NoError(t, err)
+
+	output := stdout.String()
+	require.Contains(t, output, "nix-value")
 }
 
 func TestExecutor_Execute_StreamsOutput(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	// We expect the logger to still be called via the logWriter, which strips ANSI
-	// The exact number of calls might vary depending on buffering/lines, but we expect at least one
-	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 	tmpDir := t.TempDir()
 
 	// Command outputting ANSI red color
 	ansiRed := "\033[31m"
 	ansiReset := "\033[0m"
 	msg := "Hello Red World"
-	// Ensure we echo without newline handling complications if possible, but basic echo works.
-	// We use 'printf' if available or just echo with codes.
-	// Sh usually supports printf.
 	task := &domain.Task{
 		Name:       domain.NewInternedString("test-ansi"),
 		Command:    []string{"sh", "-c", "printf '" + ansiRed + msg + ansiReset + "'"},
@@ -263,14 +207,7 @@ func (m *mockSpanWriter) MarkExecStart() {
 }
 
 func TestExecutor_Execute_WithMarkExecStartSpan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 	tmpDir := t.TempDir()
 
 	task := &domain.Task{
@@ -284,25 +221,4 @@ func TestExecutor_Execute_WithMarkExecStartSpan(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, mockWriter.markExecCalled)
-}
-
-func TestExecutor_Execute_WithoutMarkExecStartSpan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
-
-	executor := shell.NewExecutor(mockLogger)
-	tmpDir := t.TempDir()
-
-	task := &domain.Task{
-		Name:       domain.NewInternedString("test-no-mark-exec"),
-		Command:    []string{"sh", "-c", "echo test"},
-		WorkingDir: domain.NewInternedString(tmpDir),
-	}
-
-	var stdout bytes.Buffer
-	err := executor.Execute(context.Background(), task, nil, &stdout, io.Discard)
-	require.NoError(t, err)
 }

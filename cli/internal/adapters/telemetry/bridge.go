@@ -4,27 +4,27 @@ import (
 	"context"
 	"errors"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+	"go.trai.ch/same/internal/core/ports"
 )
 
-// TUIBridge implements sdktrace.SpanProcessor to bridge OTel spans to Bubble Tea messages.
-type TUIBridge struct {
-	program *tea.Program
+// Bridge implements sdktrace.SpanProcessor to bridge OTel spans to a Renderer.
+type Bridge struct {
+	renderer ports.Renderer
 }
 
-// NewTUIBridge returns a new TUIBridge.
-func NewTUIBridge(program *tea.Program) *TUIBridge {
-	return &TUIBridge{
-		program: program,
+// NewBridge returns a new Bridge.
+func NewBridge(renderer ports.Renderer) *Bridge {
+	return &Bridge{
+		renderer: renderer,
 	}
 }
 
 // OnStart is called when a span starts.
-func (b *TUIBridge) OnStart(parent context.Context, s sdktrace.ReadWriteSpan) {
-	if b.program == nil {
+func (b *Bridge) OnStart(parent context.Context, s sdktrace.ReadWriteSpan) {
+	if b.renderer == nil {
 		return
 	}
 
@@ -38,17 +38,17 @@ func (b *TUIBridge) OnStart(parent context.Context, s sdktrace.ReadWriteSpan) {
 		parentID = parentSpan.SpanContext().SpanID().String()
 	}
 
-	b.program.Send(MsgTaskStart{
-		SpanID:    sc.SpanID().String(),
-		ParentID:  parentID,
-		Name:      s.Name(),
-		StartTime: s.StartTime(),
-	})
+	b.renderer.OnTaskStart(
+		sc.SpanID().String(),
+		parentID,
+		s.Name(),
+		s.StartTime(),
+	)
 }
 
 // OnEnd is called when a span ends.
-func (b *TUIBridge) OnEnd(s sdktrace.ReadOnlySpan) {
-	if b.program == nil {
+func (b *Bridge) OnEnd(s sdktrace.ReadOnlySpan) {
+	if b.renderer == nil {
 		return
 	}
 
@@ -66,20 +66,19 @@ func (b *TUIBridge) OnEnd(s sdktrace.ReadOnlySpan) {
 		err = errors.New(desc)
 	}
 
-	b.program.Send(MsgTaskComplete{
-		SpanID:  sc.SpanID().String(),
-		EndTime: s.EndTime(),
-		Err:     err,
-	})
+	b.renderer.OnTaskComplete(
+		sc.SpanID().String(),
+		s.EndTime(),
+		err,
+	)
 }
 
 // ForceFlush does nothing.
-// ForceFlush does nothing.
-func (b *TUIBridge) ForceFlush(_ context.Context) error {
+func (b *Bridge) ForceFlush(_ context.Context) error {
 	return nil
 }
 
 // Shutdown does nothing.
-func (b *TUIBridge) Shutdown(_ context.Context) error {
+func (b *Bridge) Shutdown(_ context.Context) error {
 	return nil
 }

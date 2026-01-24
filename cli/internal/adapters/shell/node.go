@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/grindlemire/graft"
-	"go.trai.ch/same/internal/adapters/logger"
 	"go.trai.ch/same/internal/core/ports"
 )
 
@@ -15,13 +14,9 @@ func init() {
 	graft.Register(graft.Node[ports.Executor]{
 		ID:        NodeID,
 		Cacheable: true,
-		DependsOn: []graft.ID{logger.NodeID},
-		Run: func(ctx context.Context) (ports.Executor, error) {
-			log, err := graft.Dep[ports.Logger](ctx)
-			if err != nil {
-				return nil, err
-			}
-			return NewExecutor(log), nil
+		DependsOn: []graft.ID{},
+		Run: func(_ context.Context) (ports.Executor, error) {
+			return NewExecutor(), nil
 		},
 	})
 }
