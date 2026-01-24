@@ -77,6 +77,7 @@ type Model struct {
 	ViewMode     ViewMode
 	TickInterval time.Duration
 	DisableTick  bool // Disable tick loop for testing
+	BuildFailed  bool // Tracks if any task has failed
 }
 
 // Init initializes the model.
@@ -311,6 +312,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			node.Cached = msg.Cached
 			if msg.Err != nil {
 				node.Status = StatusError
+				m.BuildFailed = true
 			} else {
 				node.Status = StatusDone
 			}

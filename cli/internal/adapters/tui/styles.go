@@ -43,4 +43,10 @@ var (
 			Padding(0, 1).
 			Background(colorIris).
 			Foreground(colorWhite)
+
+	failureTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Padding(0, 1).
+				Background(colorRed).
+				Foreground(colorWhite)
 )

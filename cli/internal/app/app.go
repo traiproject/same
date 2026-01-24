@@ -149,19 +149,23 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 
 	// Scheduler Routine
 	g.Go(func() error {
+		var schedErr error
 		defer func() {
 			// Handle panic recovery for the scheduler goroutine
 			if r := recover(); r != nil {
 				// Print panic info before renderer shutdown
 				fmt.Fprintf(os.Stderr, "Scheduler panic: %v\n", r)
 			}
-			// Ensure renderer stops when scheduler finishes, UNLESS inspection mode is on.
-			if !opts.Inspect {
+			// Stop renderer ONLY if:
+			// 1. Inspect mode is not enabled AND
+			// 2. No build failure occurred
+			if !opts.Inspect && schedErr == nil {
 				_ = renderer.Stop()
 			}
 		}()
 
 		if err := sched.Run(ctx, graph, targetNames, runtime.NumCPU(), opts.NoCache); err != nil {
+			schedErr = err
 			return errors.Join(domain.ErrBuildExecutionFailed, err)
 		}
 		return nil
