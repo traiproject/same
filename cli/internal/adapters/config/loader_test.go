@@ -15,6 +15,12 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+const minimalWorkfileYAML = `
+version: "1"
+projects:
+  - "project-a"
+`
+
 func TestNewLoader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockLogger := mocks.NewMockLogger(ctrl)
@@ -636,7 +642,7 @@ projects:
 
 		// Create project-a
 		projectADir := filepath.Join(tmpDir, "project-a")
-		err = os.Mkdir(projectADir, 0o755)
+		err = os.Mkdir(projectADir, 0o750)
 		require.NoError(t, err)
 		samefileA := `
 version: "1"
@@ -650,7 +656,7 @@ tasks:
 
 		// Create project-b
 		projectBDir := filepath.Join(tmpDir, "project-b")
-		err = os.Mkdir(projectBDir, 0o755)
+		err = os.Mkdir(projectBDir, 0o750)
 		require.NoError(t, err)
 		samefileB := `
 version: "1"
@@ -692,7 +698,7 @@ projects:
 		require.NoError(t, err)
 
 		projectADir := filepath.Join(tmpDir, "project-a")
-		err = os.Mkdir(projectADir, 0o755)
+		err = os.Mkdir(projectADir, 0o750)
 		require.NoError(t, err)
 		samefileA := `
 version: "1"
@@ -723,17 +729,13 @@ tasks:
 	t.Run("Missing project field in samefile", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		workfileContent := `
-version: "1"
-projects:
-  - "project-a"
-`
+		workfileContent := minimalWorkfileYAML
 		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
 		require.NoError(t, err)
 
 		projectADir := filepath.Join(tmpDir, "project-a")
-		err = os.Mkdir(projectADir, 0o755)
+		err = os.Mkdir(projectADir, 0o750)
 		require.NoError(t, err)
 		samefileA := `
 version: "1"
@@ -754,17 +756,13 @@ tasks:
 	t.Run("Invalid project name", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		workfileContent := `
-version: "1"
-projects:
-  - "project-a"
-`
+		workfileContent := minimalWorkfileYAML
 		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
 		require.NoError(t, err)
 
 		projectADir := filepath.Join(tmpDir, "project-a")
-		err = os.Mkdir(projectADir, 0o755)
+		err = os.Mkdir(projectADir, 0o750)
 		require.NoError(t, err)
 		samefileA := `
 version: "1"
@@ -798,7 +796,7 @@ projects:
 
 		// Create project-a
 		projectADir := filepath.Join(tmpDir, "project-a")
-		err = os.Mkdir(projectADir, 0o755)
+		err = os.Mkdir(projectADir, 0o750)
 		require.NoError(t, err)
 		samefileA := `
 version: "1"
@@ -812,7 +810,7 @@ tasks:
 
 		// Create project-b with same project name
 		projectBDir := filepath.Join(tmpDir, "project-b")
-		err = os.Mkdir(projectBDir, 0o755)
+		err = os.Mkdir(projectBDir, 0o750)
 		require.NoError(t, err)
 		err = os.WriteFile(filepath.Join(projectBDir, "same.yaml"), []byte(samefileA), 0o600)
 		require.NoError(t, err)
@@ -827,17 +825,13 @@ tasks:
 	t.Run("Root warning in workspace mode", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		workfileContent := `
-version: "1"
-projects:
-  - "project-a"
-`
+		workfileContent := minimalWorkfileYAML
 		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
 		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
 		require.NoError(t, err)
 
 		projectADir := filepath.Join(tmpDir, "project-a")
-		err = os.Mkdir(projectADir, 0o755)
+		err = os.Mkdir(projectADir, 0o750)
 		require.NoError(t, err)
 		samefileA := `
 version: "1"
