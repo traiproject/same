@@ -1,0 +1,22 @@
+# Multiple tools in isolated environment
+# TODO: Re-enable when Nix tool resolution is fully implemented
+skip 'Nix hermetic environments not yet implemented'
+
+exec same run --ci multi-tool
+! stderr 'operation failed'
+
+-- same.work.yaml --
+version: "1"
+root: "."
+tools:
+  go: go@1.25.4
+  lint: golangci-lint@2.7.2
+projects: ["."]
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  multi-tool:
+    cmd: ["sh", "-c", "go version && golangci-lint version"]
+    tools: ["go", "lint"]

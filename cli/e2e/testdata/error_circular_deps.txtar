@@ -1,0 +1,17 @@
+# Circular dependency should be detected
+! exec same run --ci a
+# Command should fail with non-zero exit code
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  a:
+    cmd: ["echo", "A"]
+    dependsOn: ["b"]
+  b:
+    cmd: ["echo", "B"]
+    dependsOn: ["c"]
+  c:
+    cmd: ["echo", "C"]
+    dependsOn: ["a"]

@@ -1,0 +1,21 @@
+# Task requires Go tool from Nix
+# TODO: Re-enable when Nix tool resolution is fully implemented
+skip 'Nix tool resolution not yet implemented'
+
+exec same run --ci check-go
+! stderr 'operation failed'
+
+-- same.work.yaml --
+version: "1"
+root: "."
+tools:
+  go: go@1.25.4
+projects: ["."]
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  check-go:
+    cmd: ["go", "version"]
+    tools: ["go"]

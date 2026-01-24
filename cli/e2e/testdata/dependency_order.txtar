@@ -1,0 +1,27 @@
+# Verify topological execution order
+exec same run --ci final
+stderr '\[setup\] Starting\.\.\.'
+stderr '\[setup\] ✓ Completed'
+stderr '\[build\] Starting\.\.\.'
+stderr '\[build\] ✓ Completed'
+stderr '\[final\] Starting\.\.\.'
+stderr '\[final\] ✓ Completed'
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  setup:
+    cmd: ["sh", "-c", "echo 'Setup complete' > setup.txt"]
+    target: ["setup.txt"]
+  
+  build:
+    cmd: ["sh", "-c", "cat setup.txt && echo 'Build complete' > build.txt"]
+    input: ["setup.txt"]
+    target: ["build.txt"]
+    dependsOn: ["setup"]
+  
+  final:
+    cmd: ["sh", "-c", "cat build.txt && echo 'Final step'"]
+    input: ["build.txt"]
+    dependsOn: ["build"]

@@ -1,0 +1,9 @@
+# Invalid config should fail with error
+! exec same run --ci task1
+stderr 'failed to load configuration'
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  invalid syntax here

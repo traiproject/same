@@ -1,0 +1,26 @@
+# First run
+exec same run --ci process
+stderr '\[process\] ✓ Completed'
+exists .same/store
+
+# Modify input
+cp data2.txt data.txt
+
+# Second run rebuilds
+exec same run --ci process
+stderr '\[process\] Starting\.\.\.'
+stderr '\[process\] ✓ Completed'
+! stderr 'Cached'
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  process:
+    input: ["data.txt"]
+    cmd: ["cat", "data.txt"]
+
+-- data.txt --
+original
+-- data2.txt --
+modified

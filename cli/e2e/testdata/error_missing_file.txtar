@@ -1,0 +1,3 @@
+# No same.yaml present
+! exec same run --ci anything
+stderr 'could not find samefile or workfile'

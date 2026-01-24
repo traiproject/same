@@ -1,0 +1,23 @@
+# First run
+exec same run --ci task
+stderr '\[task\] ✓ Completed'
+
+# Cached run
+exec same run --ci task
+stderr 'Cached'
+
+# Force rebuild with --no-cache
+exec same run --ci --no-cache task
+stderr '\[task\] Starting'
+! stderr 'Cached'
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  task:
+    cmd: ["echo", "running"]
+    input: ["data.txt"]
+
+-- data.txt --
+stable

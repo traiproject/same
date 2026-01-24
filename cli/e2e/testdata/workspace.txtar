@@ -1,0 +1,30 @@
+# Run task from sub-project
+cd proj1
+exec same run --ci build
+stderr '\[build\] ✓ Completed'
+
+# Run task from another project
+cd ../proj2
+exec same run --ci test
+stderr '\[test\] ✓ Completed'
+
+-- same.work.yaml --
+version: "1"
+root: "."
+projects:
+  - "proj1"
+  - "proj2"
+
+-- proj1/same.yaml --
+version: "1"
+project: proj1
+tasks:
+  build:
+    cmd: ["echo", "Building proj1"]
+
+-- proj2/same.yaml --
+version: "1"
+project: proj2
+tasks:
+  test:
+    cmd: ["echo", "Testing proj2"]

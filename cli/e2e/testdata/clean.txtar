@@ -1,0 +1,30 @@
+# Run task to populate cache
+exec same run --ci task1
+exists .same/store
+
+# Clean build cache (default)
+exec same clean
+! exists .same/store
+
+# Verify cache directories may still exist
+# (Nix cache is managed separately)
+
+# Repopulate
+exec same run --ci task1
+exists .same/store
+
+# Clean all - removes build store and attempts to clean cache
+exec same clean --all
+! exists .same/store
+# Note: cache directory structure may remain even after clean --all
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  task1:
+    cmd: ["echo", "test"]
+    input: ["file.txt"]
+
+-- file.txt --
+content
