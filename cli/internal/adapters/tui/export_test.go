@@ -1,12 +1,22 @@
 package tui
 
-// Export functions for testing.
 var (
 	BuildTree   = buildTree
 	FlattenTree = flattenTree
 )
 
-// MaxOffset exposes the private maxOffset method for testing.
 func (v *Vterm) MaxOffset() int {
 	return v.maxOffset()
+}
+
+func (m *Model) GetSelectedTask() *TaskNode {
+	return m.getSelectedTask()
+}
+
+func (m *Model) UpdateActiveView() {
+	m.updateActiveView()
+}
+
+func (m *Model) EnsureVisible() {
+	m.ensureVisible()
 }

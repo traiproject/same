@@ -122,10 +122,15 @@ func (m *Model) formatDuration(node *TaskNode) string {
 	}
 
 	var duration time.Duration
+	startTime := node.StartTime
+	if !node.ExecStartTime.IsZero() {
+		startTime = node.ExecStartTime
+	}
+
 	if node.Status == StatusRunning {
-		duration = time.Since(node.StartTime)
+		duration = time.Since(startTime)
 	} else {
-		duration = node.EndTime.Sub(node.StartTime)
+		duration = node.EndTime.Sub(startTime)
 	}
 
 	if duration < time.Second {

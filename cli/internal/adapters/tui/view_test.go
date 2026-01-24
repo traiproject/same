@@ -223,3 +223,73 @@ func TestView_DefaultViewMode(t *testing.T) {
 	output := m.View()
 	assert.Contains(t, output, "task1")
 }
+
+func TestView_FormatDuration_WithExecStartTime(t *testing.T) {
+	now := time.Now()
+	task := &tui.TaskNode{
+		Name:          "task1",
+		Status:        tui.StatusDone,
+		Term:          tui.NewVterm(),
+		StartTime:     now.Add(-2 * time.Second),
+		ExecStartTime: now.Add(-1 * time.Second),
+		EndTime:       now,
+	}
+
+	m := tui.Model{
+		FlatList:   []*tui.TaskNode{task},
+		TreeRoots:  []*tui.TaskNode{task},
+		ListHeight: 10,
+		ViewMode:   tui.ViewModeTree,
+		TaskMap:    map[string]*tui.TaskNode{"task1": task},
+	}
+
+	output := m.View()
+
+	assert.Contains(t, output, "[1.0s]")
+}
+
+func TestView_FormatDuration_RunningTask(t *testing.T) {
+	task := &tui.TaskNode{
+		Name:      "task1",
+		Status:    tui.StatusRunning,
+		Term:      tui.NewVterm(),
+		StartTime: time.Now().Add(-500 * time.Millisecond),
+	}
+
+	m := tui.Model{
+		FlatList:   []*tui.TaskNode{task},
+		TreeRoots:  []*tui.TaskNode{task},
+		ListHeight: 10,
+		ViewMode:   tui.ViewModeTree,
+		TaskMap:    map[string]*tui.TaskNode{"task1": task},
+	}
+
+	output := m.View()
+
+	assert.Contains(t, output, "ms")
+}
+
+func TestView_FullScreenLogView_WithDuration(t *testing.T) {
+	now := time.Now()
+	task := &tui.TaskNode{
+		Name:      "task1",
+		Status:    tui.StatusDone,
+		Term:      tui.NewVterm(),
+		StartTime: now.Add(-2 * time.Second),
+		EndTime:   now,
+	}
+
+	m := tui.Model{
+		FlatList:       []*tui.TaskNode{task},
+		ListHeight:     10,
+		ViewMode:       tui.ViewModeLogs,
+		ActiveTaskName: "task1",
+		TaskMap:        map[string]*tui.TaskNode{"task1": task},
+	}
+
+	output := m.View()
+
+	assert.Contains(t, output, "LOGS: task1")
+	assert.Contains(t, output, "Completed")
+	assert.Contains(t, output, "[2.0s]")
+}

@@ -24,6 +24,8 @@ type Span interface {
 	RecordError(err error)
 	// SetAttribute adds a key-value pair to the span.
 	SetAttribute(key string, value any)
+	// MarkExecStart signals that command execution has begun.
+	MarkExecStart()
 }
 
 // SpanConfig holds configuration for a starting span.

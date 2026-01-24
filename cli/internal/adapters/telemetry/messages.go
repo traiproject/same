@@ -12,6 +12,12 @@ type MsgTaskStart struct {
 	StartTime time.Time
 }
 
+// MsgTaskExecStart marks when the actual command execution begins (after preparation).
+type MsgTaskExecStart struct {
+	SpanID        string
+	ExecStartTime time.Time
+}
+
 // MsgTaskComplete indicates a task (span) has finished.
 type MsgTaskComplete struct {
 	SpanID  string

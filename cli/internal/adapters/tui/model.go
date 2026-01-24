@@ -38,8 +38,9 @@ type TaskNode struct {
 	CanonicalNode *TaskNode // Reference to the node in TaskMap for live status
 
 	// Duration tracking
-	StartTime time.Time
-	EndTime   time.Time
+	StartTime     time.Time
+	ExecStartTime time.Time
+	EndTime       time.Time
 }
 
 // ViewMode represents the current view state of the TUI.
@@ -292,6 +293,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ensureVisible()
 				m.updateActiveView()
 			}
+		}
+
+	case telemetry.MsgTaskExecStart:
+		if node, ok := m.SpanMap[msg.SpanID]; ok {
+			node.ExecStartTime = msg.ExecStartTime
 		}
 
 	case telemetry.MsgTaskLog:

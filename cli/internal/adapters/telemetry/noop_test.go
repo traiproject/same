@@ -78,3 +78,14 @@ func TestNoOpSpan_Write(t *testing.T) {
 	assert.Equal(t, 13, n)
 	span.End()
 }
+
+func TestNoOpSpan_MarkExecStart(t *testing.T) {
+	t.Parallel()
+
+	tracer := telemetry.NewNoOpTracer()
+	ctx := context.Background()
+
+	_, span := tracer.Start(ctx, "test")
+	span.MarkExecStart()
+	span.End()
+}

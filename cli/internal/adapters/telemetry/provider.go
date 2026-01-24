@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
@@ -76,6 +77,7 @@ func (t *OTelTracer) Start(ctx context.Context, name string, opts ...ports.SpanO
 	t.mu.RUnlock()
 
 	var batcher *BatchProcessor
+	var eventSender func(tea.Msg)
 	if prog != nil {
 		spanID := span.SpanContext().SpanID().String()
 		cb := func(data []byte) {
@@ -90,9 +92,17 @@ func (t *OTelTracer) Start(ctx context.Context, name string, opts ...ports.SpanO
 		}
 		// Use generic defaults or smaller limits for UI responsiveness?
 		batcher = NewBatchProcessor(0, 0, cb)
+
+		eventSender = func(msg tea.Msg) {
+			select {
+			case t.logChan <- msg:
+			default:
+				// Drop event if buffer is full
+			}
+		}
 	}
 
-	return ctx, &OTelSpan{span: span, batcher: batcher}
+	return ctx, &OTelSpan{span: span, batcher: batcher, eventSender: eventSender}
 }
 
 // EmitPlan signals that a set of tasks is planned for execution by adding an event to the current span.
@@ -134,8 +144,9 @@ func (t *OTelTracer) EmitPlan(
 
 // OTelSpan is a concrete implementation of ports.Span using OpenTelemetry.
 type OTelSpan struct {
-	span    trace.Span
-	batcher *BatchProcessor
+	span        trace.Span
+	batcher     *BatchProcessor
+	eventSender func(tea.Msg)
 }
 
 // End completes the span.
@@ -179,4 +190,16 @@ func (s *OTelSpan) Write(p []byte) (n int, err error) {
 	}
 	s.span.AddEvent("log", trace.WithAttributes(attribute.String("message", string(p))))
 	return len(p), nil
+}
+
+// MarkExecStart signals that command execution has begun.
+func (s *OTelSpan) MarkExecStart() {
+	s.span.AddEvent("exec_start")
+
+	if s.eventSender != nil {
+		s.eventSender(MsgTaskExecStart{
+			SpanID:        s.span.SpanContext().SpanID().String(),
+			ExecStartTime: time.Now(),
+		})
+	}
 }

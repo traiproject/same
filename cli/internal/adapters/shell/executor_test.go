@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/adapters/shell"
 	"go.trai.ch/same/internal/core/domain"
@@ -245,5 +246,63 @@ func TestExecutor_Execute_StreamsOutput(t *testing.T) {
 	if !strings.Contains(output, msg) {
 		t.Errorf("Expected output to contain message %q, got: %q", msg, output)
 	}
-	// Note: PTY execution might add \r\n, so exact match is hard, but contains check is good.
+}
+
+type mockSpanWriter struct {
+	data           []byte
+	markExecCalled bool
+}
+
+func (m *mockSpanWriter) Write(p []byte) (n int, err error) {
+	m.data = append(m.data, p...)
+	return len(p), nil
+}
+
+func (m *mockSpanWriter) MarkExecStart() {
+	m.markExecCalled = true
+}
+
+func TestExecutor_Execute_WithMarkExecStartSpan(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := mocks.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
+
+	executor := shell.NewExecutor(mockLogger)
+	tmpDir := t.TempDir()
+
+	task := &domain.Task{
+		Name:       domain.NewInternedString("test-mark-exec"),
+		Command:    []string{"sh", "-c", "echo test"},
+		WorkingDir: domain.NewInternedString(tmpDir),
+	}
+
+	mockWriter := &mockSpanWriter{}
+	err := executor.Execute(context.Background(), task, nil, mockWriter, io.Discard)
+	require.NoError(t, err)
+
+	assert.True(t, mockWriter.markExecCalled)
+}
+
+func TestExecutor_Execute_WithoutMarkExecStartSpan(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := mocks.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+
+	executor := shell.NewExecutor(mockLogger)
+	tmpDir := t.TempDir()
+
+	task := &domain.Task{
+		Name:       domain.NewInternedString("test-no-mark-exec"),
+		Command:    []string{"sh", "-c", "echo test"},
+		WorkingDir: domain.NewInternedString(tmpDir),
+	}
+
+	var stdout bytes.Buffer
+	err := executor.Execute(context.Background(), task, nil, &stdout, io.Discard)
+	require.NoError(t, err)
 }

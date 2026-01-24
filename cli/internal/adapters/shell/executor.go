@@ -170,6 +170,11 @@ func (e *Executor) Execute(ctx context.Context, task *domain.Task, env []string,
 		return nil // Empty command
 	}
 
+	// Mark execution start after process has started successfully
+	if span, ok := stdout.(interface{ MarkExecStart() }); ok {
+		span.MarkExecStart()
+	}
+
 	if err := proc.Wait(); err != nil {
 		// Capture exit code if possible
 		var exitCode int
