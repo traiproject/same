@@ -30,7 +30,14 @@ func (m *Model) View() string {
 func (m *Model) treeView() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render("BUILD PLAN") + "\n\n")
+	// Header: change title and style based on build state
+	header := "BUILD PLAN"
+	headerStyle := titleStyle
+	if m.BuildFailed {
+		header = "BUILD FAILED - Press 'q' to exit"
+		headerStyle = failureTitleStyle
+	}
+	s.WriteString(headerStyle.Render(header) + "\n\n")
 
 	// Handle empty plan
 	if len(m.FlatList) == 0 {
