@@ -131,14 +131,14 @@ func TestModel_Update_Telemetry(t *testing.T) {
 	assert.Contains(t, output, "hello log")
 
 	// 4. Complete Task (Success)
-	msgComplete := telemetry.MsgTaskComplete{SpanID: spanID, Err: nil}
+	msgComplete := telemetry.MsgTaskComplete{SpanID: spanID, Err: nil, Cached: false}
 	m.Update(msgComplete)
 	assert.Equal(t, tui.StatusDone, m.TaskMap["task1"].Status)
 
 	// 5. Complete Task (Error)
 	// Reset status for test
 	m.TaskMap["task1"].Status = tui.StatusRunning
-	msgError := telemetry.MsgTaskComplete{SpanID: spanID, Err: assert.AnError}
+	msgError := telemetry.MsgTaskComplete{SpanID: spanID, Err: assert.AnError, Cached: false}
 	m.Update(msgError)
 	assert.Equal(t, tui.StatusError, m.TaskMap["task1"].Status)
 }
@@ -370,6 +370,27 @@ func TestModel_Update_TaskExecStart(t *testing.T) {
 	m.Update(msgExecStart)
 
 	assert.False(t, task.ExecStartTime.IsZero())
+}
+
+func TestModel_Update_TaskCompleteCached(t *testing.T) {
+	t.Parallel()
+
+	task := &tui.TaskNode{Name: "task1", Term: tui.NewVterm()}
+	m := &tui.Model{
+		TaskMap: map[string]*tui.TaskNode{"task1": task},
+		SpanMap: map[string]*tui.TaskNode{"span-cached": task},
+	}
+
+	msgComplete := telemetry.MsgTaskComplete{
+		SpanID:  "span-cached",
+		EndTime: time.Now(),
+		Err:     nil,
+		Cached:  true,
+	}
+	m.Update(msgComplete)
+
+	assert.Equal(t, tui.StatusDone, task.Status)
+	assert.True(t, task.Cached, "Cached flag should be set to true")
 }
 
 func TestModel_getSelectedTask_OutOfBounds(t *testing.T) {

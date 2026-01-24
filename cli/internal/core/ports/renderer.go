@@ -45,5 +45,6 @@ type Renderer interface {
 	// spanID: identifier for the task
 	// endTime: when the task completed
 	// err: nil if successful, error otherwise
-	OnTaskComplete(spanID string, endTime time.Time, err error)
+	// cached: true if the task was retrieved from cache
+	OnTaskComplete(spanID string, endTime time.Time, err error, cached bool)
 }

@@ -308,6 +308,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case telemetry.MsgTaskComplete:
 		if node, ok := m.SpanMap[msg.SpanID]; ok {
 			node.EndTime = msg.EndTime
+			node.Cached = msg.Cached
 			if msg.Err != nil {
 				node.Status = StatusError
 			} else {
