@@ -180,21 +180,22 @@ func (r *Renderer) OnTaskComplete(spanID string, endTime time.Time, err error, c
 
 	// Print completion message
 	duration := endTime.Sub(task.startTime)
+	durationStr := formatDuration(duration)
 	coloredPrefix := r.output.String(fmt.Sprintf("[%s]", task.name)).Foreground(task.color).String()
 
 	switch {
 	case err != nil:
 		symbol := r.output.String("✗").Foreground(termenv.ANSIRed).String()
-		_, _ = fmt.Fprintf(r.stderr, "%s %s Failed after %v: %v\n",
-			coloredPrefix, symbol, duration, err)
+		_, _ = fmt.Fprintf(r.stderr, "%s %s Failed after %s: %v\n",
+			coloredPrefix, symbol, durationStr, err)
 	case cached:
 		symbol := r.output.String("⚡").Foreground(termenv.ANSIYellow).String()
-		_, _ = fmt.Fprintf(r.stderr, "%s %s Cached (skipped in %v)\n",
-			coloredPrefix, symbol, duration)
+		_, _ = fmt.Fprintf(r.stderr, "%s %s Cached (skipped in %s)\n",
+			coloredPrefix, symbol, durationStr)
 	default:
 		symbol := r.output.String("✓").Foreground(termenv.ANSIGreen).String()
-		_, _ = fmt.Fprintf(r.stderr, "%s %s Completed in %v\n",
-			coloredPrefix, symbol, duration)
+		_, _ = fmt.Fprintf(r.stderr, "%s %s Completed in %s\n",
+			coloredPrefix, symbol, durationStr)
 	}
 
 	// Cleanup
@@ -231,4 +232,16 @@ func (r *Renderer) printLineLocked(taskName string, color termenv.Color, line []
 
 	prefix := r.output.String(fmt.Sprintf("[%s]", taskName)).Foreground(color).String()
 	_, _ = fmt.Fprintf(r.stdout, "%s %s\n", prefix, string(line))
+}
+
+// formatDuration formats a duration with appropriate units and 2 decimal precision.
+func formatDuration(d time.Duration) string {
+	switch {
+	case d < time.Millisecond:
+		return fmt.Sprintf("%.2fµs", float64(d)/float64(time.Microsecond))
+	case d < time.Second:
+		return fmt.Sprintf("%.2fms", float64(d)/float64(time.Millisecond))
+	default:
+		return fmt.Sprintf("%.2fs", d.Seconds())
+	}
 }
