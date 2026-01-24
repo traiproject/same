@@ -166,7 +166,7 @@ func (r *Renderer) OnTaskLog(spanID string, data []byte) {
 }
 
 // OnTaskComplete flushes remaining buffer and prints completion status.
-func (r *Renderer) OnTaskComplete(spanID string, endTime time.Time, err error) {
+func (r *Renderer) OnTaskComplete(spanID string, endTime time.Time, err error, cached bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -182,11 +182,16 @@ func (r *Renderer) OnTaskComplete(spanID string, endTime time.Time, err error) {
 	duration := endTime.Sub(task.startTime)
 	coloredPrefix := r.output.String(fmt.Sprintf("[%s]", task.name)).Foreground(task.color).String()
 
-	if err != nil {
+	switch {
+	case err != nil:
 		symbol := r.output.String("✗").Foreground(termenv.ANSIRed).String()
 		_, _ = fmt.Fprintf(r.stderr, "%s %s Failed after %v: %v\n",
 			coloredPrefix, symbol, duration, err)
-	} else {
+	case cached:
+		symbol := r.output.String("⚡").Foreground(termenv.ANSIYellow).String()
+		_, _ = fmt.Fprintf(r.stderr, "%s %s Cached (skipped in %v)\n",
+			coloredPrefix, symbol, duration)
+	default:
 		symbol := r.output.String("✓").Foreground(termenv.ANSIGreen).String()
 		_, _ = fmt.Fprintf(r.stderr, "%s %s Completed in %v\n",
 			coloredPrefix, symbol, duration)

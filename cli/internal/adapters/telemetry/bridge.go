@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -66,10 +67,19 @@ func (b *Bridge) OnEnd(s sdktrace.ReadOnlySpan) {
 		err = errors.New(desc)
 	}
 
+	cached := false
+	for _, attr := range s.Attributes() {
+		if string(attr.Key) == "same.cached" && attr.Value.Type() == attribute.BOOL {
+			cached = attr.Value.AsBool()
+			break
+		}
+	}
+
 	b.renderer.OnTaskComplete(
 		sc.SpanID().String(),
 		s.EndTime(),
 		err,
+		cached,
 	)
 }
 

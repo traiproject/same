@@ -23,6 +23,7 @@ type MsgTaskComplete struct {
 	SpanID  string
 	EndTime time.Time
 	Err     error
+	Cached  bool
 }
 
 // MsgTaskLog carries a chunk of log output for a specific task.

@@ -52,7 +52,7 @@ func TestRenderer_TaskLifecycle(t *testing.T) {
 
 	// Task complete
 	endTime := startTime.Add(100 * time.Millisecond)
-	r.OnTaskComplete("span1", endTime, nil)
+	r.OnTaskComplete("span1", endTime, nil, false)
 
 	if !strings.Contains(stderr.String(), "Completed") {
 		t.Errorf("Expected completion message, got: %s", stderr.String())
@@ -86,7 +86,7 @@ func TestRenderer_PartialLines(t *testing.T) {
 	// Flush on complete
 	r.OnTaskLog("span1", []byte("unflushed"))
 	endTime := startTime.Add(50 * time.Millisecond)
-	r.OnTaskComplete("span1", endTime, nil)
+	r.OnTaskComplete("span1", endTime, nil, false)
 
 	if !strings.Contains(stdout.String(), "task1") || !strings.Contains(stdout.String(), "unflushed") {
 		t.Errorf("Expected flushed partial line on complete, got: %s", stdout.String())
@@ -104,7 +104,7 @@ func TestRenderer_TaskError(t *testing.T) {
 
 	endTime := startTime.Add(50 * time.Millisecond)
 	err := zerr.New("task failed")
-	r.OnTaskComplete("span1", endTime, err)
+	r.OnTaskComplete("span1", endTime, err, false)
 
 	stderrStr := stderr.String()
 	if !strings.Contains(stderrStr, "Failed") {
@@ -153,8 +153,8 @@ func TestRenderer_ConcurrentTasks(t *testing.T) {
 	}
 
 	endTime := startTime.Add(100 * time.Millisecond)
-	r.OnTaskComplete("span1", endTime, nil)
-	r.OnTaskComplete("span2", endTime, nil)
+	r.OnTaskComplete("span1", endTime, nil, false)
+	r.OnTaskComplete("span2", endTime, nil, false)
 }
 
 func TestRenderer_NoColor(t *testing.T) {
@@ -172,7 +172,7 @@ func TestRenderer_NoColor(t *testing.T) {
 	r.OnTaskStart("span1", "", "task1", startTime)
 
 	endTime := startTime.Add(50 * time.Millisecond)
-	r.OnTaskComplete("span1", endTime, nil)
+	r.OnTaskComplete("span1", endTime, nil, false)
 
 	// With NO_COLOR, output should not contain ANSI escape codes
 	stderrStr := stderr.String()
@@ -242,7 +242,7 @@ func TestRenderer_OnTaskCompleteUnknownSpan(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	r := linear.NewRenderer(&stdout, &stderr)
 
-	r.OnTaskComplete("unknown-span", time.Now(), nil)
+	r.OnTaskComplete("unknown-span", time.Now(), nil, false)
 
 	if stderr.Len() != 0 {
 		t.Errorf("Expected no output for unknown span completion, got: %s", stderr.String())
@@ -303,5 +303,5 @@ func TestRenderer_NilStdout(_ *testing.T) {
 	startTime := time.Now()
 	r.OnTaskStart("span1", "", "task1", startTime)
 	r.OnTaskLog("span1", []byte("test\n"))
-	r.OnTaskComplete("span1", startTime.Add(time.Second), nil)
+	r.OnTaskComplete("span1", startTime.Add(time.Second), nil, false)
 }

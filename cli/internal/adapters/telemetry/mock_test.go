@@ -39,7 +39,7 @@ func (m *mockRenderer) OnTaskLog(_ string, data []byte) {
 	m.logs = append(m.logs, data)
 }
 
-func (m *mockRenderer) OnTaskComplete(_ string, _ time.Time, _ error) {
+func (m *mockRenderer) OnTaskComplete(_ string, _ time.Time, _ error, _ bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.completeCalls++

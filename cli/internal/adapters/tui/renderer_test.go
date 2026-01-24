@@ -139,7 +139,7 @@ func TestRenderer_OnTaskComplete(t *testing.T) {
 	startTime := time.Now()
 	renderer.OnTaskStart("span1", "", "task1", startTime)
 	endTime := startTime.Add(100 * time.Millisecond)
-	renderer.OnTaskComplete("span1", endTime, nil)
+	renderer.OnTaskComplete("span1", endTime, nil, false)
 
 	time.Sleep(10 * time.Millisecond)
 }
@@ -166,7 +166,7 @@ func TestRenderer_OnTaskCompleteWithError(t *testing.T) {
 	startTime := time.Now()
 	renderer.OnTaskStart("span1", "", "task1", startTime)
 	endTime := startTime.Add(100 * time.Millisecond)
-	renderer.OnTaskComplete("span1", endTime, zerr.New("task failed"))
+	renderer.OnTaskComplete("span1", endTime, zerr.New("task failed"), false)
 
 	time.Sleep(10 * time.Millisecond)
 }

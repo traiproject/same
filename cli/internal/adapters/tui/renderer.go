@@ -73,11 +73,12 @@ func (r *Renderer) OnTaskLog(spanID string, data []byte) {
 }
 
 // OnTaskComplete forwards task completion events to the TUI.
-func (r *Renderer) OnTaskComplete(spanID string, endTime time.Time, err error) {
+func (r *Renderer) OnTaskComplete(spanID string, endTime time.Time, err error, cached bool) {
 	r.program.Send(telemetry.MsgTaskComplete{
 		SpanID:  spanID,
 		EndTime: endTime,
 		Err:     err,
+		Cached:  cached,
 	})
 }
 
