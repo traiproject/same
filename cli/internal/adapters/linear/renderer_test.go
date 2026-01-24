@@ -226,3 +226,82 @@ func TestColorAssignment(t *testing.T) {
 		t.Errorf("Expected multiple different colors for different tasks, got %d unique colors", len(colorSeen))
 	}
 }
+
+func TestRenderer_OnTaskLogUnknownSpan(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	r := linear.NewRenderer(&stdout, &stderr)
+
+	r.OnTaskLog("unknown-span", []byte("should be ignored\n"))
+
+	if stdout.Len() != 0 {
+		t.Errorf("Expected no output for unknown span, got: %s", stdout.String())
+	}
+}
+
+func TestRenderer_OnTaskCompleteUnknownSpan(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	r := linear.NewRenderer(&stdout, &stderr)
+
+	r.OnTaskComplete("unknown-span", time.Now(), nil)
+
+	if stderr.Len() != 0 {
+		t.Errorf("Expected no output for unknown span completion, got: %s", stderr.String())
+	}
+}
+
+func TestRenderer_EmptyLines(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	r := linear.NewRenderer(&stdout, &stderr)
+
+	startTime := time.Now()
+	r.OnTaskStart("span1", "", "task1", startTime)
+
+	r.OnTaskLog("span1", []byte("\n"))
+	r.OnTaskLog("span1", []byte("\r\n"))
+
+	if strings.Contains(stdout.String(), "[task1]") {
+		t.Errorf("Expected no output for empty lines, got: %s", stdout.String())
+	}
+}
+
+func TestRenderer_StopFlushesBuffers(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	r := linear.NewRenderer(&stdout, &stderr)
+
+	startTime := time.Now()
+	r.OnTaskStart("span1", "", "task1", startTime)
+	r.OnTaskStart("span2", "", "task2", startTime)
+
+	r.OnTaskLog("span1", []byte("partial1"))
+	r.OnTaskLog("span2", []byte("partial2"))
+
+	if err := r.Stop(); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	stdoutStr := stdout.String()
+	if !strings.Contains(stdoutStr, "partial1") {
+		t.Errorf("Expected flushed partial1, got: %s", stdoutStr)
+	}
+	if !strings.Contains(stdoutStr, "partial2") {
+		t.Errorf("Expected flushed partial2, got: %s", stdoutStr)
+	}
+}
+
+func TestRenderer_Wait(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	r := linear.NewRenderer(&stdout, &stderr)
+
+	if err := r.Wait(); err != nil {
+		t.Errorf("Wait() should not error, got: %v", err)
+	}
+}
+
+func TestRenderer_NilStdout(_ *testing.T) {
+	r := linear.NewRenderer(nil, nil)
+
+	startTime := time.Now()
+	r.OnTaskStart("span1", "", "task1", startTime)
+	r.OnTaskLog("span1", []byte("test\n"))
+	r.OnTaskComplete("span1", startTime.Add(time.Second), nil)
+}

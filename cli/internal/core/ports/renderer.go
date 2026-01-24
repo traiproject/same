@@ -8,6 +8,8 @@ import (
 // Renderer is the abstraction for output rendering.
 // It decouples telemetry collection from presentation logic,
 // allowing the same event stream to drive either a rich TUI or linear CI logs.
+//
+//go:generate mockgen -source=renderer.go -destination=mocks/mock_renderer.go -package=mocks
 type Renderer interface {
 	// Start initializes the renderer and begins its lifecycle.
 	// For asynchronous renderers (like TUI), this may launch background goroutines.

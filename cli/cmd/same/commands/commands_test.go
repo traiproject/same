@@ -331,3 +331,60 @@ func TestCleanCmd_All(t *testing.T) {
 		t.Errorf("Expected environment cache directory to be removed, but it still exists")
 	}
 }
+
+func TestRun_OutputModeFlags(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "output-mode flag",
+			args: []string{"run", "--output-mode=linear", "build"},
+		},
+		{
+			name: "ci flag",
+			args: []string{"run", "--ci", "build"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockLoader := mocks.NewMockConfigLoader(ctrl)
+			mockExecutor := mocks.NewMockExecutor(ctrl)
+			mockStore := mocks.NewMockBuildInfoStore(ctrl)
+			mockHasher := mocks.NewMockHasher(ctrl)
+			mockResolver := mocks.NewMockInputResolver(ctrl)
+			mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+
+			g := domain.NewGraph()
+			g.SetRoot(".")
+			buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
+			_ = g.AddTask(buildTask)
+
+			mockLogger := mocks.NewMockLogger(ctrl)
+			a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+				WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+			cli := commands.New(a)
+
+			mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+			mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(1)
+			mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
+			mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+			mockExecutor.EXPECT().Execute(
+				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+			).Return(nil).Times(1)
+			mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
+
+			cli.SetArgs(tt.args)
+
+			err := cli.Execute(context.Background())
+			if err != nil {
+				t.Errorf("Expected no error, got: %v", err)
+			}
+		})
+	}
+}

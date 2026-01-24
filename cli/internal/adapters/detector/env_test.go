@@ -126,3 +126,35 @@ func TestResolveMode(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveMode_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name         string
+		autoDetected detector.OutputMode
+		userFlag     string
+		expected     detector.OutputMode
+	}{
+		{
+			name:         "unknown flag falls back to auto-detection (Linear)",
+			autoDetected: detector.ModeLinear,
+			userFlag:     "unknown",
+			expected:     detector.ModeLinear,
+		},
+		{
+			name:         "empty string falls back to auto-detection (Linear)",
+			autoDetected: detector.ModeLinear,
+			userFlag:     "",
+			expected:     detector.ModeLinear,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := detector.ResolveMode(tt.autoDetected, tt.userFlag)
+			if got != tt.expected {
+				t.Errorf("ResolveMode(%v, %q) = %v, want %v",
+					tt.autoDetected, tt.userFlag, got, tt.expected)
+			}
+		})
+	}
+}
