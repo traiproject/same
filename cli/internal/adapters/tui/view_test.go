@@ -293,3 +293,133 @@ func TestView_FullScreenLogView_WithDuration(t *testing.T) {
 	assert.Contains(t, output, "Completed")
 	assert.Contains(t, output, "[2.0s]")
 }
+
+func TestView_BuildFailed_Header(t *testing.T) {
+	task := &tui.TaskNode{Name: "task1", Status: tui.StatusError, Term: tui.NewVterm()}
+
+	m := tui.Model{
+		FlatList:    []*tui.TaskNode{task},
+		TreeRoots:   []*tui.TaskNode{task},
+		ListHeight:  10,
+		ViewMode:    tui.ViewModeTree,
+		BuildFailed: true,
+		TaskMap:     map[string]*tui.TaskNode{"task1": task},
+	}
+
+	output := m.View()
+
+	assert.Contains(t, output, "BUILD FAILED")
+	assert.Contains(t, output, "Press 'q' to exit")
+}
+
+func TestView_BuildSuccess_Header(t *testing.T) {
+	task := &tui.TaskNode{Name: "task1", Status: tui.StatusDone, Term: tui.NewVterm()}
+
+	m := tui.Model{
+		FlatList:    []*tui.TaskNode{task},
+		TreeRoots:   []*tui.TaskNode{task},
+		ListHeight:  10,
+		ViewMode:    tui.ViewModeTree,
+		BuildFailed: false,
+		TaskMap:     map[string]*tui.TaskNode{"task1": task},
+	}
+
+	output := m.View()
+
+	assert.Contains(t, output, "BUILD PLAN")
+	assert.NotContains(t, output, "BUILD FAILED")
+}
+
+func TestView_TreeConnectors(t *testing.T) {
+	child1 := &tui.TaskNode{Name: "child1", Status: tui.StatusDone, Term: tui.NewVterm(), Depth: 1}
+	child2 := &tui.TaskNode{Name: "child2", Status: tui.StatusDone, Term: tui.NewVterm(), Depth: 1}
+	child3 := &tui.TaskNode{Name: "child3", Status: tui.StatusDone, Term: tui.NewVterm(), Depth: 1}
+	parent := &tui.TaskNode{
+		Name:       "parent",
+		Status:     tui.StatusDone,
+		Term:       tui.NewVterm(),
+		Depth:      0,
+		Children:   []*tui.TaskNode{child1, child2, child3},
+		IsExpanded: true,
+	}
+	child1.Parent = parent
+	child2.Parent = parent
+	child3.Parent = parent
+
+	m := tui.Model{
+		FlatList:    []*tui.TaskNode{parent, child1, child2, child3},
+		TreeRoots:   []*tui.TaskNode{parent},
+		ListHeight:  10,
+		SelectedIdx: 0,
+		TaskMap: map[string]*tui.TaskNode{
+			"parent": parent,
+			"child1": child1,
+			"child2": child2,
+			"child3": child3,
+		},
+		ViewMode: tui.ViewModeTree,
+	}
+
+	output := m.View()
+
+	assert.Contains(t, output, "├──")
+	assert.Contains(t, output, "└──")
+}
+
+func TestView_RootNodeNoConnector(t *testing.T) {
+	root := &tui.TaskNode{
+		Name:     "root",
+		Status:   tui.StatusDone,
+		Term:     tui.NewVterm(),
+		Depth:    0,
+		Parent:   nil,
+		Children: []*tui.TaskNode{},
+	}
+
+	m := tui.Model{
+		FlatList:    []*tui.TaskNode{root},
+		TreeRoots:   []*tui.TaskNode{root},
+		ListHeight:  10,
+		SelectedIdx: 0,
+		TaskMap:     map[string]*tui.TaskNode{"root": root},
+		ViewMode:    tui.ViewModeTree,
+	}
+
+	output := m.View()
+
+	assert.Contains(t, output, "root")
+	assert.NotContains(t, output, "├──")
+	assert.NotContains(t, output, "└──")
+}
+
+func TestView_EmptyParentChildren(t *testing.T) {
+	parent := &tui.TaskNode{
+		Name:     "parent",
+		Status:   tui.StatusDone,
+		Term:     tui.NewVterm(),
+		Depth:    0,
+		Children: []*tui.TaskNode{},
+	}
+	orphan := &tui.TaskNode{
+		Name:   "orphan",
+		Status: tui.StatusDone,
+		Term:   tui.NewVterm(),
+		Depth:  1,
+		Parent: parent,
+	}
+
+	m := tui.Model{
+		FlatList:    []*tui.TaskNode{parent, orphan},
+		TreeRoots:   []*tui.TaskNode{parent},
+		ListHeight:  10,
+		SelectedIdx: 0,
+		TaskMap: map[string]*tui.TaskNode{
+			"parent": parent,
+			"orphan": orphan,
+		},
+		ViewMode: tui.ViewModeTree,
+	}
+
+	output := m.View()
+	assert.Contains(t, output, "orphan")
+}
