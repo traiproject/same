@@ -313,6 +313,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Err != nil {
 				node.Status = StatusError
 				m.BuildFailed = true
+				// Move cursor to the failed task
+				for i, t := range m.FlatList {
+					if t.Name == node.Name {
+						m.SelectedIdx = i
+						m.FollowMode = false
+						m.ensureVisible()
+						m.updateActiveView()
+						break
+					}
+				}
 			} else {
 				node.Status = StatusDone
 			}
