@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.trai.ch/same/internal/engine/scheduler"
 	"go.uber.org/mock/gomock"
@@ -66,7 +67,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 			gomock.Any(),
 			gomock.Any(),
 		)
-		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), ports.Span(mockSpan))
 		mockSpan.EXPECT().End().Times(4) // 1x Hydration, 3x Tasks (D, B, C)
 		mockSpan.EXPECT().RecordError(gomock.Any()).Do(func(err error) {
 			if err.Error() != "B failed" {
@@ -75,9 +76,9 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 		})
 
 		// Tasks D, B, C run. A is skipped due to deps failing.
-		mockTracer.EXPECT().Start(gomock.Any(), "D").Return(context.Background(), mockSpan)
-		mockTracer.EXPECT().Start(gomock.Any(), "B").Return(context.Background(), mockSpan)
-		mockTracer.EXPECT().Start(gomock.Any(), "C").Return(context.Background(), mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "D").Return(context.Background(), ports.Span(mockSpan))
+		mockTracer.EXPECT().Start(gomock.Any(), "B").Return(context.Background(), ports.Span(mockSpan))
+		mockTracer.EXPECT().Start(gomock.Any(), "C").Return(context.Background(), ports.Span(mockSpan))
 
 		// Channels for synchronization
 		dStarted := make(chan struct{})
@@ -178,12 +179,12 @@ func TestScheduler_Run_Partial(t *testing.T) {
 
 		// Expectations
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C"}), gomock.Any(), gomock.Any())
-		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), ports.Span(mockSpan))
 
 		// Tasks C, B, A run
-		mockTracer.EXPECT().Start(gomock.Any(), "C").Return(context.Background(), mockSpan)
-		mockTracer.EXPECT().Start(gomock.Any(), "B").Return(context.Background(), mockSpan)
-		mockTracer.EXPECT().Start(gomock.Any(), "A").Return(context.Background(), mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "C").Return(context.Background(), ports.Span(mockSpan))
+		mockTracer.EXPECT().Start(gomock.Any(), "B").Return(context.Background(), ports.Span(mockSpan))
+		mockTracer.EXPECT().Start(gomock.Any(), "A").Return(context.Background(), ports.Span(mockSpan))
 
 		mockSpan.EXPECT().End().Times(4)
 
@@ -237,11 +238,11 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 		s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
 
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), gomock.InAnyOrder([]string{"A", "B", "C"}), gomock.Any(), gomock.Any())
-		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), ports.Span(mockSpan))
 
-		mockTracer.EXPECT().Start(gomock.Any(), "A").Return(context.Background(), mockSpan)
-		mockTracer.EXPECT().Start(gomock.Any(), "B").Return(context.Background(), mockSpan)
-		mockTracer.EXPECT().Start(gomock.Any(), "C").Return(context.Background(), mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "A").Return(context.Background(), ports.Span(mockSpan))
+		mockTracer.EXPECT().Start(gomock.Any(), "B").Return(context.Background(), ports.Span(mockSpan))
+		mockTracer.EXPECT().Start(gomock.Any(), "C").Return(context.Background(), ports.Span(mockSpan))
 		mockSpan.EXPECT().End().Times(4)
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
@@ -279,7 +280,7 @@ func TestScheduler_Run_EmptyTargets(t *testing.T) {
 
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{}, gomock.Any(), gomock.Any())
 		mockSpan := mocks.NewMockSpan(ctrl)
-		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(context.Background(), ports.Span(mockSpan))
 		mockSpan.EXPECT().End()
 
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -395,8 +396,8 @@ func TestScheduler_Run_Caching(t *testing.T) {
 
 		// 1. First Run: Cache Miss
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
-		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
-		mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, ports.Span(mockSpan))
+		mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, ports.Span(mockSpan))
 		mockSpan.EXPECT().End().Times(2)
 
 		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
@@ -411,8 +412,8 @@ func TestScheduler_Run_Caching(t *testing.T) {
 
 		// 2. Second Run: Cache Hit
 		mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
-		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
-		mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
+		mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, ports.Span(mockSpan))
+		mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, ports.Span(mockSpan))
 		mockSpan.EXPECT().End().Times(2)
 		mockSpan.EXPECT().SetAttribute("same.cached", true)
 

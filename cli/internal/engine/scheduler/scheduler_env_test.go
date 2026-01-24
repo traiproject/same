@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.trai.ch/same/internal/engine/scheduler"
 	"go.uber.org/mock/gomock"
@@ -45,7 +46,7 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 
 	// 1. EmitPlan
 	mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
-	mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
+	mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, ports.Span(mockSpan))
 	// We expect hydration to be called.
 	// 4. Env Factory Resolution
 	expectedEnv := []string{"GO_VERSION=1.22.2", "PATH=/nix/store/go/bin"}
@@ -54,7 +55,7 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	mockSpan.EXPECT().End() // Hydration end
 
 	// Task Execution
-	mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
+	mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, ports.Span(mockSpan))
 	mockSpan.EXPECT().End() // Task end
 
 	// 2. Input Hashing
