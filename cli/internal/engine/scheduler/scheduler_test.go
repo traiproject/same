@@ -429,3 +429,130 @@ func TestScheduler_Run_Caching(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestScheduler_RebuildStrategy(t *testing.T) {
+	t.Run("RebuildAlways bypasses cache", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockExec := mocks.NewMockExecutor(ctrl)
+			mockStore := mocks.NewMockBuildInfoStore(ctrl)
+			mockHasher := mocks.NewMockHasher(ctrl)
+			mockResolver := mocks.NewMockInputResolver(ctrl)
+			mockTracer := mocks.NewMockTracer(ctrl)
+			mockSpan := mocks.NewMockSpan(ctrl)
+
+			s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
+			g := domain.NewGraph()
+			g.SetRoot(".")
+			task := &domain.Task{
+				Name:            domain.NewInternedString("build"),
+				RebuildStrategy: domain.RebuildAlways,
+			}
+			_ = g.AddTask(task)
+
+			ctx := context.Background()
+
+			mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
+			mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
+			mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
+			mockSpan.EXPECT().End().Times(2)
+
+			// RebuildAlways should NOT call Store.Get (cache lookup)
+			mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
+			mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return("hash1", nil)
+			mockExec.EXPECT().Execute(ctx, task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+			mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+
+			err := s.Run(ctx, g, []string{"build"}, 1, false)
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("noCache flag bypasses cache", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockExec := mocks.NewMockExecutor(ctrl)
+			mockStore := mocks.NewMockBuildInfoStore(ctrl)
+			mockHasher := mocks.NewMockHasher(ctrl)
+			mockResolver := mocks.NewMockInputResolver(ctrl)
+			mockTracer := mocks.NewMockTracer(ctrl)
+			mockSpan := mocks.NewMockSpan(ctrl)
+
+			s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
+			g := domain.NewGraph()
+			g.SetRoot(".")
+			task := &domain.Task{
+				Name:            domain.NewInternedString("build"),
+				RebuildStrategy: domain.RebuildOnChange,
+			}
+			_ = g.AddTask(task)
+
+			ctx := context.Background()
+
+			mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
+			mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
+			mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
+			mockSpan.EXPECT().End().Times(2)
+
+			// noCache=true should NOT call Store.Get
+			mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
+			mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return("hash1", nil)
+			mockExec.EXPECT().Execute(ctx, task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+			mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+
+			err := s.Run(ctx, g, []string{"build"}, 1, true) // noCache=true
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("RebuildOnChange uses cache", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockExec := mocks.NewMockExecutor(ctrl)
+			mockStore := mocks.NewMockBuildInfoStore(ctrl)
+			mockHasher := mocks.NewMockHasher(ctrl)
+			mockResolver := mocks.NewMockInputResolver(ctrl)
+			mockTracer := mocks.NewMockTracer(ctrl)
+			mockSpan := mocks.NewMockSpan(ctrl)
+
+			s := scheduler.NewScheduler(mockExec, mockStore, mockHasher, mockResolver, mockTracer, nil)
+			g := domain.NewGraph()
+			g.SetRoot(".")
+			task := &domain.Task{
+				Name:            domain.NewInternedString("build"),
+				RebuildStrategy: domain.RebuildOnChange,
+				Outputs:         []domain.InternedString{domain.NewInternedString("out")},
+			}
+			_ = g.AddTask(task)
+
+			ctx := context.Background()
+			const hash1 = "hash1"
+			const outputHash = "outHash"
+
+			mockTracer.EXPECT().EmitPlan(gomock.Any(), []string{"build"}, gomock.Any(), gomock.Any())
+			mockTracer.EXPECT().Start(gomock.Any(), "Hydrating Environments").Return(ctx, mockSpan)
+			mockTracer.EXPECT().Start(gomock.Any(), "build").Return(ctx, mockSpan)
+			mockSpan.EXPECT().End().Times(2)
+			mockSpan.EXPECT().SetAttribute("same.cached", true)
+
+			// RebuildOnChange should call Store.Get
+			mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
+			mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(hash1, nil)
+			mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
+				TaskName:   "build",
+				InputHash:  hash1,
+				OutputHash: outputHash,
+			}, nil)
+			mockHasher.EXPECT().ComputeOutputHash([]string{"out"}, ".").Return(outputHash, nil)
+
+			err := s.Run(ctx, g, []string{"build"}, 1, false)
+			require.NoError(t, err)
+		})
+	})
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/adapters/config"
+	"go.trai.ch/same/internal/core/domain"
 	"go.trai.ch/same/internal/core/ports/mocks"
 	"go.trai.ch/zerr"
 	"go.uber.org/mock/gomock"
@@ -526,4 +527,336 @@ tasks:
 	meta := zErr.Metadata()
 	assert.Equal(t, "undefined-tool", meta["tool_alias"])
 	assert.Equal(t, "build", meta["task"])
+}
+
+func TestLoad_RebuildStrategy(t *testing.T) {
+	t.Run("Default (empty) to on-change", func(t *testing.T) {
+		content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+`
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "same.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		g, err := loader.Load(tmpDir)
+		require.NoError(t, err)
+
+		task, ok := g.GetTask(domain.NewInternedString("build"))
+		require.True(t, ok)
+		assert.Equal(t, domain.RebuildOnChange, task.RebuildStrategy)
+	})
+
+	t.Run("Explicit on-change", func(t *testing.T) {
+		content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    rebuild: "on-change"
+`
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "same.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		g, err := loader.Load(tmpDir)
+		require.NoError(t, err)
+
+		task, ok := g.GetTask(domain.NewInternedString("build"))
+		require.True(t, ok)
+		assert.Equal(t, domain.RebuildOnChange, task.RebuildStrategy)
+	})
+
+	t.Run("Always rebuild", func(t *testing.T) {
+		content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    rebuild: "always"
+`
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "same.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		g, err := loader.Load(tmpDir)
+		require.NoError(t, err)
+
+		task, ok := g.GetTask(domain.NewInternedString("build"))
+		require.True(t, ok)
+		assert.Equal(t, domain.RebuildAlways, task.RebuildStrategy)
+	})
+
+	t.Run("Invalid rebuild strategy", func(t *testing.T) {
+		content := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    rebuild: "invalid"
+`
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "same.yaml")
+		err := os.WriteFile(configPath, []byte(content), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		_, err = loader.Load(tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid rebuild strategy")
+	})
+}
+
+func TestLoad_Workfile(t *testing.T) {
+	t.Run("Basic workfile with projects", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create workspace structure
+		workfileContent := `
+version: "1"
+projects:
+  - "project-a"
+  - "project-b"
+`
+		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
+		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+		require.NoError(t, err)
+
+		// Create project-a
+		projectADir := filepath.Join(tmpDir, "project-a")
+		err = os.Mkdir(projectADir, 0o755)
+		require.NoError(t, err)
+		samefileA := `
+version: "1"
+project: "proj-a"
+tasks:
+  build:
+    cmd: ["go", "build"]
+`
+		err = os.WriteFile(filepath.Join(projectADir, "same.yaml"), []byte(samefileA), 0o600)
+		require.NoError(t, err)
+
+		// Create project-b
+		projectBDir := filepath.Join(tmpDir, "project-b")
+		err = os.Mkdir(projectBDir, 0o755)
+		require.NoError(t, err)
+		samefileB := `
+version: "1"
+project: "proj-b"
+tasks:
+  test:
+    cmd: ["go", "test"]
+`
+		err = os.WriteFile(filepath.Join(projectBDir, "same.yaml"), []byte(samefileB), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		g, err := loader.Load(tmpDir)
+		require.NoError(t, err)
+
+		err = g.Validate()
+		require.NoError(t, err)
+
+		// Verify tasks are namespaced
+		_, ok := g.GetTask(domain.NewInternedString("proj-a:build"))
+		assert.True(t, ok)
+		_, ok = g.GetTask(domain.NewInternedString("proj-b:test"))
+		assert.True(t, ok)
+	})
+
+	t.Run("Workfile with tools", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		workfileContent := `
+version: "1"
+tools:
+  go: "go@1.23"
+projects:
+  - "project-a"
+`
+		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
+		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+		require.NoError(t, err)
+
+		projectADir := filepath.Join(tmpDir, "project-a")
+		err = os.Mkdir(projectADir, 0o755)
+		require.NoError(t, err)
+		samefileA := `
+version: "1"
+project: "proj-a"
+tools:
+  node: "nodejs@20"
+tasks:
+  build:
+    cmd: ["go", "build"]
+    tools: ["go", "node"]
+`
+		err = os.WriteFile(filepath.Join(projectADir, "same.yaml"), []byte(samefileA), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		g, err := loader.Load(tmpDir)
+		require.NoError(t, err)
+
+		task, ok := g.GetTask(domain.NewInternedString("proj-a:build"))
+		require.True(t, ok)
+		assert.Equal(t, map[string]string{
+			"go":   "go@1.23",
+			"node": "nodejs@20",
+		}, task.Tools)
+	})
+
+	t.Run("Missing project field in samefile", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		workfileContent := `
+version: "1"
+projects:
+  - "project-a"
+`
+		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
+		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+		require.NoError(t, err)
+
+		projectADir := filepath.Join(tmpDir, "project-a")
+		err = os.Mkdir(projectADir, 0o755)
+		require.NoError(t, err)
+		samefileA := `
+version: "1"
+tasks:
+  build:
+    cmd: ["go", "build"]
+`
+		err = os.WriteFile(filepath.Join(projectADir, "same.yaml"), []byte(samefileA), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		_, err = loader.Load(tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing project name")
+	})
+
+	t.Run("Invalid project name", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		workfileContent := `
+version: "1"
+projects:
+  - "project-a"
+`
+		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
+		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+		require.NoError(t, err)
+
+		projectADir := filepath.Join(tmpDir, "project-a")
+		err = os.Mkdir(projectADir, 0o755)
+		require.NoError(t, err)
+		samefileA := `
+version: "1"
+project: "invalid:name"
+tasks:
+  build:
+    cmd: ["go", "build"]
+`
+		err = os.WriteFile(filepath.Join(projectADir, "same.yaml"), []byte(samefileA), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		_, err = loader.Load(tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "project name can only contain")
+	})
+
+	t.Run("Duplicate project name", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		workfileContent := `
+version: "1"
+projects:
+  - "project-a"
+  - "project-b"
+`
+		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
+		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+		require.NoError(t, err)
+
+		// Create project-a
+		projectADir := filepath.Join(tmpDir, "project-a")
+		err = os.Mkdir(projectADir, 0o755)
+		require.NoError(t, err)
+		samefileA := `
+version: "1"
+project: "duplicate"
+tasks:
+  build:
+    cmd: ["go", "build"]
+`
+		err = os.WriteFile(filepath.Join(projectADir, "same.yaml"), []byte(samefileA), 0o600)
+		require.NoError(t, err)
+
+		// Create project-b with same project name
+		projectBDir := filepath.Join(tmpDir, "project-b")
+		err = os.Mkdir(projectBDir, 0o755)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(projectBDir, "same.yaml"), []byte(samefileA), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		loader := &config.Loader{Logger: mocks.NewMockLogger(ctrl)}
+		_, err = loader.Load(tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate project name")
+	})
+
+	t.Run("Root warning in workspace mode", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		workfileContent := `
+version: "1"
+projects:
+  - "project-a"
+`
+		workfilePath := filepath.Join(tmpDir, "same.work.yaml")
+		err := os.WriteFile(workfilePath, []byte(workfileContent), 0o600)
+		require.NoError(t, err)
+
+		projectADir := filepath.Join(tmpDir, "project-a")
+		err = os.Mkdir(projectADir, 0o755)
+		require.NoError(t, err)
+		samefileA := `
+version: "1"
+project: "proj-a"
+root: "./custom-root"
+tasks:
+  build:
+    cmd: ["go", "build"]
+`
+		err = os.WriteFile(filepath.Join(projectADir, "same.yaml"), []byte(samefileA), 0o600)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		mockLogger := mocks.NewMockLogger(ctrl)
+		mockLogger.EXPECT().Warn(gomock.Any()).Times(1)
+
+		loader := &config.Loader{Logger: mockLogger}
+		g, err := loader.Load(tmpDir)
+		require.NoError(t, err)
+		require.NotNil(t, g)
+	})
 }
