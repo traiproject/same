@@ -99,43 +99,59 @@ func (l *Loader) loadSamefile(configPath string) (*domain.Graph, error) {
 	g := domain.NewGraph()
 	g.SetRoot(resolveRoot(configPath, samefile.Root))
 
-	taskNames := make(map[string]bool)
-
-	// First pass: Collect all task names to verify dependencies later
-	for name := range samefile.Tasks {
-		taskNames[name] = true
+	taskNames := collectTaskNames(samefile.Tasks)
+	if err := addSamefileTasks(g, samefile, taskNames); err != nil {
+		return nil, err
 	}
 
-	// Second pass: Create tasks and add to graph
+	return g, nil
+}
+
+func collectTaskNames(tasks map[string]*TaskDTO) map[string]bool {
+	taskNames := make(map[string]bool)
+	for name := range tasks {
+		taskNames[name] = true
+	}
+	return taskNames
+}
+
+func addSamefileTasks(g *domain.Graph, samefile Samefile, taskNames map[string]bool) error {
 	for name := range samefile.Tasks {
 		dto := samefile.Tasks[name]
 		if err := validateTaskName(name); err != nil {
-			return nil, err
+			return err
 		}
 
-		// Validate dependencies exist
-		for _, dep := range dto.DependsOn {
-			if !taskNames[dep] {
-				return nil, zerr.With(domain.ErrMissingDependency, "missing_dependency", dep)
-			}
+		if err := validateTaskDependencies(dto.DependsOn, taskNames); err != nil {
+			return err
 		}
 
 		workingDir := resolveTaskWorkingDir(g.Root(), dto.WorkingDir)
 
-		// Resolve tool aliases to flake references
 		taskTools, err := resolveTaskTools(dto.Tools, samefile.Tools)
 		if err != nil {
-			return nil, zerr.With(err, "task", name)
+			return zerr.With(err, "task", name)
 		}
 
-		task := buildTask(name, dto, workingDir, dto.DependsOn, taskTools)
+		task, err := buildTask(name, dto, workingDir, dto.DependsOn, taskTools)
+		if err != nil {
+			return err
+		}
 
 		if err := g.AddTask(task); err != nil {
-			return nil, err
+			return err
 		}
 	}
+	return nil
+}
 
-	return g, nil
+func validateTaskDependencies(deps []string, taskNames map[string]bool) error {
+	for _, dep := range deps {
+		if !taskNames[dep] {
+			return zerr.With(domain.ErrMissingDependency, "missing_dependency", dep)
+		}
+	}
+	return nil
 }
 
 func (l *Loader) loadWorkfile(configPath string) (*domain.Graph, error) {
@@ -325,7 +341,10 @@ func (l *Loader) addProjectTasks(
 			return zerr.With(err, "task", namespacedTaskName)
 		}
 
-		task := buildTask(namespacedTaskName, dto, workingDir, namespacedDeps, taskTools)
+		task, err := buildTask(namespacedTaskName, dto, workingDir, namespacedDeps, taskTools)
+		if err != nil {
+			return err
+		}
 
 		if err := g.AddTask(task); err != nil {
 			return err
@@ -451,17 +470,23 @@ func buildTask(
 	workingDir domain.InternedString,
 	deps []string,
 	tools map[string]string,
-) *domain.Task {
-	return &domain.Task{
-		Name:         domain.NewInternedString(name),
-		Command:      dto.Cmd,
-		Inputs:       canonicalizeStrings(dto.Input),
-		Outputs:      canonicalizeStrings(dto.Target),
-		Dependencies: domain.NewInternedStrings(deps),
-		Environment:  dto.Environment,
-		WorkingDir:   workingDir,
-		Tools:        tools,
+) (*domain.Task, error) {
+	rebuildStrategy, err := validateRebuildStrategy(dto.Rebuild)
+	if err != nil {
+		return nil, zerr.With(err, "task", name)
 	}
+
+	return &domain.Task{
+		Name:            domain.NewInternedString(name),
+		Command:         dto.Cmd,
+		Inputs:          canonicalizeStrings(dto.Input),
+		Outputs:         canonicalizeStrings(dto.Target),
+		Dependencies:    domain.NewInternedStrings(deps),
+		Environment:     dto.Environment,
+		WorkingDir:      workingDir,
+		Tools:           tools,
+		RebuildStrategy: rebuildStrategy,
+	}, nil
 }
 
 // resolveTaskWorkingDir resolves the working directory for a task.
@@ -478,4 +503,19 @@ func resolveTaskWorkingDir(baseDir, configuredWorkingDir string) domain.Interned
 	}
 
 	return domain.NewInternedString(filepath.Clean(filepath.Join(baseDir, configuredWorkingDir)))
+}
+
+// validateRebuildStrategy validates and converts a rebuild strategy string to domain.RebuildStrategy.
+// Empty string defaults to RebuildOnChange for backward compatibility.
+func validateRebuildStrategy(value string) (domain.RebuildStrategy, error) {
+	switch value {
+	case "":
+		return domain.RebuildOnChange, nil
+	case "on-change":
+		return domain.RebuildOnChange, nil
+	case "always":
+		return domain.RebuildAlways, nil
+	default:
+		return "", domain.ErrInvalidRebuildStrategy
+	}
 }

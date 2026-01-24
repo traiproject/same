@@ -489,12 +489,19 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 }
 
 func (state *schedulerRunState) computeInputHash(t *domain.Task) (skipped bool, hash string, err error) {
+	// If task is configured to always rebuild, bypass cache
+	if t.RebuildStrategy == domain.RebuildAlways {
+		h, forceErr := state.s.computeHashForce(t, state.graph.Root())
+		return false, h, forceErr
+	}
+
+	// If noCache flag is set (global force), bypass cache
 	if state.noCache {
 		h, forceErr := state.s.computeHashForce(t, state.graph.Root())
 		return false, h, forceErr
 	}
 
-	// Normal mode: check cache
+	// Normal mode: check cache (RebuildOnChange)
 	skipped, hash, err = state.s.checkTaskCache(state.ctx, t, state.graph.Root())
 	if err != nil {
 		return false, "", err
