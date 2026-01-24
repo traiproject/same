@@ -207,14 +207,7 @@ func (m *mockSpanWriter) MarkExecStart() {
 }
 
 func TestExecutor_Execute_WithMarkExecStartSpan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
-
-	executor := shell.NewExecutor(mockLogger)
+	executor := shell.NewExecutor()
 	tmpDir := t.TempDir()
 
 	task := &domain.Task{
@@ -228,25 +221,4 @@ func TestExecutor_Execute_WithMarkExecStartSpan(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, mockWriter.markExecCalled)
-}
-
-func TestExecutor_Execute_WithoutMarkExecStartSpan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := mocks.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
-
-	executor := shell.NewExecutor(mockLogger)
-	tmpDir := t.TempDir()
-
-	task := &domain.Task{
-		Name:       domain.NewInternedString("test-no-mark-exec"),
-		Command:    []string{"sh", "-c", "echo test"},
-		WorkingDir: domain.NewInternedString(tmpDir),
-	}
-
-	var stdout bytes.Buffer
-	err := executor.Execute(context.Background(), task, nil, &stdout, io.Discard)
-	require.NoError(t, err)
 }
