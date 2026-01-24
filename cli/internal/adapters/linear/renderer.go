@@ -234,14 +234,15 @@ func (r *Renderer) printLineLocked(taskName string, color termenv.Color, line []
 	_, _ = fmt.Fprintf(r.stdout, "%s %s\n", prefix, string(line))
 }
 
-// formatDuration formats a duration with appropriate units and 2 decimal precision.
+// formatDuration formats a duration with appropriate units.
+// Uses no decimal places for µs/ms and one decimal place for seconds.
 func formatDuration(d time.Duration) string {
 	switch {
 	case d < time.Millisecond:
-		return fmt.Sprintf("%.2fµs", float64(d)/float64(time.Microsecond))
+		return fmt.Sprintf("%.0fµs", float64(d)/float64(time.Microsecond))
 	case d < time.Second:
-		return fmt.Sprintf("%.2fms", float64(d)/float64(time.Millisecond))
+		return fmt.Sprintf("%.0fms", float64(d)/float64(time.Millisecond))
 	default:
-		return fmt.Sprintf("%.2fs", d.Seconds())
+		return fmt.Sprintf("%.1fs", d.Seconds())
 	}
 }
