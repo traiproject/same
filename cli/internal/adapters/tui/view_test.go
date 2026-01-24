@@ -77,13 +77,13 @@ func TestView_LogPane(t *testing.T) {
 	task.Status = tui.StatusRunning
 	output = m.View()
 	assert.Contains(t, output, "LOGS: task1")
-	assert.Contains(t, output, "Running")
+	assert.Contains(t, output, "[Running")
 
 	// Case 3: Active task completed
 	task.Status = tui.StatusDone
 	output = m.View()
 	assert.Contains(t, output, "LOGS: task1")
-	assert.Contains(t, output, "Completed")
+	assert.Contains(t, output, "[Took")
 }
 
 func TestView_LipglossIntegration(t *testing.T) {
@@ -163,12 +163,12 @@ func TestView_DurationFormat(t *testing.T) {
 	}
 
 	output := m.View()
-	assert.NotContains(t, output, "ms")
-	assert.NotContains(t, output, "s]")
+	assert.Contains(t, output, "[Pending]")
 
 	task.Status = tui.StatusDone
 	task.StartTime = task.StartTime.Add(-500 * time.Millisecond)
 	output = m.View()
+	assert.Contains(t, output, "[Took")
 	assert.Contains(t, output, "ms")
 }
 
@@ -177,8 +177,8 @@ func TestView_LogViewStatuses(t *testing.T) {
 		status   tui.TaskStatus
 		expected string
 	}{
-		{tui.StatusPending, "Pending"},
-		{tui.StatusError, "Failed"},
+		{tui.StatusPending, "[Pending]"},
+		{tui.StatusError, "[Failed"},
 	}
 
 	for _, tt := range tests {
@@ -245,7 +245,7 @@ func TestView_FormatDuration_WithExecStartTime(t *testing.T) {
 
 	output := m.View()
 
-	assert.Contains(t, output, "[1.0s]")
+	assert.Contains(t, output, "[Took 1.0s]")
 }
 
 func TestView_FormatDuration_RunningTask(t *testing.T) {
@@ -266,6 +266,7 @@ func TestView_FormatDuration_RunningTask(t *testing.T) {
 
 	output := m.View()
 
+	assert.Contains(t, output, "[Running")
 	assert.Contains(t, output, "ms")
 }
 
@@ -290,6 +291,154 @@ func TestView_FullScreenLogView_WithDuration(t *testing.T) {
 	output := m.View()
 
 	assert.Contains(t, output, "LOGS: task1")
-	assert.Contains(t, output, "Completed")
-	assert.Contains(t, output, "[2.0s]")
+	assert.Contains(t, output, "[Took 2.0s]")
+}
+
+func TestFormatStatus_AllStates(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name     string
+		task     *tui.TaskNode
+		expected string
+	}{
+		{
+			name: "Pending",
+			task: &tui.TaskNode{
+				Name:   "task1",
+				Status: tui.StatusPending,
+				Term:   tui.NewVterm(),
+			},
+			expected: "[Pending]",
+		},
+		{
+			name: "Running",
+			task: &tui.TaskNode{
+				Name:      "task2",
+				Status:    tui.StatusRunning,
+				Term:      tui.NewVterm(),
+				StartTime: now.Add(-1 * time.Second),
+			},
+			expected: "[Running",
+		},
+		{
+			name: "Done",
+			task: &tui.TaskNode{
+				Name:      "task3",
+				Status:    tui.StatusDone,
+				Term:      tui.NewVterm(),
+				StartTime: now.Add(-1 * time.Second),
+				EndTime:   now,
+			},
+			expected: "[Took 1.0s]",
+		},
+		{
+			name: "Cached",
+			task: &tui.TaskNode{
+				Name:      "task4",
+				Status:    tui.StatusDone,
+				Term:      tui.NewVterm(),
+				StartTime: now.Add(-500 * time.Millisecond),
+				EndTime:   now,
+				Cached:    true,
+			},
+			expected: "[Cached",
+		},
+		{
+			name: "Failed",
+			task: &tui.TaskNode{
+				Name:      "task5",
+				Status:    tui.StatusError,
+				Term:      tui.NewVterm(),
+				StartTime: now.Add(-2 * time.Second),
+				EndTime:   now,
+			},
+			expected: "[Failed 2.0s]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tui.Model{
+				FlatList:   []*tui.TaskNode{tt.task},
+				TreeRoots:  []*tui.TaskNode{tt.task},
+				ListHeight: 10,
+				ViewMode:   tui.ViewModeTree,
+				TaskMap:    map[string]*tui.TaskNode{tt.task.Name: tt.task},
+			}
+
+			output := m.View()
+			assert.Contains(t, output, tt.expected)
+		})
+	}
+}
+
+func TestCalculateRowNameWidth(t *testing.T) {
+	tests := []struct {
+		name     string
+		task     *tui.TaskNode
+		expected int
+	}{
+		{
+			name: "Root level task",
+			task: &tui.TaskNode{
+				Name:  "root-task",
+				Depth: 0,
+			},
+			expected: 2 + 1 + 1 + 9,
+		},
+		{
+			name: "Depth 1 task",
+			task: &tui.TaskNode{
+				Name:  "child-task",
+				Depth: 1,
+			},
+			expected: 2 + 4 + 2 + 1 + 1 + 10,
+		},
+		{
+			name: "Depth 2 task",
+			task: &tui.TaskNode{
+				Name:  "grandchild",
+				Depth: 2,
+			},
+			expected: 4 + 4 + 2 + 1 + 1 + 10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			width := tui.CalculateRowNameWidth(tt.task)
+			assert.Equal(t, tt.expected, width)
+		})
+	}
+}
+
+func TestCalculateMaxNameWidth(t *testing.T) {
+	tasks := []*tui.TaskNode{
+		{Name: "short", Depth: 0, Term: tui.NewVterm()},
+		{Name: "very-long-task-name", Depth: 0, Term: tui.NewVterm()},
+		{Name: "child", Depth: 1, Term: tui.NewVterm()},
+	}
+
+	m := tui.Model{
+		FlatList:   tasks,
+		TreeRoots:  tasks,
+		ListHeight: 10,
+		ViewMode:   tui.ViewModeTree,
+	}
+
+	maxWidth := m.CalculateMaxNameWidth(0, len(tasks))
+
+	shortWidth := tui.CalculateRowNameWidth(tasks[0])
+	longWidth := tui.CalculateRowNameWidth(tasks[1])
+	childWidth := tui.CalculateRowNameWidth(tasks[2])
+
+	expectedMax := longWidth
+	if childWidth > expectedMax {
+		expectedMax = childWidth
+	}
+	if shortWidth > expectedMax {
+		expectedMax = shortWidth
+	}
+
+	assert.Equal(t, expectedMax, maxWidth)
 }

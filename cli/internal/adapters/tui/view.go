@@ -47,15 +47,18 @@ func (m *Model) treeView() string {
 		start = end
 	}
 
+	// Calculate maximum name width for alignment
+	maxNameWidth := m.calculateMaxNameWidth(start, end)
+
 	for i := start; i < end; i++ {
 		node := m.FlatList[i]
-		s.WriteString(m.renderTreeRow(i, node) + "\n")
+		s.WriteString(m.renderTreeRow(i, node, maxNameWidth) + "\n")
 	}
 
 	return s.String()
 }
 
-func (m *Model) renderTreeRow(index int, node *TaskNode) string {
+func (m *Model) renderTreeRow(index int, node *TaskNode, maxNameWidth int) string {
 	// Get live status from canonical node
 	canonical := node.CanonicalNode
 	if canonical == nil {
@@ -88,8 +91,12 @@ func (m *Model) renderTreeRow(index int, node *TaskNode) string {
 		expander = "  "
 	}
 
-	// Duration display (use canonical node for times)
-	duration := m.formatDuration(canonical)
+	// Status display (use canonical node for times)
+	status := m.formatStatus(canonical)
+
+	// Calculate padding for alignment
+	nameWidth := calculateRowNameWidth(node)
+	padding := strings.Repeat(" ", maxNameWidth-nameWidth)
 
 	// Selection cursor
 	var cursor string
@@ -102,8 +109,8 @@ func (m *Model) renderTreeRow(index int, node *TaskNode) string {
 		cursor = "  "
 	}
 
-	content := fmt.Sprintf("%s%s%s%s %s %s",
-		indent, connector, expander, icon, node.Name, duration)
+	content := fmt.Sprintf("%s%s%s%s %s%s %s",
+		indent, connector, expander, icon, node.Name, padding, status)
 
 	return cursor + style.Render(content)
 }
@@ -116,27 +123,95 @@ func isLastChild(node *TaskNode) bool {
 	return len(children) > 0 && children[len(children)-1] == node
 }
 
-func (m *Model) formatDuration(node *TaskNode) string {
-	if node.Status == StatusPending {
+func (m *Model) formatStatus(node *TaskNode) string {
+	switch node.Status {
+	case StatusPending:
+		return "[Pending]"
+
+	case StatusRunning:
+		var duration time.Duration
+		startTime := node.StartTime
+		if !node.ExecStartTime.IsZero() {
+			startTime = node.ExecStartTime
+		}
+		duration = time.Since(startTime)
+		return fmt.Sprintf("[Running %s]", formatDuration(duration))
+
+	case StatusDone:
+		var duration time.Duration
+		startTime := node.StartTime
+		if !node.ExecStartTime.IsZero() {
+			startTime = node.ExecStartTime
+		}
+		duration = node.EndTime.Sub(startTime)
+
+		if node.Cached {
+			return fmt.Sprintf("[Cached %s]", formatDuration(duration))
+		}
+		return fmt.Sprintf("[Took %s]", formatDuration(duration))
+
+	case StatusError:
+		var duration time.Duration
+		startTime := node.StartTime
+		if !node.ExecStartTime.IsZero() {
+			startTime = node.ExecStartTime
+		}
+		duration = node.EndTime.Sub(startTime)
+		return fmt.Sprintf("[Failed %s]", formatDuration(duration))
+
+	default:
 		return ""
 	}
+}
 
-	var duration time.Duration
-	startTime := node.StartTime
-	if !node.ExecStartTime.IsZero() {
-		startTime = node.ExecStartTime
-	}
-
-	if node.Status == StatusRunning {
-		duration = time.Since(startTime)
-	} else {
-		duration = node.EndTime.Sub(startTime)
-	}
-
+func formatDuration(duration time.Duration) string {
 	if duration < time.Second {
-		return fmt.Sprintf("[%dms]", duration.Milliseconds())
+		return fmt.Sprintf("%dms", duration.Milliseconds())
 	}
-	return fmt.Sprintf("[%.1fs]", duration.Seconds())
+	return fmt.Sprintf("%.1fs", duration.Seconds())
+}
+
+func calculateRowNameWidth(node *TaskNode) int {
+	width := 0
+
+	// Indent: 2 chars per depth level
+	width += node.Depth * 2
+
+	// Connector: 4 chars if depth > 0
+	if node.Depth > 0 {
+		width += 4
+	}
+
+	// Expander: 2 chars always
+	width += 2
+
+	// Icon: 1 char
+	width++
+
+	// Space separator before name
+	width++
+
+	// Name width (Unicode-safe)
+	width += lipgloss.Width(node.Name)
+
+	return width
+}
+
+func (m *Model) calculateMaxNameWidth(start, end int) int {
+	maxWidth := 0
+
+	for i := start; i < end; i++ {
+		if i >= len(m.FlatList) {
+			break
+		}
+		node := m.FlatList[i]
+		width := calculateRowNameWidth(node)
+		if width > maxWidth {
+			maxWidth = width
+		}
+	}
+
+	return maxWidth
 }
 
 //nolint:gocritic // hugeParam ignored
@@ -153,21 +228,9 @@ func (m *Model) fullScreenLogView() string {
 		return "Task not found"
 	}
 
-	status := ""
-	switch node.Status {
-	case StatusRunning:
-		status = " (Running)"
-	case StatusDone:
-		status = " (Completed)"
-	case StatusError:
-		status = " (Failed)"
-	default:
-		status = " (Pending)"
-	}
-
-	duration := m.formatDuration(node)
-	header = titleStyle.Render(fmt.Sprintf("LOGS: %s%s %s | Press ESC to return",
-		node.Name, status, duration))
+	status := m.formatStatus(node)
+	header = titleStyle.Render(fmt.Sprintf("LOGS: %s %s | Press ESC to return",
+		node.Name, status))
 
 	content = node.Term.View()
 
