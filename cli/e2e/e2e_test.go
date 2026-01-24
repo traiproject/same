@@ -22,7 +22,7 @@ func TestMain(m *testing.M) {
 	sameBinary = filepath.Join(tmpDir, "same")
 
 	//nolint:gosec // Building binary with static arguments, not user input
-	cmd := exec.Command("nix", "develop", "-c", "go", "build", "-o", sameBinary, "./cmd/same")
+	cmd := exec.Command("nix", "develop", "-c", "go", "build", "-o", sameBinary, "./cli/cmd/same")
 	cmd.Dir = filepath.Join("..", "..")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

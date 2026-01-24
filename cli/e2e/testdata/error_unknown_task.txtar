@@ -1,0 +1,9 @@
+! exec same run --ci nonexistent
+stderr 'task.*not found|unknown task'
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  real:
+    cmd: ["echo", "exists"]

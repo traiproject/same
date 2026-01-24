@@ -1,0 +1,19 @@
+# First run builds from scratch
+exec same run --ci greet
+stdout '\[greet\] ✓ Completed'
+! stdout 'Cached'
+
+# Second run hits cache
+exec same run --ci greet
+stdout '\[greet\] ⚡ Cached'
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  greet:
+    cmd: ["echo", "Greetings!"]
+    input: ["input.txt"]
+
+-- input.txt --
+Hello

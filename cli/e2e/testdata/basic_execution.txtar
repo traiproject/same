@@ -1,0 +1,13 @@
+# Basic task execution test
+exec same run --ci hello
+stdout '\[hello\] Starting\.\.\.'
+stdout '\[hello\] Hello, World!'
+stdout '\[hello\] ✓ Completed'
+! stderr .
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  hello:
+    cmd: ["echo", "Hello, World!"]

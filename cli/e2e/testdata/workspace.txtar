@@ -1,0 +1,32 @@
+# Run task from sub-project
+cd proj1
+exec same run --ci build
+stdout '\[proj1:build\] ✓ Completed'
+
+# Run cross-project dependency
+cd ../proj2
+exec same run --ci integrate
+stdout '\[proj1:build\] ✓ Completed'
+stdout '\[proj2:integrate\] ✓ Completed'
+
+-- same.work.yaml --
+version: "1"
+root: "."
+projects:
+  - "proj1"
+  - "proj2"
+
+-- proj1/same.yaml --
+version: "1"
+project: proj1
+tasks:
+  build:
+    cmd: ["echo", "Building proj1"]
+
+-- proj2/same.yaml --
+version: "1"
+project: proj2
+tasks:
+  integrate:
+    cmd: ["echo", "Integrating with proj1"]
+    dependsOn: ["proj1:build"]

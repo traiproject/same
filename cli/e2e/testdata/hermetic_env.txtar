@@ -1,0 +1,22 @@
+# Set host variable
+env TEST_VAR=from_host
+
+# Task without env should not see it
+exec same run --ci no-env
+! stdout 'from_host'
+
+# Task with explicit env should see it
+exec same run --ci with-env
+stdout 'custom_value'
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  no-env:
+    cmd: ["sh", "-c", "echo TEST_VAR=${TEST_VAR:-empty}"]
+  
+  with-env:
+    cmd: ["sh", "-c", "echo TEST_VAR=$TEST_VAR"]
+    environment:
+      TEST_VAR: "custom_value"

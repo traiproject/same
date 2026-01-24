@@ -1,0 +1,29 @@
+# Run task to populate cache
+exec same run --ci task1
+exists .same/store
+
+# Clean build cache (default)
+exec same clean
+! exists .same/store
+exists .same/cache/nixhub
+exists .same/cache/environments
+
+# Repopulate
+exec same run --ci task1
+exists .same/store
+
+# Clean all
+exec same clean --all
+! exists .same/store
+! exists .same/cache
+
+-- same.yaml --
+version: "1"
+project: test
+tasks:
+  task1:
+    cmd: ["echo", "test"]
+    input: ["file.txt"]
+
+-- file.txt --
+content
