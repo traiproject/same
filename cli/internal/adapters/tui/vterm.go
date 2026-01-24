@@ -143,13 +143,13 @@ func (v *Vterm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			v.Offset--
 		case "down", "j":
 			v.Offset++
-		case "pgup":
+		case "pgup", "u":
 			v.Offset -= v.Height
-		case "pgdown":
+		case "pgdown", "d":
 			v.Offset += v.Height
-		case "home":
+		case "home", "g":
 			v.Offset = 0
-		case "end":
+		case "end", "G":
 			v.Offset = v.maxOffset()
 		}
 	}
