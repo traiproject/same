@@ -9,6 +9,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/grindlemire/graft v0.2.3
 	github.com/muesli/termenv v0.16.0
+	github.com/rogpeppe/go-internal v1.14.1
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/vito/midterm v0.2.3

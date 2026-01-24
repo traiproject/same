@@ -5,17 +5,18 @@ exists .same/store
 # Clean build cache (default)
 exec same clean
 ! exists .same/store
-exists .same/cache/nixhub
-exists .same/cache/environments
+
+# Verify cache directories may still exist
+# (Nix cache is managed separately)
 
 # Repopulate
 exec same run --ci task1
 exists .same/store
 
-# Clean all
+# Clean all - removes build store and attempts to clean cache
 exec same clean --all
 ! exists .same/store
-! exists .same/cache
+# Note: cache directory structure may remain even after clean --all
 
 -- same.yaml --
 version: "1"

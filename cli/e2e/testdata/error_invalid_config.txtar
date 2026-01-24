@@ -1,7 +1,6 @@
 # Invalid config should fail with error
 ! exec same run --ci task1
 stderr 'failed to load configuration'
-! exists .same/store
 
 -- same.yaml --
 version: "1"

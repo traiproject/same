@@ -1,6 +1,6 @@
 # First run
 exec same run --ci process
-stdout '\[process\] ✓ Completed'
+stderr '\[process\] ✓ Completed'
 exists .same/store
 
 # Modify input
@@ -8,9 +8,9 @@ cp data2.txt data.txt
 
 # Second run rebuilds
 exec same run --ci process
-stdout '\[process\] Starting\.\.\.'
-stdout '\[process\] ✓ Completed'
-! stdout 'Cached'
+stderr '\[process\] Starting\.\.\.'
+stderr '\[process\] ✓ Completed'
+! stderr 'Cached'
 
 -- same.yaml --
 version: "1"

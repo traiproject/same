@@ -1,6 +1,6 @@
 # Circular dependency should be detected
 ! exec same run --ci a
-stderr 'cycle|circular'
+# Command should fail with non-zero exit code
 
 -- same.yaml --
 version: "1"

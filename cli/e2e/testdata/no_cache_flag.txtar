@@ -1,15 +1,15 @@
 # First run
 exec same run --ci task
-stdout '\[task\] ✓ Completed'
+stderr '\[task\] ✓ Completed'
 
 # Cached run
 exec same run --ci task
-stdout 'Cached'
+stderr 'Cached'
 
 # Force rebuild with --no-cache
 exec same run --ci --no-cache task
-stdout '\[task\] Starting'
-! stdout 'Cached'
+stderr '\[task\] Starting'
+! stderr 'Cached'
 
 -- same.yaml --
 version: "1"

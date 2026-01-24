@@ -38,3 +38,10 @@ tasks:
     target: ["bin/same"]
     tools: ["go"]
     dependsOn: ["generate"]
+
+  # Run E2E tests
+  e2e-test:
+    input: ["e2e", "cmd", "internal"]
+    cmd: ["go", "test", "-v", "-tags=e2e", "./e2e/..."]
+    tools: ["go"]
+    dependsOn: ["generate"]

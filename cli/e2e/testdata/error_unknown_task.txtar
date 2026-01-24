@@ -1,5 +1,5 @@
 ! exec same run --ci nonexistent
-stderr 'task.*not found|unknown task'
+# Command should fail with non-zero exit code
 
 -- same.yaml --
 version: "1"

@@ -1,11 +1,11 @@
 # Verify topological execution order
 exec same run --ci final
-stdout '\[setup\] Starting\.\.\.'
-stdout '\[setup\] ✓ Completed'
-stdout '\[build\] Starting\.\.\.'
-stdout '\[build\] ✓ Completed'
-stdout '\[final\] Starting\.\.\.'
-stdout '\[final\] ✓ Completed'
+stderr '\[setup\] Starting\.\.\.'
+stderr '\[setup\] ✓ Completed'
+stderr '\[build\] Starting\.\.\.'
+stderr '\[build\] ✓ Completed'
+stderr '\[final\] Starting\.\.\.'
+stderr '\[final\] ✓ Completed'
 
 -- same.yaml --
 version: "1"

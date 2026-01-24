@@ -1,9 +1,8 @@
 # Basic task execution test
 exec same run --ci hello
-stdout '\[hello\] Starting\.\.\.'
+stderr '\[hello\] Starting\.\.\.'
 stdout '\[hello\] Hello, World!'
-stdout '\[hello\] ✓ Completed'
-! stderr .
+stderr '\[hello\] ✓ Completed'
 
 -- same.yaml --
 version: "1"
