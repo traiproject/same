@@ -50,6 +50,9 @@ jobs:
       - name: Run tests with race detection and cover profile
         run: nix develop -c  go test -v -race -coverprofile=coverage.txt ./cli/...
 
+      - name: Run e2e tests with coverage
+        run: nix develop -c go test -v -tags=e2e -race -coverprofile=coverage-e2e.txt ./cli/e2e/...
+
       - name: Build binary with Nix
         run: nix build
 
@@ -57,4 +60,4 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./cli/coverage.txt
+          files: ./coverage.txt,./coverage-e2e.txt
