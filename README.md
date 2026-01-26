@@ -1,5 +1,5 @@
 <p align="center">
-  <img  width="300" src="brand/logo/same_logo.svg" />
+  <img  width="300" src="https://raw.githubusercontent.com/traiproject/same/refs/heads/main/brand/logo/same_logo.svg" />
 </p>
 <p align="center">
 same
