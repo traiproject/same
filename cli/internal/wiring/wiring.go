@@ -5,6 +5,7 @@ import (
 	// Register adapter nodes.
 	_ "go.trai.ch/same/internal/adapters/cas"
 	_ "go.trai.ch/same/internal/adapters/config"
+	_ "go.trai.ch/same/internal/adapters/daemon"
 	_ "go.trai.ch/same/internal/adapters/fs"
 	_ "go.trai.ch/same/internal/adapters/logger"
 	_ "go.trai.ch/same/internal/adapters/nix"

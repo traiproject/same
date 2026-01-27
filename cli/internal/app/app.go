@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.trai.ch/same/internal/adapters/daemon"
 	"go.trai.ch/same/internal/adapters/detector"
 	"go.trai.ch/same/internal/adapters/linear"
 	"go.trai.ch/same/internal/adapters/telemetry"
@@ -31,6 +32,7 @@ type App struct {
 	hasher       ports.Hasher
 	resolver     ports.InputResolver
 	envFactory   ports.EnvironmentFactory
+	connector    ports.DaemonConnector
 	teaOptions   []tea.ProgramOption
 	disableTick  bool
 }
@@ -44,6 +46,7 @@ func New(
 	hasher ports.Hasher,
 	resolver ports.InputResolver,
 	envFactory ports.EnvironmentFactory,
+	connector ports.DaemonConnector,
 ) *App {
 	return &App{
 		configLoader: loader,
@@ -53,6 +56,7 @@ func New(
 		hasher:       hasher,
 		resolver:     resolver,
 		envFactory:   envFactory,
+		connector:    connector,
 	}
 }
 
@@ -211,12 +215,68 @@ func (a *App) Clean(_ context.Context, options CleanOptions) error {
 
 // setupOTel configures the OpenTelemetry SDK with the renderer bridge.
 func setupOTel(bridge *telemetry.Bridge) {
-	// Create a new TracerProvider with the bridge as a SpanProcessor.
-	// This ensures that all started spans are reported to the renderer.
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bridge),
 	)
 
-	// Register it as the global provider.
 	otel.SetTracerProvider(tp)
+}
+
+// ServeDaemon starts the daemon server.
+func (a *App) ServeDaemon(ctx context.Context) error {
+	lifecycle := daemon.NewLifecycle(domain.DaemonInactivityTimeout)
+	server := daemon.NewServer(lifecycle)
+
+	a.logger.Info("daemon starting")
+
+	if err := server.Serve(ctx); err != nil {
+		return zerr.Wrap(err, "daemon server error")
+	}
+
+	a.logger.Info("daemon stopped")
+	return nil
+}
+
+// DaemonStatus returns the current daemon status.
+func (a *App) DaemonStatus(ctx context.Context) error {
+	client, err := a.connector.Connect(ctx)
+	if err != nil {
+		return zerr.Wrap(err, "failed to connect to daemon")
+	}
+	defer func() {
+		_ = client.Close()
+	}()
+
+	status, err := client.Status(ctx)
+	if err != nil {
+		return zerr.Wrap(err, "failed to get daemon status")
+	}
+
+	a.logger.Info("Daemon Status:")
+	a.logger.Info(fmt.Sprintf("  Running: %v", status.Running))
+	a.logger.Info(fmt.Sprintf("  PID: %d", status.PID))
+	a.logger.Info(fmt.Sprintf("  Uptime: %v", status.Uptime))
+	a.logger.Info(fmt.Sprintf("  Last Activity: %v", status.LastActivity))
+	a.logger.Info(fmt.Sprintf("  Idle Remaining: %v", status.IdleRemaining))
+
+	return nil
+}
+
+// StopDaemon stops the daemon.
+func (a *App) StopDaemon(ctx context.Context) error {
+	client, err := a.connector.Connect(ctx)
+	if err != nil {
+		return zerr.Wrap(err, "failed to connect to daemon")
+	}
+	defer func() {
+		_ = client.Close()
+	}()
+
+	a.logger.Info("stopping daemon")
+	if err := client.Shutdown(ctx); err != nil {
+		return zerr.Wrap(err, "failed to stop daemon")
+	}
+
+	a.logger.Info("daemon stopped")
+	return nil
 }

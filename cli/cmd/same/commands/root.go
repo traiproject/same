@@ -56,6 +56,7 @@ func New(a *app.App) *CLI {
 	rootCmd.AddCommand(c.newRunCmd())
 	rootCmd.AddCommand(c.newCleanCmd())
 	rootCmd.AddCommand(c.newVersionCmd())
+	rootCmd.AddCommand(c.newDaemonCmd())
 
 	return c
 }
