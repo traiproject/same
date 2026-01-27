@@ -20,6 +20,7 @@ func (c *CLI) newRunCmd() *cobra.Command {
 			inspect, _ := cmd.Flags().GetBool("inspect")
 			outputMode, _ := cmd.Flags().GetString("output-mode")
 			ci, _ := cmd.Flags().GetBool("ci")
+			noDaemon, _ := cmd.Flags().GetBool("no-daemon")
 
 			// If --ci is set, override output-mode to "linear"
 			if ci {
@@ -30,6 +31,7 @@ func (c *CLI) newRunCmd() *cobra.Command {
 				NoCache:    noCache,
 				Inspect:    inspect,
 				OutputMode: outputMode,
+				NoDaemon:   noDaemon,
 			})
 		},
 	}
@@ -37,5 +39,6 @@ func (c *CLI) newRunCmd() *cobra.Command {
 	cmd.Flags().BoolP("inspect", "i", false, "Inspect the TUI after build completion (prevents auto-exit)")
 	cmd.Flags().StringP("output-mode", "o", "auto", "Output mode: auto, tui, or linear")
 	cmd.Flags().Bool("ci", false, "Use linear output mode (shorthand for --output-mode=linear)")
+	cmd.Flags().Bool("no-daemon", false, "Bypass remote daemon execution and run locally")
 	return cmd
 }
