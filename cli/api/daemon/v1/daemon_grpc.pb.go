@@ -20,9 +20,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DaemonService_Ping_FullMethodName     = "/daemon.v1.DaemonService/Ping"
-	DaemonService_Status_FullMethodName   = "/daemon.v1.DaemonService/Status"
-	DaemonService_Shutdown_FullMethodName = "/daemon.v1.DaemonService/Shutdown"
+	DaemonService_Ping_FullMethodName           = "/daemon.v1.DaemonService/Ping"
+	DaemonService_Status_FullMethodName         = "/daemon.v1.DaemonService/Status"
+	DaemonService_Shutdown_FullMethodName       = "/daemon.v1.DaemonService/Shutdown"
+	DaemonService_GetGraph_FullMethodName       = "/daemon.v1.DaemonService/GetGraph"
+	DaemonService_GetEnvironment_FullMethodName = "/daemon.v1.DaemonService/GetEnvironment"
 )
 
 // DaemonServiceClient is the client API for DaemonService service.
@@ -35,6 +37,10 @@ type DaemonServiceClient interface {
 	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 	// Shutdown initiates graceful daemon termination.
 	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
+	// GetGraph returns the parsed task graph, using mtime for cache invalidation.
+	GetGraph(ctx context.Context, in *GetGraphRequest, opts ...grpc.CallOption) (*GetGraphResponse, error)
+	// GetEnvironment returns resolved Nix environment variables for a toolset.
+	GetEnvironment(ctx context.Context, in *GetEnvironmentRequest, opts ...grpc.CallOption) (*GetEnvironmentResponse, error)
 }
 
 type daemonServiceClient struct {
@@ -75,6 +81,26 @@ func (c *daemonServiceClient) Shutdown(ctx context.Context, in *ShutdownRequest,
 	return out, nil
 }
 
+func (c *daemonServiceClient) GetGraph(ctx context.Context, in *GetGraphRequest, opts ...grpc.CallOption) (*GetGraphResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGraphResponse)
+	err := c.cc.Invoke(ctx, DaemonService_GetGraph_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonServiceClient) GetEnvironment(ctx context.Context, in *GetEnvironmentRequest, opts ...grpc.CallOption) (*GetEnvironmentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetEnvironmentResponse)
+	err := c.cc.Invoke(ctx, DaemonService_GetEnvironment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DaemonServiceServer is the server API for DaemonService service.
 // All implementations must embed UnimplementedDaemonServiceServer
 // for forward compatibility.
@@ -85,6 +111,10 @@ type DaemonServiceServer interface {
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
 	// Shutdown initiates graceful daemon termination.
 	Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error)
+	// GetGraph returns the parsed task graph, using mtime for cache invalidation.
+	GetGraph(context.Context, *GetGraphRequest) (*GetGraphResponse, error)
+	// GetEnvironment returns resolved Nix environment variables for a toolset.
+	GetEnvironment(context.Context, *GetEnvironmentRequest) (*GetEnvironmentResponse, error)
 	mustEmbedUnimplementedDaemonServiceServer()
 }
 
@@ -103,6 +133,12 @@ func (UnimplementedDaemonServiceServer) Status(context.Context, *StatusRequest) 
 }
 func (UnimplementedDaemonServiceServer) Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Shutdown not implemented")
+}
+func (UnimplementedDaemonServiceServer) GetGraph(context.Context, *GetGraphRequest) (*GetGraphResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGraph not implemented")
+}
+func (UnimplementedDaemonServiceServer) GetEnvironment(context.Context, *GetEnvironmentRequest) (*GetEnvironmentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEnvironment not implemented")
 }
 func (UnimplementedDaemonServiceServer) mustEmbedUnimplementedDaemonServiceServer() {}
 func (UnimplementedDaemonServiceServer) testEmbeddedByValue()                       {}
@@ -179,6 +215,42 @@ func _DaemonService_Shutdown_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DaemonService_GetGraph_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGraphRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServiceServer).GetGraph(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonService_GetGraph_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServiceServer).GetGraph(ctx, req.(*GetGraphRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DaemonService_GetEnvironment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEnvironmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServiceServer).GetEnvironment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonService_GetEnvironment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServiceServer).GetEnvironment(ctx, req.(*GetEnvironmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DaemonService_ServiceDesc is the grpc.ServiceDesc for DaemonService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -197,6 +269,14 @@ var DaemonService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Shutdown",
 			Handler:    _DaemonService_Shutdown_Handler,
+		},
+		{
+			MethodName: "GetGraph",
+			Handler:    _DaemonService_GetGraph_Handler,
+		},
+		{
+			MethodName: "GetEnvironment",
+			Handler:    _DaemonService_GetEnvironment_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

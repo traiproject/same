@@ -39,6 +39,7 @@ type Scheduler struct {
 	resolver   ports.InputResolver
 	tracer     ports.Tracer
 	envFactory ports.EnvironmentFactory
+	daemon     ports.DaemonClient
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
@@ -64,6 +65,12 @@ func NewScheduler(
 		taskStatus: make(map[domain.InternedString]TaskStatus),
 		envCache:   sync.Map{},
 	}
+	return s
+}
+
+// WithDaemon sets the daemon client for the scheduler and returns itself for chaining.
+func (s *Scheduler) WithDaemon(daemon ports.DaemonClient) *Scheduler {
+	s.daemon = daemon
 	return s
 }
 
@@ -267,6 +274,8 @@ func (state *schedulerRunState) runExecutionLoop() error {
 }
 
 // prepareEnvironments resolves all required environments concurrently.
+//
+//nolint:cyclop // complexity due to daemon fallback logic
 func (state *schedulerRunState) prepareEnvironments(ctx context.Context) error {
 	// Identify unique environment IDs needed for this run
 	neededEnvIDs := make(map[string]map[string]string) // envID -> tools map (sample)
@@ -311,7 +320,21 @@ func (state *schedulerRunState) prepareEnvironments(ctx context.Context) error {
 				return nil
 			}
 
-			env, err := state.s.envFactory.GetEnvironment(ctx, item.tools)
+			var env []string
+			var err error
+
+			// Try to use daemon client if available
+			if state.s.daemon != nil {
+				env, _, err = state.s.daemon.GetEnvironment(ctx, item.id, item.tools)
+				if err != nil {
+					// Fallback to local factory on daemon error
+					env, err = state.s.envFactory.GetEnvironment(ctx, item.tools)
+				}
+			} else {
+				// Use local factory when daemon is not available
+				env, err = state.s.envFactory.GetEnvironment(ctx, item.tools)
+			}
+
 			if err != nil {
 				return zerr.Wrap(err, "failed to hydrate environment")
 			}

@@ -9,6 +9,7 @@ import (
 
 	"go.trai.ch/same/api/daemon/v1"
 	"go.trai.ch/same/internal/core/domain"
+	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"google.golang.org/grpc"
 )
@@ -16,9 +17,12 @@ import (
 // Server implements the gRPC daemon service.
 type Server struct {
 	daemonv1.UnimplementedDaemonServiceServer
-	lifecycle  *Lifecycle
-	grpcServer *grpc.Server
-	listener   net.Listener
+	lifecycle    *Lifecycle
+	cache        *ServerCache
+	configLoader ports.ConfigLoader
+	envFactory   ports.EnvironmentFactory
+	grpcServer   *grpc.Server
+	listener     net.Listener
 }
 
 // NewServer creates a new daemon server.
@@ -26,6 +30,23 @@ func NewServer(lifecycle *Lifecycle) *Server {
 	s := &Server{
 		lifecycle:  lifecycle,
 		grpcServer: grpc.NewServer(),
+	}
+	daemonv1.RegisterDaemonServiceServer(s.grpcServer, s)
+	return s
+}
+
+// NewServerWithDeps creates a new daemon server with dependencies for handling graph and environment requests.
+func NewServerWithDeps(
+	lifecycle *Lifecycle,
+	configLoader ports.ConfigLoader,
+	envFactory ports.EnvironmentFactory,
+) *Server {
+	s := &Server{
+		lifecycle:    lifecycle,
+		cache:        NewServerCache(),
+		configLoader: configLoader,
+		envFactory:   envFactory,
+		grpcServer:   grpc.NewServer(),
 	}
 	daemonv1.RegisterDaemonServiceServer(s.grpcServer, s)
 	return s
@@ -123,4 +144,108 @@ func (s *Server) writePIDFile() error {
 	pidPath := domain.DefaultDaemonPIDPath()
 	pid := os.Getpid()
 	return os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", pid)), domain.PrivateFilePerm)
+}
+
+// GetGraph implements DaemonService.GetGraph.
+//
+//nolint:revive // ctx is used to satisfy the interface but not actively used in this method
+func (s *Server) GetGraph(ctx context.Context, req *daemonv1.GetGraphRequest) (*daemonv1.GetGraphResponse, error) {
+	// Convert proto mtimes to map
+	clientMtimes := make(map[string]int64)
+	for _, mtime := range req.ConfigMtimes {
+		clientMtimes[mtime.Path] = mtime.MtimeUnixNano
+	}
+
+	// Reset inactivity timer
+	s.lifecycle.ResetTimer()
+
+	// Check cache
+	if graph, cacheHit := s.cache.GetGraph(req.Cwd, clientMtimes); cacheHit {
+		return s.graphToResponse(graph, true), nil
+	}
+
+	// Cache miss or stale, load the graph
+	graph, err := s.configLoader.Load(req.Cwd)
+	if err != nil {
+		return nil, zerr.Wrap(err, "failed to load graph")
+	}
+
+	// Store in cache
+	entry := &domain.GraphCacheEntry{
+		Graph:       graph,
+		ConfigPaths: make([]string, 0, len(clientMtimes)),
+		Mtimes:      clientMtimes,
+	}
+	for path := range clientMtimes {
+		entry.ConfigPaths = append(entry.ConfigPaths, path)
+	}
+	s.cache.SetGraph(req.Cwd, entry)
+
+	return s.graphToResponse(graph, false), nil
+}
+
+// GetEnvironment implements DaemonService.GetEnvironment.
+func (s *Server) GetEnvironment(
+	ctx context.Context,
+	req *daemonv1.GetEnvironmentRequest,
+) (*daemonv1.GetEnvironmentResponse, error) {
+	// Reset inactivity timer
+	s.lifecycle.ResetTimer()
+
+	// Check cache
+	if envVars, cacheHit := s.cache.GetEnv(req.EnvId); cacheHit {
+		return &daemonv1.GetEnvironmentResponse{
+			CacheHit: true,
+			EnvVars:  envVars,
+		}, nil
+	}
+
+	// Cache miss, resolve environment
+	envVars, err := s.envFactory.GetEnvironment(ctx, req.Tools)
+	if err != nil {
+		return nil, zerr.Wrap(err, "failed to get environment")
+	}
+
+	// Store in cache
+	s.cache.SetEnv(req.EnvId, envVars)
+
+	return &daemonv1.GetEnvironmentResponse{
+		CacheHit: false,
+		EnvVars:  envVars,
+	}, nil
+}
+
+// graphToResponse converts a domain.Graph to a GetGraphResponse proto message.
+func (s *Server) graphToResponse(graph *domain.Graph, cacheHit bool) *daemonv1.GetGraphResponse {
+	resp := &daemonv1.GetGraphResponse{
+		CacheHit: cacheHit,
+		Root:     graph.Root(),
+	}
+
+	// Convert tasks
+	for task := range graph.Walk() {
+		taskProto := &daemonv1.TaskProto{
+			Name:            task.Name.String(),
+			Command:         task.Command,
+			Inputs:          s.internedStringsToStrings(task.Inputs),
+			Outputs:         s.internedStringsToStrings(task.Outputs),
+			Tools:           task.Tools,
+			Dependencies:    s.internedStringsToStrings(task.Dependencies),
+			Environment:     task.Environment,
+			WorkingDir:      task.WorkingDir.String(),
+			RebuildStrategy: string(task.RebuildStrategy),
+		}
+		resp.Tasks = append(resp.Tasks, taskProto)
+	}
+
+	return resp
+}
+
+// internedStringsToStrings converts a slice of InternedString to plain strings.
+func (s *Server) internedStringsToStrings(interned []domain.InternedString) []string {
+	result := make([]string, len(interned))
+	for i, str := range interned {
+		result[i] = str.String()
+	}
+	return result
 }

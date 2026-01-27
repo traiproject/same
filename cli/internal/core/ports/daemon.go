@@ -3,6 +3,8 @@ package ports
 import (
 	"context"
 	"time"
+
+	"go.trai.ch/same/internal/core/domain"
 )
 
 //go:generate mockgen -source=daemon.go -destination=mocks/mock_daemon.go -package=mocks
@@ -26,6 +28,21 @@ type DaemonClient interface {
 
 	// Shutdown requests a graceful daemon shutdown.
 	Shutdown(ctx context.Context) error
+
+	// GetGraph retrieves the task graph from the daemon.
+	// configMtimes is a map of config file paths to their mtime (UnixNano).
+	GetGraph(
+		ctx context.Context,
+		cwd string,
+		configMtimes map[string]int64,
+	) (graph *domain.Graph, cacheHit bool, err error)
+
+	// GetEnvironment retrieves resolved Nix environment variables.
+	GetEnvironment(
+		ctx context.Context,
+		envID string,
+		tools map[string]string,
+	) (envVars []string, cacheHit bool, err error)
 
 	// Close releases client resources.
 	Close() error
