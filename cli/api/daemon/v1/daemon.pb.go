@@ -22,6 +22,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type GetInputHashResponse_State int32
+
+const (
+	GetInputHashResponse_READY   GetInputHashResponse_State = 0
+	GetInputHashResponse_PENDING GetInputHashResponse_State = 1
+	GetInputHashResponse_UNKNOWN GetInputHashResponse_State = 2
+)
+
+// Enum value maps for GetInputHashResponse_State.
+var (
+	GetInputHashResponse_State_name = map[int32]string{
+		0: "READY",
+		1: "PENDING",
+		2: "UNKNOWN",
+	}
+	GetInputHashResponse_State_value = map[string]int32{
+		"READY":   0,
+		"PENDING": 1,
+		"UNKNOWN": 2,
+	}
+)
+
+func (x GetInputHashResponse_State) Enum() *GetInputHashResponse_State {
+	p := new(GetInputHashResponse_State)
+	*p = x
+	return p
+}
+
+func (x GetInputHashResponse_State) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (GetInputHashResponse_State) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_daemon_v1_daemon_proto_enumTypes[0].Descriptor()
+}
+
+func (GetInputHashResponse_State) Type() protoreflect.EnumType {
+	return &file_api_daemon_v1_daemon_proto_enumTypes[0]
+}
+
+func (x GetInputHashResponse_State) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use GetInputHashResponse_State.Descriptor instead.
+func (GetInputHashResponse_State) EnumDescriptor() ([]byte, []int) {
+	return file_api_daemon_v1_daemon_proto_rawDescGZIP(), []int{13, 0}
+}
+
 type PingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -680,6 +729,118 @@ func (x *GetEnvironmentResponse) GetEnvVars() []string {
 	return nil
 }
 
+type GetInputHashRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TaskName      string                 `protobuf:"bytes,1,opt,name=task_name,json=taskName,proto3" json:"task_name,omitempty"`
+	Root          string                 `protobuf:"bytes,2,opt,name=root,proto3" json:"root,omitempty"`
+	Environment   map[string]string      `protobuf:"bytes,3,rep,name=environment,proto3" json:"environment,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInputHashRequest) Reset() {
+	*x = GetInputHashRequest{}
+	mi := &file_api_daemon_v1_daemon_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInputHashRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInputHashRequest) ProtoMessage() {}
+
+func (x *GetInputHashRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_daemon_v1_daemon_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInputHashRequest.ProtoReflect.Descriptor instead.
+func (*GetInputHashRequest) Descriptor() ([]byte, []int) {
+	return file_api_daemon_v1_daemon_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetInputHashRequest) GetTaskName() string {
+	if x != nil {
+		return x.TaskName
+	}
+	return ""
+}
+
+func (x *GetInputHashRequest) GetRoot() string {
+	if x != nil {
+		return x.Root
+	}
+	return ""
+}
+
+func (x *GetInputHashRequest) GetEnvironment() map[string]string {
+	if x != nil {
+		return x.Environment
+	}
+	return nil
+}
+
+type GetInputHashResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	State         GetInputHashResponse_State `protobuf:"varint,1,opt,name=state,proto3,enum=daemon.v1.GetInputHashResponse_State" json:"state,omitempty"`
+	Hash          string                     `protobuf:"bytes,2,opt,name=hash,proto3" json:"hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInputHashResponse) Reset() {
+	*x = GetInputHashResponse{}
+	mi := &file_api_daemon_v1_daemon_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInputHashResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInputHashResponse) ProtoMessage() {}
+
+func (x *GetInputHashResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_daemon_v1_daemon_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInputHashResponse.ProtoReflect.Descriptor instead.
+func (*GetInputHashResponse) Descriptor() ([]byte, []int) {
+	return file_api_daemon_v1_daemon_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetInputHashResponse) GetState() GetInputHashResponse_State {
+	if x != nil {
+		return x.State
+	}
+	return GetInputHashResponse_READY
+}
+
+func (x *GetInputHashResponse) GetHash() string {
+	if x != nil {
+		return x.Hash
+	}
+	return ""
+}
+
 var File_api_daemon_v1_daemon_proto protoreflect.FileDescriptor
 
 const file_api_daemon_v1_daemon_proto_rawDesc = "" +
@@ -736,13 +897,28 @@ const file_api_daemon_v1_daemon_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"P\n" +
 	"\x16GetEnvironmentResponse\x12\x1b\n" +
 	"\tcache_hit\x18\x01 \x01(\bR\bcacheHit\x12\x19\n" +
-	"\benv_vars\x18\x02 \x03(\tR\aenvVars2\xe8\x02\n" +
+	"\benv_vars\x18\x02 \x03(\tR\aenvVars\"\xd9\x01\n" +
+	"\x13GetInputHashRequest\x12\x1b\n" +
+	"\ttask_name\x18\x01 \x01(\tR\btaskName\x12\x12\n" +
+	"\x04root\x18\x02 \x01(\tR\x04root\x12Q\n" +
+	"\venvironment\x18\x03 \x03(\v2/.daemon.v1.GetInputHashRequest.EnvironmentEntryR\venvironment\x1a>\n" +
+	"\x10EnvironmentEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x95\x01\n" +
+	"\x14GetInputHashResponse\x12;\n" +
+	"\x05state\x18\x01 \x01(\x0e2%.daemon.v1.GetInputHashResponse.StateR\x05state\x12\x12\n" +
+	"\x04hash\x18\x02 \x01(\tR\x04hash\",\n" +
+	"\x05State\x12\t\n" +
+	"\x05READY\x10\x00\x12\v\n" +
+	"\aPENDING\x10\x01\x12\v\n" +
+	"\aUNKNOWN\x10\x022\xb9\x03\n" +
 	"\rDaemonService\x127\n" +
 	"\x04Ping\x12\x16.daemon.v1.PingRequest\x1a\x17.daemon.v1.PingResponse\x12=\n" +
 	"\x06Status\x12\x18.daemon.v1.StatusRequest\x1a\x19.daemon.v1.StatusResponse\x12C\n" +
 	"\bShutdown\x12\x1a.daemon.v1.ShutdownRequest\x1a\x1b.daemon.v1.ShutdownResponse\x12C\n" +
 	"\bGetGraph\x12\x1a.daemon.v1.GetGraphRequest\x1a\x1b.daemon.v1.GetGraphResponse\x12U\n" +
-	"\x0eGetEnvironment\x12 .daemon.v1.GetEnvironmentRequest\x1a!.daemon.v1.GetEnvironmentResponseB(Z&go.trai.ch/same/api/daemon/v1;daemonv1b\x06proto3"
+	"\x0eGetEnvironment\x12 .daemon.v1.GetEnvironmentRequest\x1a!.daemon.v1.GetEnvironmentResponse\x12O\n" +
+	"\fGetInputHash\x12\x1e.daemon.v1.GetInputHashRequest\x1a\x1f.daemon.v1.GetInputHashResponseB(Z&go.trai.ch/same/api/daemon/v1;daemonv1b\x06proto3"
 
 var (
 	file_api_daemon_v1_daemon_proto_rawDescOnce sync.Once
@@ -756,45 +932,54 @@ func file_api_daemon_v1_daemon_proto_rawDescGZIP() []byte {
 	return file_api_daemon_v1_daemon_proto_rawDescData
 }
 
-var file_api_daemon_v1_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_api_daemon_v1_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_api_daemon_v1_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_api_daemon_v1_daemon_proto_goTypes = []any{
-	(*PingRequest)(nil),            // 0: daemon.v1.PingRequest
-	(*PingResponse)(nil),           // 1: daemon.v1.PingResponse
-	(*StatusRequest)(nil),          // 2: daemon.v1.StatusRequest
-	(*StatusResponse)(nil),         // 3: daemon.v1.StatusResponse
-	(*ShutdownRequest)(nil),        // 4: daemon.v1.ShutdownRequest
-	(*ShutdownResponse)(nil),       // 5: daemon.v1.ShutdownResponse
-	(*ConfigMtime)(nil),            // 6: daemon.v1.ConfigMtime
-	(*GetGraphRequest)(nil),        // 7: daemon.v1.GetGraphRequest
-	(*TaskProto)(nil),              // 8: daemon.v1.TaskProto
-	(*GetGraphResponse)(nil),       // 9: daemon.v1.GetGraphResponse
-	(*GetEnvironmentRequest)(nil),  // 10: daemon.v1.GetEnvironmentRequest
-	(*GetEnvironmentResponse)(nil), // 11: daemon.v1.GetEnvironmentResponse
-	nil,                            // 12: daemon.v1.TaskProto.ToolsEntry
-	nil,                            // 13: daemon.v1.TaskProto.EnvironmentEntry
-	nil,                            // 14: daemon.v1.GetEnvironmentRequest.ToolsEntry
+	(GetInputHashResponse_State)(0), // 0: daemon.v1.GetInputHashResponse.State
+	(*PingRequest)(nil),             // 1: daemon.v1.PingRequest
+	(*PingResponse)(nil),            // 2: daemon.v1.PingResponse
+	(*StatusRequest)(nil),           // 3: daemon.v1.StatusRequest
+	(*StatusResponse)(nil),          // 4: daemon.v1.StatusResponse
+	(*ShutdownRequest)(nil),         // 5: daemon.v1.ShutdownRequest
+	(*ShutdownResponse)(nil),        // 6: daemon.v1.ShutdownResponse
+	(*ConfigMtime)(nil),             // 7: daemon.v1.ConfigMtime
+	(*GetGraphRequest)(nil),         // 8: daemon.v1.GetGraphRequest
+	(*TaskProto)(nil),               // 9: daemon.v1.TaskProto
+	(*GetGraphResponse)(nil),        // 10: daemon.v1.GetGraphResponse
+	(*GetEnvironmentRequest)(nil),   // 11: daemon.v1.GetEnvironmentRequest
+	(*GetEnvironmentResponse)(nil),  // 12: daemon.v1.GetEnvironmentResponse
+	(*GetInputHashRequest)(nil),     // 13: daemon.v1.GetInputHashRequest
+	(*GetInputHashResponse)(nil),    // 14: daemon.v1.GetInputHashResponse
+	nil,                             // 15: daemon.v1.TaskProto.ToolsEntry
+	nil,                             // 16: daemon.v1.TaskProto.EnvironmentEntry
+	nil,                             // 17: daemon.v1.GetEnvironmentRequest.ToolsEntry
+	nil,                             // 18: daemon.v1.GetInputHashRequest.EnvironmentEntry
 }
 var file_api_daemon_v1_daemon_proto_depIdxs = []int32{
-	6,  // 0: daemon.v1.GetGraphRequest.config_mtimes:type_name -> daemon.v1.ConfigMtime
-	12, // 1: daemon.v1.TaskProto.tools:type_name -> daemon.v1.TaskProto.ToolsEntry
-	13, // 2: daemon.v1.TaskProto.environment:type_name -> daemon.v1.TaskProto.EnvironmentEntry
-	8,  // 3: daemon.v1.GetGraphResponse.tasks:type_name -> daemon.v1.TaskProto
-	14, // 4: daemon.v1.GetEnvironmentRequest.tools:type_name -> daemon.v1.GetEnvironmentRequest.ToolsEntry
-	0,  // 5: daemon.v1.DaemonService.Ping:input_type -> daemon.v1.PingRequest
-	2,  // 6: daemon.v1.DaemonService.Status:input_type -> daemon.v1.StatusRequest
-	4,  // 7: daemon.v1.DaemonService.Shutdown:input_type -> daemon.v1.ShutdownRequest
-	7,  // 8: daemon.v1.DaemonService.GetGraph:input_type -> daemon.v1.GetGraphRequest
-	10, // 9: daemon.v1.DaemonService.GetEnvironment:input_type -> daemon.v1.GetEnvironmentRequest
-	1,  // 10: daemon.v1.DaemonService.Ping:output_type -> daemon.v1.PingResponse
-	3,  // 11: daemon.v1.DaemonService.Status:output_type -> daemon.v1.StatusResponse
-	5,  // 12: daemon.v1.DaemonService.Shutdown:output_type -> daemon.v1.ShutdownResponse
-	9,  // 13: daemon.v1.DaemonService.GetGraph:output_type -> daemon.v1.GetGraphResponse
-	11, // 14: daemon.v1.DaemonService.GetEnvironment:output_type -> daemon.v1.GetEnvironmentResponse
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	7,  // 0: daemon.v1.GetGraphRequest.config_mtimes:type_name -> daemon.v1.ConfigMtime
+	15, // 1: daemon.v1.TaskProto.tools:type_name -> daemon.v1.TaskProto.ToolsEntry
+	16, // 2: daemon.v1.TaskProto.environment:type_name -> daemon.v1.TaskProto.EnvironmentEntry
+	9,  // 3: daemon.v1.GetGraphResponse.tasks:type_name -> daemon.v1.TaskProto
+	17, // 4: daemon.v1.GetEnvironmentRequest.tools:type_name -> daemon.v1.GetEnvironmentRequest.ToolsEntry
+	18, // 5: daemon.v1.GetInputHashRequest.environment:type_name -> daemon.v1.GetInputHashRequest.EnvironmentEntry
+	0,  // 6: daemon.v1.GetInputHashResponse.state:type_name -> daemon.v1.GetInputHashResponse.State
+	1,  // 7: daemon.v1.DaemonService.Ping:input_type -> daemon.v1.PingRequest
+	3,  // 8: daemon.v1.DaemonService.Status:input_type -> daemon.v1.StatusRequest
+	5,  // 9: daemon.v1.DaemonService.Shutdown:input_type -> daemon.v1.ShutdownRequest
+	8,  // 10: daemon.v1.DaemonService.GetGraph:input_type -> daemon.v1.GetGraphRequest
+	11, // 11: daemon.v1.DaemonService.GetEnvironment:input_type -> daemon.v1.GetEnvironmentRequest
+	13, // 12: daemon.v1.DaemonService.GetInputHash:input_type -> daemon.v1.GetInputHashRequest
+	2,  // 13: daemon.v1.DaemonService.Ping:output_type -> daemon.v1.PingResponse
+	4,  // 14: daemon.v1.DaemonService.Status:output_type -> daemon.v1.StatusResponse
+	6,  // 15: daemon.v1.DaemonService.Shutdown:output_type -> daemon.v1.ShutdownResponse
+	10, // 16: daemon.v1.DaemonService.GetGraph:output_type -> daemon.v1.GetGraphResponse
+	12, // 17: daemon.v1.DaemonService.GetEnvironment:output_type -> daemon.v1.GetEnvironmentResponse
+	14, // 18: daemon.v1.DaemonService.GetInputHash:output_type -> daemon.v1.GetInputHashResponse
+	13, // [13:19] is the sub-list for method output_type
+	7,  // [7:13] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_api_daemon_v1_daemon_proto_init() }
@@ -807,13 +992,14 @@ func file_api_daemon_v1_daemon_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_daemon_v1_daemon_proto_rawDesc), len(file_api_daemon_v1_daemon_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   15,
+			NumEnums:      1,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_api_daemon_v1_daemon_proto_goTypes,
 		DependencyIndexes: file_api_daemon_v1_daemon_proto_depIdxs,
+		EnumInfos:         file_api_daemon_v1_daemon_proto_enumTypes,
 		MessageInfos:      file_api_daemon_v1_daemon_proto_msgTypes,
 	}.Build()
 	File_api_daemon_v1_daemon_proto = out.File

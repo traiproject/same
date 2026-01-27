@@ -25,6 +25,7 @@ const (
 	DaemonService_Shutdown_FullMethodName       = "/daemon.v1.DaemonService/Shutdown"
 	DaemonService_GetGraph_FullMethodName       = "/daemon.v1.DaemonService/GetGraph"
 	DaemonService_GetEnvironment_FullMethodName = "/daemon.v1.DaemonService/GetEnvironment"
+	DaemonService_GetInputHash_FullMethodName   = "/daemon.v1.DaemonService/GetInputHash"
 )
 
 // DaemonServiceClient is the client API for DaemonService service.
@@ -41,6 +42,8 @@ type DaemonServiceClient interface {
 	GetGraph(ctx context.Context, in *GetGraphRequest, opts ...grpc.CallOption) (*GetGraphResponse, error)
 	// GetEnvironment returns resolved Nix environment variables for a toolset.
 	GetEnvironment(ctx context.Context, in *GetEnvironmentRequest, opts ...grpc.CallOption) (*GetEnvironmentResponse, error)
+	// GetInputHash returns the cached or pending input hash for a task.
+	GetInputHash(ctx context.Context, in *GetInputHashRequest, opts ...grpc.CallOption) (*GetInputHashResponse, error)
 }
 
 type daemonServiceClient struct {
@@ -101,6 +104,16 @@ func (c *daemonServiceClient) GetEnvironment(ctx context.Context, in *GetEnviron
 	return out, nil
 }
 
+func (c *daemonServiceClient) GetInputHash(ctx context.Context, in *GetInputHashRequest, opts ...grpc.CallOption) (*GetInputHashResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetInputHashResponse)
+	err := c.cc.Invoke(ctx, DaemonService_GetInputHash_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DaemonServiceServer is the server API for DaemonService service.
 // All implementations must embed UnimplementedDaemonServiceServer
 // for forward compatibility.
@@ -115,6 +128,8 @@ type DaemonServiceServer interface {
 	GetGraph(context.Context, *GetGraphRequest) (*GetGraphResponse, error)
 	// GetEnvironment returns resolved Nix environment variables for a toolset.
 	GetEnvironment(context.Context, *GetEnvironmentRequest) (*GetEnvironmentResponse, error)
+	// GetInputHash returns the cached or pending input hash for a task.
+	GetInputHash(context.Context, *GetInputHashRequest) (*GetInputHashResponse, error)
 	mustEmbedUnimplementedDaemonServiceServer()
 }
 
@@ -139,6 +154,9 @@ func (UnimplementedDaemonServiceServer) GetGraph(context.Context, *GetGraphReque
 }
 func (UnimplementedDaemonServiceServer) GetEnvironment(context.Context, *GetEnvironmentRequest) (*GetEnvironmentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetEnvironment not implemented")
+}
+func (UnimplementedDaemonServiceServer) GetInputHash(context.Context, *GetInputHashRequest) (*GetInputHashResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetInputHash not implemented")
 }
 func (UnimplementedDaemonServiceServer) mustEmbedUnimplementedDaemonServiceServer() {}
 func (UnimplementedDaemonServiceServer) testEmbeddedByValue()                       {}
@@ -251,6 +269,24 @@ func _DaemonService_GetEnvironment_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DaemonService_GetInputHash_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInputHashRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServiceServer).GetInputHash(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonService_GetInputHash_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServiceServer).GetInputHash(ctx, req.(*GetInputHashRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DaemonService_ServiceDesc is the grpc.ServiceDesc for DaemonService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -277,6 +313,10 @@ var DaemonService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetEnvironment",
 			Handler:    _DaemonService_GetEnvironment_Handler,
+		},
+		{
+			MethodName: "GetInputHash",
+			Handler:    _DaemonService_GetInputHash_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

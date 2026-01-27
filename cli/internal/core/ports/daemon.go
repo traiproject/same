@@ -44,6 +44,13 @@ type DaemonClient interface {
 		tools map[string]string,
 	) (envVars []string, cacheHit bool, err error)
 
+	// GetInputHash retrieves the cached or pending input hash for a task.
+	GetInputHash(
+		ctx context.Context,
+		taskName, root string,
+		env map[string]string,
+	) (InputHashResult, error)
+
 	// Close releases client resources.
 	Close() error
 }

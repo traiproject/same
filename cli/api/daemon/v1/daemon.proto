@@ -19,6 +19,9 @@ service DaemonService {
 
   // GetEnvironment returns resolved Nix environment variables for a toolset.
   rpc GetEnvironment(GetEnvironmentRequest) returns (GetEnvironmentResponse);
+
+  // GetInputHash returns the cached or pending input hash for a task.
+  rpc GetInputHash(GetInputHashRequest) returns (GetInputHashResponse);
 }
 
 message PingRequest {}
@@ -83,4 +86,20 @@ message GetEnvironmentRequest {
 message GetEnvironmentResponse {
   bool cache_hit = 1;
   repeated string env_vars = 2;
+}
+
+message GetInputHashRequest {
+  string task_name = 1;
+  string root = 2;
+  map<string, string> environment = 3;
+}
+
+message GetInputHashResponse {
+  enum State {
+    READY = 0;
+    PENDING = 1;
+    UNKNOWN = 2;
+  }
+  State state = 1;
+  string hash = 2;
 }

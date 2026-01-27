@@ -2,6 +2,7 @@ package commands_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -42,6 +43,9 @@ func TestRun_Success(t *testing.T) {
 	cli := commands.New(a)
 
 	// Setup strict expectations in the correct sequence
+	// 0. Daemon connection fails (daemon not available, fallback to local)
+	mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
+
 	// 1. Loader.Load is called first
 	mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
 
@@ -379,6 +383,7 @@ func TestRun_OutputModeFlags(t *testing.T) {
 
 			cli := commands.New(a)
 
+			mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 			mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
 			mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(1)
 			mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)

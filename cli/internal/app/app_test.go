@@ -64,6 +64,7 @@ func TestApp_Build(t *testing.T) {
 			).
 			WithDisableTick()
 
+		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
@@ -122,6 +123,7 @@ func TestApp_Run_NoTargets(t *testing.T) {
 			).
 			WithDisableTick()
 
+		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
 
@@ -177,6 +179,7 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 			).
 			WithDisableTick()
 
+		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 		// Expectations - loader fails
 		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))
 
@@ -242,6 +245,7 @@ func TestApp_Run_BuildExecutionFailed(t *testing.T) {
 			).
 			WithDisableTick()
 
+		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
@@ -439,6 +443,7 @@ func TestApp_Run_LinearMode(t *testing.T) {
 			).
 			WithDisableTick()
 
+		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
@@ -500,6 +505,7 @@ func TestApp_Run_InspectMode(t *testing.T) {
 			).
 			WithDisableTick()
 
+		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
