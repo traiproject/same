@@ -544,3 +544,81 @@ func validateRebuildStrategy(value string) (domain.RebuildStrategy, error) {
 		return "", domain.ErrInvalidRebuildStrategy
 	}
 }
+
+// DiscoverConfigPaths finds same.yaml and same.work.yaml paths from cwd.
+// Returns paths and their mtimes for cache validation.
+// It walks up the directory tree and finds all config files that would be loaded
+// for a workspace (including workspace file and all project files).
+func (l *Loader) DiscoverConfigPaths(cwd string) (map[string]int64, error) {
+	paths := make(map[string]int64)
+
+	// First, find the workspace or standalone config
+	currentDir := cwd
+	var standaloneCandidate string
+
+	for {
+		workfilePath := filepath.Join(currentDir, domain.WorkFileName)
+		if info, err := os.Stat(workfilePath); err == nil {
+			// Found workspace file, add it
+			paths[workfilePath] = info.ModTime().UnixNano()
+
+			// For workspace mode, also find all project same.yaml files
+			if err := l.discoverWorkspaceProjectPaths(currentDir, paths); err != nil {
+				return nil, zerr.Wrap(err, "failed to discover project paths")
+			}
+
+			return paths, nil
+		}
+
+		if standaloneCandidate == "" {
+			samefilePath := filepath.Join(currentDir, domain.SameFileName)
+			if info, err := os.Stat(samefilePath); err == nil {
+				standaloneCandidate = samefilePath
+				paths[samefilePath] = info.ModTime().UnixNano()
+			}
+		}
+
+		parentDir := filepath.Dir(currentDir)
+		if parentDir == currentDir {
+			// Reached root
+			break
+		}
+		currentDir = parentDir
+	}
+
+	if standaloneCandidate != "" {
+		// Standalone mode, only one config file
+		return paths, nil
+	}
+
+	return nil, zerr.With(domain.ErrConfigNotFound, "cwd", cwd)
+}
+
+// discoverWorkspaceProjectPaths finds all same.yaml files in workspace projects.
+func (l *Loader) discoverWorkspaceProjectPaths(workspaceRoot string, paths map[string]int64) error {
+	workfilePath := filepath.Join(workspaceRoot, domain.WorkFileName)
+	//nolint:gosec // G304: Path is constructed from validated workspace root, safe for use
+	workfileData, readErr := os.ReadFile(workfilePath)
+	if readErr != nil {
+		return zerr.Wrap(readErr, "failed to read workfile")
+	}
+
+	var workfile Workfile
+	if unmarshalErr := yaml.Unmarshal(workfileData, &workfile); unmarshalErr != nil {
+		return zerr.Wrap(unmarshalErr, "failed to parse workfile")
+	}
+
+	projectPaths, resolveErr := l.resolveProjectPaths(workspaceRoot, workfile.Projects)
+	if resolveErr != nil {
+		return resolveErr
+	}
+
+	for _, projectPath := range projectPaths {
+		sameYamlPath := filepath.Join(projectPath, domain.SameFileName)
+		if info, statErr := os.Stat(sameYamlPath); statErr == nil {
+			paths[sameYamlPath] = info.ModTime().UnixNano()
+		}
+	}
+
+	return nil
+}

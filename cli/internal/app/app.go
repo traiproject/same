@@ -91,10 +91,39 @@ type RunOptions struct {
 //
 //nolint:cyclop // orchestration function
 func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
-	// 1. Load the graph
-	graph, err := a.configLoader.Load(".")
-	if err != nil {
-		return zerr.Wrap(err, "failed to load configuration")
+	// 1. Connect to daemon (if available) and load graph from daemon or fallback to local
+	var graph *domain.Graph
+	var client ports.DaemonClient
+	var err error
+
+	client, clientErr := a.connector.Connect(ctx)
+	if clientErr == nil {
+		// Daemon is available, try to get graph from daemon
+		defer func() {
+			_ = client.Close()
+		}()
+
+		// Discover config paths and mtimes
+		mtimes, mtimeErr := a.configLoader.DiscoverConfigPaths(".")
+		if mtimeErr != nil {
+			return zerr.Wrap(mtimeErr, "failed to discover config paths")
+		}
+
+		// Try to get graph from daemon
+		graph, _, err = client.GetGraph(ctx, ".", mtimes)
+		if err != nil {
+			// Fallback to local loading if daemon fails
+			if graph, err = a.configLoader.Load("."); err != nil {
+				return zerr.Wrap(err, "failed to load configuration")
+			}
+		}
+	} else {
+		// Daemon not available, use local loading
+		var loadErr error
+		graph, loadErr = a.configLoader.Load(".")
+		if loadErr != nil {
+			return zerr.Wrap(loadErr, "failed to load configuration")
+		}
 	}
 
 	// 2. Validate targets
@@ -144,6 +173,11 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		tracer,
 		a.envFactory,
 	)
+
+	// Pass daemon client to scheduler if available
+	if client != nil {
+		sched.WithDaemon(client)
+	}
 
 	// 6. Run Renderer and Scheduler concurrently
 	g, ctx := errgroup.WithContext(ctx)

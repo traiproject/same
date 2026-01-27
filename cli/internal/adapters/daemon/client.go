@@ -67,6 +67,78 @@ func (c *Client) Shutdown(ctx context.Context) error {
 	return err
 }
 
+// GetGraph implements ports.DaemonClient.
+func (c *Client) GetGraph(ctx context.Context, cwd string, configMtimes map[string]int64) (*domain.Graph, bool, error) {
+	// Build request
+	req := &daemonv1.GetGraphRequest{
+		Cwd: cwd,
+	}
+	for path, mtime := range configMtimes {
+		req.ConfigMtimes = append(req.ConfigMtimes, &daemonv1.ConfigMtime{
+			Path:          path,
+			MtimeUnixNano: mtime,
+		})
+	}
+
+	// Call gRPC
+	resp, err := c.client.GetGraph(ctx, req)
+	if err != nil {
+		return nil, false, zerr.Wrap(err, "GetGraph RPC failed")
+	}
+
+	// Convert response to domain.Graph
+	graph := domain.NewGraph()
+	for _, taskProto := range resp.Tasks {
+		task := &domain.Task{
+			Name:            domain.NewInternedString(taskProto.Name),
+			Command:         taskProto.Command,
+			Inputs:          c.stringsToInternedStrings(taskProto.Inputs),
+			Outputs:         c.stringsToInternedStrings(taskProto.Outputs),
+			Tools:           taskProto.Tools,
+			Dependencies:    c.stringsToInternedStrings(taskProto.Dependencies),
+			Environment:     taskProto.Environment,
+			WorkingDir:      domain.NewInternedString(taskProto.WorkingDir),
+			RebuildStrategy: domain.RebuildStrategy(taskProto.RebuildStrategy),
+		}
+		if err := graph.AddTask(task); err != nil {
+			return nil, false, zerr.Wrap(err, "failed to add task to graph")
+		}
+	}
+
+	// Set root (important: must be set after all tasks are added)
+	graph.SetRoot(resp.Root)
+
+	return graph, resp.CacheHit, nil
+}
+
+// GetEnvironment implements ports.DaemonClient.
+func (c *Client) GetEnvironment(
+	ctx context.Context,
+	envID string,
+	tools map[string]string,
+) (envVars []string, cacheHit bool, err error) {
+	req := &daemonv1.GetEnvironmentRequest{
+		EnvId: envID,
+		Tools: tools,
+	}
+
+	resp, err := c.client.GetEnvironment(ctx, req)
+	if err != nil {
+		return nil, false, zerr.Wrap(err, "GetEnvironment RPC failed")
+	}
+
+	return resp.EnvVars, resp.CacheHit, nil
+}
+
+// stringsToInternedStrings converts a slice of strings to InternedString.
+func (c *Client) stringsToInternedStrings(strs []string) []domain.InternedString {
+	result := make([]domain.InternedString, len(strs))
+	for i, s := range strs {
+		result[i] = domain.NewInternedString(s)
+	}
+	return result
+}
+
 // Close implements ports.DaemonClient.
 func (c *Client) Close() error {
 	return c.conn.Close()

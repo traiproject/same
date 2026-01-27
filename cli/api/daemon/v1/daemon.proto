@@ -13,6 +13,12 @@ service DaemonService {
 
   // Shutdown initiates graceful daemon termination.
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+
+  // GetGraph returns the parsed task graph, using mtime for cache invalidation.
+  rpc GetGraph(GetGraphRequest) returns (GetGraphResponse);
+
+  // GetEnvironment returns resolved Nix environment variables for a toolset.
+  rpc GetEnvironment(GetEnvironmentRequest) returns (GetEnvironmentResponse);
 }
 
 message PingRequest {}
@@ -39,4 +45,42 @@ message ShutdownRequest {
 
 message ShutdownResponse {
   bool success = 1;
+}
+
+message ConfigMtime {
+  string path = 1;
+  int64 mtime_unix_nano = 2;
+}
+
+message GetGraphRequest {
+  string cwd = 1;
+  repeated ConfigMtime config_mtimes = 2;
+}
+
+message TaskProto {
+  string name = 1;
+  repeated string command = 2;
+  repeated string inputs = 3;
+  repeated string outputs = 4;
+  map<string, string> tools = 5;
+  repeated string dependencies = 6;
+  map<string, string> environment = 7;
+  string working_dir = 8;
+  string rebuild_strategy = 9;
+}
+
+message GetGraphResponse {
+  bool cache_hit = 1;
+  string root = 2;
+  repeated TaskProto tasks = 3;
+}
+
+message GetEnvironmentRequest {
+  string env_id = 1;
+  map<string, string> tools = 2;
+}
+
+message GetEnvironmentResponse {
+  bool cache_hit = 1;
+  repeated string env_vars = 2;
 }
