@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package daemon.v1;
+
+option go_package = "go.trai.ch/same/api/daemon/v1;daemonv1";
+
+service DaemonService {
+  // Ping checks daemon health and resets the inactivity timer.
+  rpc Ping(PingRequest) returns (PingResponse);
+
+  // Status returns current daemon status information.
+  rpc Status(StatusRequest) returns (StatusResponse);
+
+  // Shutdown initiates graceful daemon termination.
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+}
+
+message PingRequest {}
+
+message PingResponse {
+  // idle_remaining_seconds is the time remaining before auto-shutdown.
+  int64 idle_remaining_seconds = 1;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  bool running = 1;
+  int32 pid = 2;
+  int64 uptime_seconds = 3;
+  int64 last_activity_unix = 4;
+  int64 idle_remaining_seconds = 5;
+}
+
+message ShutdownRequest {
+  // graceful indicates whether to wait for in-flight operations.
+  bool graceful = 1;
+}
+
+message ShutdownResponse {
+  bool success = 1;
+}

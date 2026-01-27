@@ -6,6 +6,7 @@ import (
 	"github.com/grindlemire/graft"
 	"go.trai.ch/same/internal/adapters/cas"    //nolint:depguard // Wired in app layer
 	"go.trai.ch/same/internal/adapters/config" //nolint:depguard // Wired in app layer
+	"go.trai.ch/same/internal/adapters/daemon" //nolint:depguard // Wired in app layer
 	"go.trai.ch/same/internal/adapters/fs"     //nolint:depguard // Wired in app layer
 	"go.trai.ch/same/internal/adapters/logger" //nolint:depguard // Wired in app layer
 	"go.trai.ch/same/internal/adapters/nix"    //nolint:depguard // Wired in app layer
@@ -34,6 +35,7 @@ func init() {
 			fs.HasherNodeID,
 			fs.ResolverNodeID,
 			nix.EnvFactoryNodeID,
+			daemon.NodeID,
 		},
 		Run: runAppNode,
 	})
@@ -87,7 +89,12 @@ func runAppNode(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	return New(loader, executor, log, store, hasher, resolver, envFactory), nil
+	connector, err := graft.Dep[ports.DaemonConnector](ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return New(loader, executor, log, store, hasher, resolver, envFactory, connector), nil
 }
 
 func runComponentsNode(ctx context.Context) (*Components, error) {

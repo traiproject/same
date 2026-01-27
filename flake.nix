@@ -34,6 +34,7 @@
           mockgen
           gci
           gofumpt
+          buf
         ];
 
       in
