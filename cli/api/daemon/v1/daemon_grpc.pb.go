@@ -26,6 +26,7 @@ const (
 	DaemonService_GetGraph_FullMethodName       = "/daemon.v1.DaemonService/GetGraph"
 	DaemonService_GetEnvironment_FullMethodName = "/daemon.v1.DaemonService/GetEnvironment"
 	DaemonService_GetInputHash_FullMethodName   = "/daemon.v1.DaemonService/GetInputHash"
+	DaemonService_ExecuteTask_FullMethodName    = "/daemon.v1.DaemonService/ExecuteTask"
 )
 
 // DaemonServiceClient is the client API for DaemonService service.
@@ -44,6 +45,8 @@ type DaemonServiceClient interface {
 	GetEnvironment(ctx context.Context, in *GetEnvironmentRequest, opts ...grpc.CallOption) (*GetEnvironmentResponse, error)
 	// GetInputHash returns the cached or pending input hash for a task.
 	GetInputHash(ctx context.Context, in *GetInputHashRequest, opts ...grpc.CallOption) (*GetInputHashResponse, error)
+	// ExecuteTask runs a task and streams logs back to the client.
+	ExecuteTask(ctx context.Context, in *ExecuteTaskRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExecuteTaskResponse], error)
 }
 
 type daemonServiceClient struct {
@@ -114,6 +117,25 @@ func (c *daemonServiceClient) GetInputHash(ctx context.Context, in *GetInputHash
 	return out, nil
 }
 
+func (c *daemonServiceClient) ExecuteTask(ctx context.Context, in *ExecuteTaskRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExecuteTaskResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &DaemonService_ServiceDesc.Streams[0], DaemonService_ExecuteTask_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ExecuteTaskRequest, ExecuteTaskResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DaemonService_ExecuteTaskClient = grpc.ServerStreamingClient[ExecuteTaskResponse]
+
 // DaemonServiceServer is the server API for DaemonService service.
 // All implementations must embed UnimplementedDaemonServiceServer
 // for forward compatibility.
@@ -130,6 +152,8 @@ type DaemonServiceServer interface {
 	GetEnvironment(context.Context, *GetEnvironmentRequest) (*GetEnvironmentResponse, error)
 	// GetInputHash returns the cached or pending input hash for a task.
 	GetInputHash(context.Context, *GetInputHashRequest) (*GetInputHashResponse, error)
+	// ExecuteTask runs a task and streams logs back to the client.
+	ExecuteTask(*ExecuteTaskRequest, grpc.ServerStreamingServer[ExecuteTaskResponse]) error
 	mustEmbedUnimplementedDaemonServiceServer()
 }
 
@@ -157,6 +181,9 @@ func (UnimplementedDaemonServiceServer) GetEnvironment(context.Context, *GetEnvi
 }
 func (UnimplementedDaemonServiceServer) GetInputHash(context.Context, *GetInputHashRequest) (*GetInputHashResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetInputHash not implemented")
+}
+func (UnimplementedDaemonServiceServer) ExecuteTask(*ExecuteTaskRequest, grpc.ServerStreamingServer[ExecuteTaskResponse]) error {
+	return status.Error(codes.Unimplemented, "method ExecuteTask not implemented")
 }
 func (UnimplementedDaemonServiceServer) mustEmbedUnimplementedDaemonServiceServer() {}
 func (UnimplementedDaemonServiceServer) testEmbeddedByValue()                       {}
@@ -287,6 +314,17 @@ func _DaemonService_GetInputHash_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DaemonService_ExecuteTask_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ExecuteTaskRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DaemonServiceServer).ExecuteTask(m, &grpc.GenericServerStream[ExecuteTaskRequest, ExecuteTaskResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DaemonService_ExecuteTaskServer = grpc.ServerStreamingServer[ExecuteTaskResponse]
+
 // DaemonService_ServiceDesc is the grpc.ServiceDesc for DaemonService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -319,6 +357,12 @@ var DaemonService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DaemonService_GetInputHash_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ExecuteTask",
+			Handler:       _DaemonService_ExecuteTask_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/daemon/v1/daemon.proto",
 }
