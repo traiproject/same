@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -40,6 +41,7 @@ type Scheduler struct {
 	tracer     ports.Tracer
 	envFactory ports.EnvironmentFactory
 	daemon     ports.DaemonClient
+	noDaemon   bool // When true, skip remote execution
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
@@ -71,6 +73,12 @@ func NewScheduler(
 // WithDaemon sets the daemon client for the scheduler and returns itself for chaining.
 func (s *Scheduler) WithDaemon(daemon ports.DaemonClient) *Scheduler {
 	s.daemon = daemon
+	return s
+}
+
+// WithNoDaemon sets whether to skip remote execution and returns itself for chaining.
+func (s *Scheduler) WithNoDaemon(noDaemon bool) *Scheduler {
+	s.noDaemon = noDaemon
 	return s
 }
 
@@ -443,6 +451,10 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
+	state.executeWithStrategy(t)
+}
+
+func (state *schedulerRunState) executeWithStrategy(t *domain.Task) {
 	// Execute the task logic within a function to ensure the span is ended
 	// BEFORE we send the result to the channel. This prevents race conditions
 	// in tests where the scheduler loop finishes before the span is recorded.
@@ -494,8 +506,8 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 			env = cachedEnv.([]string)
 		}
 
-		// Step 4: Execute
-		err = state.s.executor.Execute(ctx, t, env, span, span)
+		// Step 4: Execute (Remote or Local)
+		err = state.executeWithFallback(ctx, t, env, span, span)
 		if err != nil {
 			span.RecordError(err)
 		}
@@ -509,6 +521,41 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 	}()
 
 	state.resultsCh <- res
+}
+
+func (state *schedulerRunState) executeWithFallback(
+	ctx context.Context,
+	t *domain.Task,
+	env []string,
+	stdout, stderr io.Writer,
+) error {
+	var execErr error
+
+	// Try remote execution via daemon if available and not disabled
+	if state.s.daemon != nil && !state.s.noDaemon {
+		execErr = state.s.daemon.ExecuteTask(ctx, t, env, stdout, stderr)
+		if execErr != nil && isConnectionError(execErr) {
+			// Fallback to local on connection errors only
+			execErr = state.s.executor.Execute(ctx, t, env, stdout, stderr)
+		}
+	} else {
+		// Local execution
+		execErr = state.s.executor.Execute(ctx, t, env, stdout, stderr)
+	}
+
+	return execErr
+}
+
+// isConnectionError checks if the error is a connection-related error.
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Check for gRPC connection errors
+	errStr := err.Error()
+	return strings.Contains(errStr, "connection") ||
+		strings.Contains(errStr, "transport") ||
+		strings.Contains(errStr, "unavailable")
 }
 
 func (state *schedulerRunState) computeInputHash(t *domain.Task) (skipped bool, hash string, err error) {

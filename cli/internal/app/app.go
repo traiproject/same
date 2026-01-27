@@ -85,6 +85,7 @@ type RunOptions struct {
 	NoCache    bool
 	Inspect    bool
 	OutputMode string
+	NoDaemon   bool // When true, bypass remote daemon execution
 }
 
 // Run executes the build process for the specified targets.
@@ -174,7 +175,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		a.resolver,
 		tracer,
 		a.envFactory,
-	)
+	).WithNoDaemon(opts.NoDaemon)
 
 	// Pass daemon client to scheduler if available
 	if daemonAvailable {
@@ -261,7 +262,12 @@ func setupOTel(bridge *telemetry.Bridge) {
 // ServeDaemon starts the daemon server.
 func (a *App) ServeDaemon(ctx context.Context) error {
 	lifecycle := daemon.NewLifecycle(domain.DaemonInactivityTimeout)
-	server := daemon.NewServer(lifecycle)
+	server := daemon.NewServerWithDeps(
+		lifecycle,
+		a.configLoader,
+		a.envFactory,
+		a.executor,
+	)
 
 	a.logger.Info("daemon starting")
 
