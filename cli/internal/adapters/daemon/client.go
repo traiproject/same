@@ -68,7 +68,11 @@ func (c *Client) Shutdown(ctx context.Context) error {
 }
 
 // GetGraph implements ports.DaemonClient.
-func (c *Client) GetGraph(ctx context.Context, cwd string, configMtimes map[string]int64) (*domain.Graph, bool, error) {
+func (c *Client) GetGraph(
+	ctx context.Context,
+	cwd string,
+	configMtimes map[string]int64,
+) (graph *domain.Graph, cacheHit bool, err error) {
 	// Build request
 	req := &daemonv1.GetGraphRequest{
 		Cwd: cwd,
@@ -87,7 +91,7 @@ func (c *Client) GetGraph(ctx context.Context, cwd string, configMtimes map[stri
 	}
 
 	// Convert response to domain.Graph
-	graph := domain.NewGraph()
+	graph = domain.NewGraph()
 	for _, taskProto := range resp.Tasks {
 		task := &domain.Task{
 			Name:            domain.NewInternedString(taskProto.Name),
