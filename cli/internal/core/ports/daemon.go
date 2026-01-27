@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"go.trai.ch/same/internal/core/domain"
@@ -50,6 +51,14 @@ type DaemonClient interface {
 		taskName, root string,
 		env map[string]string,
 	) (InputHashResult, error)
+
+	// ExecuteTask runs a task on the daemon and streams output.
+	ExecuteTask(
+		ctx context.Context,
+		task *domain.Task,
+		nixEnv []string,
+		stdout, stderr io.Writer,
+	) error
 
 	// Close releases client resources.
 	Close() error
