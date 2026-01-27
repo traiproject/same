@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"go.trai.ch/same/api/daemon/v1"
 	"go.trai.ch/same/internal/adapters/watcher"
@@ -14,6 +15,7 @@ import (
 	"go.trai.ch/zerr"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -24,6 +26,7 @@ type Server struct {
 	cache        *ServerCache
 	configLoader ports.ConfigLoader
 	envFactory   ports.EnvironmentFactory
+	executor     ports.Executor
 	watcherSvc   *WatcherService
 	grpcServer   *grpc.Server
 	listener     net.Listener
@@ -51,12 +54,14 @@ func NewServerWithDeps(
 	lifecycle *Lifecycle,
 	configLoader ports.ConfigLoader,
 	envFactory ports.EnvironmentFactory,
+	executor ports.Executor,
 ) *Server {
 	s := &Server{
 		lifecycle:    lifecycle,
 		cache:        NewServerCache(),
 		configLoader: configLoader,
 		envFactory:   envFactory,
+		executor:     executor,
 		grpcServer:   grpc.NewServer(),
 	}
 	daemonv1.RegisterDaemonServiceServer(s.grpcServer, s)
@@ -313,4 +318,59 @@ func (s *Server) GetInputHash(
 		State: state,
 		Hash:  result.Hash,
 	}, nil
+}
+
+// streamWriter implements io.Writer for streaming task output.
+type streamWriter struct {
+	stream daemonv1.DaemonService_ExecuteTaskServer
+}
+
+func (w *streamWriter) Write(p []byte) (int, error) {
+	if err := w.stream.Send(&daemonv1.ExecuteTaskResponse{Data: p}); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// ExecuteTask implements DaemonService.ExecuteTask.
+func (s *Server) ExecuteTask(
+	req *daemonv1.ExecuteTaskRequest,
+	stream daemonv1.DaemonService_ExecuteTaskServer,
+) error {
+	// Reset inactivity timer
+	s.lifecycle.ResetTimer()
+
+	// Guard: ensure server is configured for task execution
+	if s.executor == nil {
+		return status.Error(codes.FailedPrecondition, "server not configured for task execution")
+	}
+
+	// Reconstruct domain.Task from request
+	task := &domain.Task{
+		Name:        domain.NewInternedString(req.TaskName),
+		Command:     req.Command,
+		WorkingDir:  domain.NewInternedString(req.WorkingDir),
+		Environment: req.TaskEnvironment,
+	}
+
+	// Create streaming writer
+	writer := &streamWriter{stream: stream}
+
+	// Execute with PTY (via executor)
+	err := s.executor.Execute(stream.Context(), task, req.NixEnvironment, writer, writer)
+
+	// Extract exit code
+	exitCode := 0
+	if err != nil {
+		exitCode = 1
+	}
+
+	// Set trailer with exit code
+	stream.SetTrailer(metadata.Pairs("x-exit-code", strconv.Itoa(exitCode)))
+
+	// Return error status for non-zero exit
+	if exitCode != 0 {
+		return status.Errorf(codes.Unknown, "task failed with exit code %d", exitCode)
+	}
+	return nil
 }
