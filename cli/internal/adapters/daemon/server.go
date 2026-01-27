@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"go.trai.ch/same/api/daemon/v1"
+	"go.trai.ch/same/internal/adapters/watcher"
 	"go.trai.ch/same/internal/core/domain"
 	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
@@ -23,8 +24,16 @@ type Server struct {
 	cache        *ServerCache
 	configLoader ports.ConfigLoader
 	envFactory   ports.EnvironmentFactory
+	watcherSvc   *WatcherService
 	grpcServer   *grpc.Server
 	listener     net.Listener
+}
+
+// WatcherService bundles the watcher, debouncer, and hash cache together.
+type WatcherService struct {
+	Watcher   ports.Watcher
+	Debouncer *watcher.Debouncer
+	HashCache ports.InputHashCache
 }
 
 // NewServer creates a new daemon server.
@@ -263,4 +272,45 @@ func (s *Server) internedStringsToStrings(interned []domain.InternedString) []st
 		result[i] = str.String()
 	}
 	return result
+}
+
+// SetWatcherService sets the watcher service for the server.
+// This must be called before Serve if the watcher service is needed.
+func (s *Server) SetWatcherService(watcherSvc *WatcherService) {
+	s.watcherSvc = watcherSvc
+}
+
+// GetInputHash implements DaemonService.GetInputHash.
+//
+//nolint:revive,unparam // ctx satisfies gRPC interface requirement
+func (s *Server) GetInputHash(
+	ctx context.Context,
+	req *daemonv1.GetInputHashRequest,
+) (*daemonv1.GetInputHashResponse, error) {
+	s.lifecycle.ResetTimer()
+
+	// Guard: ensure watcher service is configured
+	if s.watcherSvc == nil {
+		return nil, status.Error(codes.FailedPrecondition, "watcher service not initialized")
+	}
+
+	// Get the hash result from the cache using the request's context.
+	// This avoids race conditions by passing root/env directly.
+	result := s.watcherSvc.HashCache.GetInputHash(req.TaskName, req.Root, req.Environment)
+
+	// Convert the ports.InputHashState to the proto enum
+	var state daemonv1.GetInputHashResponse_State
+	switch result.State {
+	case ports.HashReady:
+		state = daemonv1.GetInputHashResponse_READY
+	case ports.HashPending:
+		state = daemonv1.GetInputHashResponse_PENDING
+	default:
+		state = daemonv1.GetInputHashResponse_UNKNOWN
+	}
+
+	return &daemonv1.GetInputHashResponse{
+		State: state,
+		Hash:  result.Hash,
+	}, nil
 }

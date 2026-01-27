@@ -139,6 +139,40 @@ func (c *Client) GetEnvironment(
 	return resp.EnvVars, resp.CacheHit, nil
 }
 
+// GetInputHash implements ports.DaemonClient.
+func (c *Client) GetInputHash(
+	ctx context.Context,
+	taskName, root string,
+	env map[string]string,
+) (ports.InputHashResult, error) {
+	req := &daemonv1.GetInputHashRequest{
+		TaskName:    taskName,
+		Root:        root,
+		Environment: env,
+	}
+
+	resp, err := c.client.GetInputHash(ctx, req)
+	if err != nil {
+		return ports.InputHashResult{State: ports.HashUnknown}, zerr.Wrap(err, "GetInputHash RPC failed")
+	}
+
+	// Convert the proto enum to the ports.InputHashState
+	var state ports.InputHashState
+	switch resp.State {
+	case daemonv1.GetInputHashResponse_READY:
+		state = ports.HashReady
+	case daemonv1.GetInputHashResponse_PENDING:
+		state = ports.HashPending
+	default:
+		state = ports.HashUnknown
+	}
+
+	return ports.InputHashResult{
+		State: state,
+		Hash:  resp.Hash,
+	}, nil
+}
+
 // stringsToInternedStrings converts a slice of strings to InternedString.
 func (c *Client) stringsToInternedStrings(strs []string) []domain.InternedString {
 	result := make([]domain.InternedString, len(strs))
