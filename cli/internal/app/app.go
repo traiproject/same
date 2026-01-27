@@ -94,11 +94,13 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 	// 1. Connect to daemon (if available) and load graph from daemon or fallback to local
 	var graph *domain.Graph
 	var client ports.DaemonClient
+	var daemonAvailable bool
 	var err error
 
 	client, clientErr := a.connector.Connect(ctx)
-	if clientErr == nil {
+	if clientErr == nil && client != nil {
 		// Daemon is available, try to get graph from daemon
+		daemonAvailable = true
 		defer func() {
 			_ = client.Close()
 		}()
@@ -175,7 +177,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 	)
 
 	// Pass daemon client to scheduler if available
-	if client != nil {
+	if daemonAvailable {
 		sched.WithDaemon(client)
 	}
 

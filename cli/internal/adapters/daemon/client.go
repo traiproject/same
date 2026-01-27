@@ -108,6 +108,11 @@ func (c *Client) GetGraph(ctx context.Context, cwd string, configMtimes map[stri
 	// Set root (important: must be set after all tasks are added)
 	graph.SetRoot(resp.Root)
 
+	// Validate the graph to compute executionOrder and dependents
+	if err := graph.Validate(); err != nil {
+		return nil, false, zerr.Wrap(err, "failed to validate reconstructed graph")
+	}
+
 	return graph, resp.CacheHit, nil
 }
 

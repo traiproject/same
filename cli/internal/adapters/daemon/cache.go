@@ -8,6 +8,12 @@ import (
 )
 
 // ServerCache holds thread-safe in-memory caches for the daemon server.
+//
+// Cache Validation Assumption:
+// The cache validation logic trusts client-provided mtime values and compares them
+// against stored mtimes without verifying actual file mtimes on the server.
+// This design assumes the daemon and client share the same filesystem view, which
+// is valid for local Unix-socket daemons but would need revision for remote scenarios.
 type ServerCache struct {
 	mu         sync.RWMutex
 	graphCache map[string]*domain.GraphCacheEntry // cwd -> entry
