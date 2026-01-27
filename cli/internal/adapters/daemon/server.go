@@ -12,6 +12,8 @@ import (
 	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Server implements the gRPC daemon service.
@@ -147,9 +149,17 @@ func (s *Server) writePIDFile() error {
 }
 
 // GetGraph implements DaemonService.GetGraph.
+// Note: ctx parameter satisfies the gRPC interface but is not currently used for cancellation
+// because configLoader.Load() does not accept context. Future enhancement: add context support
+// to ConfigLoader.Load() for proper cancellation propagation.
 //
-//nolint:revive // ctx is used to satisfy the interface but not actively used in this method
+//nolint:revive // ctx satisfies gRPC interface; see above note for future improvement
 func (s *Server) GetGraph(ctx context.Context, req *daemonv1.GetGraphRequest) (*daemonv1.GetGraphResponse, error) {
+	// Guard: ensure server is configured for graph operations
+	if s.cache == nil || s.configLoader == nil {
+		return nil, status.Error(codes.FailedPrecondition, "server not configured for graph operations")
+	}
+
 	// Convert proto mtimes to map
 	clientMtimes := make(map[string]int64)
 	for _, mtime := range req.ConfigMtimes {
@@ -189,6 +199,11 @@ func (s *Server) GetEnvironment(
 	ctx context.Context,
 	req *daemonv1.GetEnvironmentRequest,
 ) (*daemonv1.GetEnvironmentResponse, error) {
+	// Guard: ensure server is configured for environment operations
+	if s.cache == nil || s.envFactory == nil {
+		return nil, status.Error(codes.FailedPrecondition, "server not configured for environment operations")
+	}
+
 	// Reset inactivity timer
 	s.lifecycle.ResetTimer()
 
