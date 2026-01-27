@@ -4,6 +4,8 @@ package daemon
 
 import (
 	"context"
+	"io"
+	"strconv"
 	"time"
 
 	"go.trai.ch/same/api/daemon/v1"
@@ -11,7 +13,9 @@ import (
 	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 // Client implements ports.DaemonClient.
@@ -171,6 +175,83 @@ func (c *Client) GetInputHash(
 		State: state,
 		Hash:  resp.Hash,
 	}, nil
+}
+
+// ExecuteTask implements ports.DaemonClient.
+func (c *Client) ExecuteTask(
+	ctx context.Context,
+	task *domain.Task,
+	nixEnv []string,
+	stdout, _ io.Writer,
+) error {
+	// Build request
+	const (
+		defaultPtyRows = 24
+		defaultPtyCols = 80
+	)
+
+	req := &daemonv1.ExecuteTaskRequest{
+		TaskName:        task.Name.String(),
+		Command:         task.Command,
+		WorkingDir:      task.WorkingDir.String(),
+		TaskEnvironment: task.Environment,
+		NixEnvironment:  nixEnv,
+		PtyRows:         defaultPtyRows,
+		PtyCols:         defaultPtyCols,
+	}
+
+	// Start streaming RPC
+	stream, err := c.client.ExecuteTask(ctx, req)
+	if err != nil {
+		return zerr.Wrap(err, "ExecuteTask RPC failed")
+	}
+
+	// Receive and forward log chunks
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return c.handleExecuteError(err, stream)
+		}
+		if _, writeErr := stdout.Write(resp.Data); writeErr != nil {
+			return zerr.Wrap(writeErr, "failed to write log chunk")
+		}
+	}
+
+	// Check trailer for success case
+	trailer := stream.Trailer()
+	if exitStr := trailer.Get("x-exit-code"); len(exitStr) > 0 {
+		exitCode, _ := strconv.Atoi(exitStr[0])
+		if exitCode != 0 {
+			return zerr.With(domain.ErrTaskExecutionFailed, "exit_code", exitCode)
+		}
+	}
+
+	return nil
+}
+
+// handleExecuteError extracts the exit code from a failed ExecuteTask RPC.
+func (c *Client) handleExecuteError(err error, stream grpc.ClientStream) error {
+	st, ok := status.FromError(err)
+	if !ok {
+		return zerr.Wrap(err, "ExecuteTask failed")
+	}
+
+	// For non-zero exit codes, we get UNKNOWN status
+	if st.Code() == codes.Unknown {
+		// Try to extract exit code from trailer
+		trailer := stream.Trailer()
+		if exitStr := trailer.Get("x-exit-code"); len(exitStr) > 0 {
+			exitCode, _ := strconv.Atoi(exitStr[0])
+			return zerr.With(domain.ErrTaskExecutionFailed, "exit_code", exitCode)
+		}
+		// If no trailer, return the status error
+		return zerr.Wrap(err, "ExecuteTask failed with unknown error")
+	}
+
+	return zerr.Wrap(err, "ExecuteTask failed")
 }
 
 // stringsToInternedStrings converts a slice of strings to InternedString.
