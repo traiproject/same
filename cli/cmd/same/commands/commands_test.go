@@ -44,7 +44,8 @@ func TestRun_Success(t *testing.T) {
 
 	// Setup strict expectations in the correct sequence
 	// 0. Daemon connection fails (daemon not available, fallback to local)
-	mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
+	mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+	mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, errors.New("daemon not available"))
 
 	// 1. Loader.Load is called first
 	mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil).Times(1)
@@ -205,23 +206,24 @@ func TestVersionCmd(t *testing.T) {
 }
 
 // setupCleanTest creates a test CLI with mocked dependencies for clean command tests.
-func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger) {
+func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger, string) {
 	t.Helper()
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get current working directory: %v", err)
 	}
-	defer func() {
-		if errChdir := os.Chdir(cwd); errChdir != nil {
-			t.Fatalf("Failed to restore working directory: %v", errChdir)
-		}
-	}()
 
 	tmpDir := t.TempDir()
 	if errChdir := os.Chdir(tmpDir); errChdir != nil {
 		t.Fatalf("Failed to change into temp directory: %v", errChdir)
 	}
+
+	t.Cleanup(func() {
+		if errChdir := os.Chdir(cwd); errChdir != nil {
+			t.Fatalf("Failed to restore working directory: %v", errChdir)
+		}
+	})
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -235,10 +237,12 @@ func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger) {
 	mockLogger := mocks.NewMockLogger(ctrl)
 	mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
+	mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(tmpDir, nil).AnyTimes()
+
 	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory, mockConnector).
 		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
-	return commands.New(a), mockLogger
+	return commands.New(a), mockLogger, tmpDir
 }
 
 func createDirWithMarker(t *testing.T, dirPath string) {
@@ -253,10 +257,10 @@ func createDirWithMarker(t *testing.T, dirPath string) {
 }
 
 func TestCleanCmd_Default(t *testing.T) {
-	cli, mockLogger := setupCleanTest(t)
+	cli, mockLogger, tmpDir := setupCleanTest(t)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
-	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
+	storePath := filepath.Join(tmpDir, domain.DefaultSamePath(), domain.StoreDirName)
 	if err := os.MkdirAll(storePath, domain.DirPerm); err != nil {
 		t.Fatalf("Failed to create store directory: %v", err)
 	}
@@ -277,10 +281,10 @@ func TestCleanCmd_Default(t *testing.T) {
 }
 
 func TestCleanCmd_Tools(t *testing.T) {
-	cli, mockLogger := setupCleanTest(t)
+	cli, mockLogger, tmpDir := setupCleanTest(t)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
-	nixHubPath := domain.DefaultNixHubCachePath()
+	nixHubPath := filepath.Join(tmpDir, domain.DefaultNixHubCachePath())
 	if err := os.MkdirAll(nixHubPath, domain.DirPerm); err != nil {
 		t.Fatalf("Failed to create nixhub cache directory: %v", err)
 	}
@@ -289,7 +293,7 @@ func TestCleanCmd_Tools(t *testing.T) {
 		t.Fatalf("Failed to create marker file: %v", err)
 	}
 
-	envPath := domain.DefaultEnvCachePath()
+	envPath := filepath.Join(tmpDir, domain.DefaultEnvCachePath())
 	if err := os.MkdirAll(envPath, domain.DirPerm); err != nil {
 		t.Fatalf("Failed to create env cache directory: %v", err)
 	}
@@ -313,16 +317,16 @@ func TestCleanCmd_Tools(t *testing.T) {
 }
 
 func TestCleanCmd_All(t *testing.T) {
-	cli, mockLogger := setupCleanTest(t)
+	cli, mockLogger, tmpDir := setupCleanTest(t)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
-	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
+	storePath := filepath.Join(tmpDir, domain.DefaultSamePath(), domain.StoreDirName)
 	createDirWithMarker(t, storePath)
 
-	nixHubPath := domain.DefaultNixHubCachePath()
+	nixHubPath := filepath.Join(tmpDir, domain.DefaultNixHubCachePath())
 	createDirWithMarker(t, nixHubPath)
 
-	envPath := domain.DefaultEnvCachePath()
+	envPath := filepath.Join(tmpDir, domain.DefaultEnvCachePath())
 	createDirWithMarker(t, envPath)
 
 	cli.SetArgs([]string{"clean", "--all"})
@@ -383,7 +387,8 @@ func TestRun_OutputModeFlags(t *testing.T) {
 
 			cli := commands.New(a)
 
-			mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
+			mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+			mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, errors.New("daemon not available"))
 			mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil).Times(1)
 			mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
 			mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
