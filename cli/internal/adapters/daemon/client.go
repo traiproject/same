@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -28,7 +29,11 @@ type Client struct {
 // Note: grpc.NewClient returns immediately; actual connection happens lazily on first RPC.
 func Dial() (*Client, error) {
 	socketPath := domain.DefaultDaemonSocketPath()
-	target := "unix://" + socketPath
+	absSocketPath, err := filepath.Abs(socketPath)
+	if err != nil {
+		return nil, zerr.Wrap(err, "failed to resolve absolute socket path")
+	}
+	target := "unix://" + absSocketPath
 
 	conn, err := grpc.NewClient(target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

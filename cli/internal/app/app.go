@@ -92,11 +92,16 @@ type RunOptions struct {
 //
 //nolint:cyclop // orchestration function
 func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) error {
+	// 0. Get absolute path of current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return zerr.Wrap(err, "failed to get current working directory")
+	}
+
 	// 1. Connect to daemon (if available) and load graph from daemon or fallback to local
 	var graph *domain.Graph
 	var client ports.DaemonClient
 	var daemonAvailable bool
-	var err error
 
 	client, clientErr := a.connector.Connect(ctx)
 	if clientErr == nil && client != nil {
@@ -107,23 +112,23 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		}()
 
 		// Discover config paths and mtimes
-		mtimes, mtimeErr := a.configLoader.DiscoverConfigPaths(".")
+		mtimes, mtimeErr := a.configLoader.DiscoverConfigPaths(cwd)
 		if mtimeErr != nil {
 			return zerr.Wrap(mtimeErr, "failed to discover config paths")
 		}
 
 		// Try to get graph from daemon
-		graph, _, err = client.GetGraph(ctx, ".", mtimes)
+		graph, _, err = client.GetGraph(ctx, cwd, mtimes)
 		if err != nil {
 			// Fallback to local loading if daemon fails
-			if graph, err = a.configLoader.Load("."); err != nil {
+			if graph, err = a.configLoader.Load(cwd); err != nil {
 				return zerr.Wrap(err, "failed to load configuration")
 			}
 		}
 	} else {
 		// Daemon not available, use local loading
 		var loadErr error
-		graph, loadErr = a.configLoader.Load(".")
+		graph, loadErr = a.configLoader.Load(cwd)
 		if loadErr != nil {
 			return zerr.Wrap(loadErr, "failed to load configuration")
 		}
