@@ -127,7 +127,6 @@ func (s *Server) cleanup() {
 
 // Ping implements DaemonService.Ping.
 func (s *Server) Ping(_ context.Context, _ *daemonv1.PingRequest) (*daemonv1.PingResponse, error) {
-	s.lifecycle.ResetTimer()
 	return &daemonv1.PingResponse{
 		IdleRemainingSeconds: int64(s.lifecycle.IdleRemaining().Seconds()),
 	}, nil
@@ -135,7 +134,6 @@ func (s *Server) Ping(_ context.Context, _ *daemonv1.PingRequest) (*daemonv1.Pin
 
 // Status implements DaemonService.Status.
 func (s *Server) Status(_ context.Context, _ *daemonv1.StatusRequest) (*daemonv1.StatusResponse, error) {
-	s.lifecycle.ResetTimer()
 	pid := os.Getpid()
 	const maxInt32 = 2147483647
 	if pid > maxInt32 {
