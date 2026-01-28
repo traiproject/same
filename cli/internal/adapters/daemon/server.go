@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -332,6 +333,33 @@ func (w *streamWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// getExitCode extracts the exit code from an error.
+// It returns 0 for no error, or the actual exit code if the error
+// contains one via zerr field, defaulting to 1 for generic errors.
+func getExitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	// Check if this is a zerr with an exit_code field
+	// zerr implements an interface that allows field extraction
+	type fielder interface {
+		Field(key string) (interface{}, bool)
+	}
+
+	var fieldErr fielder
+	if errors.As(err, &fieldErr) {
+		if code, found := fieldErr.Field("exit_code"); found {
+			if exitCode, ok := code.(int); ok {
+				return exitCode
+			}
+		}
+	}
+
+	// Default to exit code 1 for generic errors
+	return 1
+}
+
 // ExecuteTask implements DaemonService.ExecuteTask.
 func (s *Server) ExecuteTask(
 	req *daemonv1.ExecuteTaskRequest,
@@ -359,11 +387,8 @@ func (s *Server) ExecuteTask(
 	// Execute with PTY (via executor)
 	err := s.executor.Execute(stream.Context(), task, req.NixEnvironment, writer, writer)
 
-	// Extract exit code
-	exitCode := 0
-	if err != nil {
-		exitCode = 1
-	}
+	// Extract exit code from error
+	exitCode := getExitCode(err)
 
 	// Set trailer with exit code
 	stream.SetTrailer(metadata.Pairs("x-exit-code", strconv.Itoa(exitCode)))
