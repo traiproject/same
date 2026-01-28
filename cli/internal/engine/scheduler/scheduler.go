@@ -16,6 +16,8 @@ import (
 	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // TaskStatus represents the status of a task.
@@ -93,10 +95,10 @@ func (s *Scheduler) initTaskStatuses(tasks []domain.InternedString) {
 }
 
 // updateStatus updates the status of a task.
-func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) {
+func (s *Scheduler) updateStatus(name domain.InternedString, taskStatus TaskStatus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.taskStatus[name] = status
+	s.taskStatus[name] = taskStatus
 }
 
 // Run executes the tasks in the graph with the specified parallelism.
@@ -546,16 +548,24 @@ func (state *schedulerRunState) executeWithFallback(
 	return execErr
 }
 
-// isConnectionError checks if the error is a connection-related error.
+// isConnectionError checks if the error is a gRPC connection-related error.
 func isConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check for gRPC connection errors
-	errStr := err.Error()
-	return strings.Contains(errStr, "connection") ||
-		strings.Contains(errStr, "transport") ||
-		strings.Contains(errStr, "unavailable")
+
+	// Unwrap error chain to handle wrapped gRPC errors
+	for unwrapped := err; unwrapped != nil; unwrapped = errors.Unwrap(unwrapped) {
+		st, ok := status.FromError(unwrapped)
+		if ok {
+			// Check for codes indicating connection issues
+			switch st.Code() {
+			case codes.Unavailable, codes.DeadlineExceeded:
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (state *schedulerRunState) computeInputHash(t *domain.Task) (skipped bool, hash string, err error) {

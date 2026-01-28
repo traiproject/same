@@ -178,6 +178,9 @@ func (c *Client) GetInputHash(
 }
 
 // ExecuteTask implements ports.DaemonClient.
+// Note: stderr is intentionally merged into stdout for PTY mode. This is because
+// PTY sessions combine both output streams by design. For non-PTY scenarios,
+// consider separate stderr handling in the Executor implementation.
 func (c *Client) ExecuteTask(
 	ctx context.Context,
 	task *domain.Task,
@@ -223,7 +226,10 @@ func (c *Client) ExecuteTask(
 	// Check trailer for success case
 	trailer := stream.Trailer()
 	if exitStr := trailer.Get("x-exit-code"); len(exitStr) > 0 {
-		exitCode, _ := strconv.Atoi(exitStr[0])
+		exitCode, err := strconv.Atoi(exitStr[0])
+		if err != nil {
+			return zerr.Wrap(err, "malformed exit code in trailer")
+		}
 		if exitCode != 0 {
 			return zerr.With(domain.ErrTaskExecutionFailed, "exit_code", exitCode)
 		}
@@ -244,7 +250,11 @@ func (c *Client) handleExecuteError(err error, stream grpc.ClientStream) error {
 		// Try to extract exit code from trailer
 		trailer := stream.Trailer()
 		if exitStr := trailer.Get("x-exit-code"); len(exitStr) > 0 {
-			exitCode, _ := strconv.Atoi(exitStr[0])
+			exitCode, parseErr := strconv.Atoi(exitStr[0])
+			if parseErr != nil {
+				wrapped := zerr.Wrap(parseErr, "malformed exit code in trailer")
+				return zerr.With(wrapped, "original_error", err.Error())
+			}
 			return zerr.With(domain.ErrTaskExecutionFailed, "exit_code", exitCode)
 		}
 		// If no trailer, return the status error

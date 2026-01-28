@@ -4,8 +4,6 @@ package daemon.v1;
 
 option go_package = "go.trai.ch/same/api/daemon/v1;daemonv1";
 
-import "google/rpc/status.proto";
-
 service DaemonService {
   // Ping checks daemon health and resets the inactivity timer.
   rpc Ping(PingRequest) returns (PingResponse);
