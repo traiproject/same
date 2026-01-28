@@ -31,9 +31,9 @@ func TestNewResolver(t *testing.T) {
 		t.Fatal("NewResolver() returned nil resolver")
 	}
 
-	// Verify cache directory was created
-	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
-		t.Errorf("cache directory was not created")
+	// Verify cache directory is NOT created eagerly (lazy creation)
+	if _, err := os.Stat(cachePath); err == nil {
+		t.Errorf("cache directory should not be created eagerly")
 	}
 }
 
@@ -482,7 +482,8 @@ func verifyCacheWasWritten(t *testing.T, tmpDir, alias, version, expectedHash st
 }
 
 func TestNewResolver_MkdirAllError(t *testing.T) {
-	// Create a file where the cache directory should be to cause MkdirAll to fail
+	// This test verifies that lazy directory creation fails gracefully when
+	// a file exists where the cache directory should be created.
 	tmpDir := t.TempDir()
 	conflictPath := filepath.Join(tmpDir, "conflict")
 
@@ -491,14 +492,33 @@ func TestNewResolver_MkdirAllError(t *testing.T) {
 		t.Fatalf("failed to create conflict file: %v", err)
 	}
 
-	// Try to create resolver with a path that would require creating a directory where a file exists
+	// Create resolver with a path that would require creating a directory where a file exists
 	cachePath := filepath.Join(conflictPath, "cache")
-	_, err := newResolverWithPath(cachePath)
-	if err == nil {
-		t.Error("newResolverWithPath() expected error when MkdirAll fails")
+	resolver, err := newResolverWithPath(cachePath)
+	// Resolver creation should succeed (no eager directory creation)
+	if err != nil {
+		t.Fatalf("newResolverWithPath() unexpected error = %v", err)
 	}
-	if !strings.Contains(err.Error(), domain.ErrNixCacheCreateFailed.Error()) {
-		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixCacheCreateFailed)
+
+	// But attempting to save to cache should fail due to directory creation error
+	mockResponse := &nixHubResponse{
+		Systems: map[string]SystemResponse{
+			"x86_64-linux": {
+				FlakeInstallable: FlakeInstallable{
+					AttrPath: "legacyPackages.x86_64-linux.go",
+					Ref:      FlakeRef{Rev: "abc123"},
+				},
+			},
+		},
+	}
+
+	// Construct the cache file path (similar to getCachePath())
+	cacheFilePath := filepath.Join(cachePath, "test.json")
+	err = resolver.saveToCache(cacheFilePath, "go", "1.21", mockResponse)
+	if err == nil {
+		t.Fatal("saveToCache() expected error when directory creation fails")
+	} else if !strings.Contains(err.Error(), domain.ErrNixCacheWriteFailed.Error()) {
+		t.Errorf("error = %v, want error containing %v", err, domain.ErrNixCacheWriteFailed)
 	}
 }
 

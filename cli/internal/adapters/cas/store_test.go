@@ -14,23 +14,6 @@ import (
 )
 
 func TestNewStore(t *testing.T) {
-	// NewStore uses a hardcoded path ".same/store"
-	// We need to test in a temp directory context
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd failed: %v", err)
-	}
-
-	tmpDir := t.TempDir()
-	if cdErr := os.Chdir(tmpDir); cdErr != nil {
-		t.Fatalf("Chdir failed: %v", cdErr)
-	}
-	defer func() {
-		if chErr := os.Chdir(originalWd); chErr != nil {
-			t.Errorf("Failed to restore working directory: %v", chErr)
-		}
-	}()
-
 	store, err := cas.NewStore()
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
@@ -39,19 +22,18 @@ func TestNewStore(t *testing.T) {
 		t.Fatal("NewStore returned nil store")
 	}
 
-	// Verify the directory was created
-	// .same/store is the default path
+	// Verify that no directory is created eagerly
+	tmpDir := t.TempDir()
 	expectedPath := filepath.Join(tmpDir, domain.DefaultStorePath())
-	if _, statErr := os.Stat(expectedPath); os.IsNotExist(statErr) {
-		t.Errorf("NewStore did not create directory at %s", expectedPath)
+	if _, statErr := os.Stat(expectedPath); statErr == nil {
+		t.Errorf("NewStore should not create directory eagerly at %s", expectedPath)
 	}
 }
 
 func TestStore_PutAndGet(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "same_state")
 
-	store, err := cas.NewStoreWithPath(storePath)
+	store, err := cas.NewStoreWithPath("")
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -63,12 +45,12 @@ func TestStore_PutAndGet(t *testing.T) {
 		Timestamp:  time.Now(),
 	}
 
-	err2 := store.Put(info)
+	err2 := store.Put(tmpDir, info)
 	if err2 != nil {
 		t.Fatalf("Put failed: %v", err2)
 	}
 
-	got, err := store.Get("task1")
+	got, err := store.Get(tmpDir, "task1")
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -84,10 +66,9 @@ func TestStore_PutAndGet(t *testing.T) {
 
 func TestStore_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "same_state")
 
 	// 1. Create store and save data
-	store1, err := cas.NewStoreWithPath(storePath)
+	store1, err := cas.NewStoreWithPath("")
 	if err != nil {
 		t.Fatalf("NewStore 1 failed: %v", err)
 	}
@@ -96,17 +77,17 @@ func TestStore_Persistence(t *testing.T) {
 		TaskName:  "task2",
 		InputHash: "xyz",
 	}
-	if err := store1.Put(info); err != nil {
+	if err := store1.Put(tmpDir, info); err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
 	// 2. Create new store instance pointing to same directory
-	store2, err2 := cas.NewStoreWithPath(storePath)
+	store2, err2 := cas.NewStoreWithPath("")
 	if err2 != nil {
 		t.Fatalf("NewStore 2 failed: %v", err2)
 	}
 
-	got, err3 := store2.Get("task2")
+	got, err3 := store2.Get(tmpDir, "task2")
 	if err3 != nil {
 		t.Fatalf("Get failed: %v", err3)
 	}
@@ -121,9 +102,8 @@ func TestStore_Persistence(t *testing.T) {
 
 func TestStore_OmitZero(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "same_state")
 
-	store, err := cas.NewStoreWithPath(storePath)
+	store, err := cas.NewStoreWithPath("")
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -133,7 +113,7 @@ func TestStore_OmitZero(t *testing.T) {
 		TaskName: "task_zero",
 	}
 
-	err2 := store.Put(info)
+	err2 := store.Put(tmpDir, info)
 	if err2 != nil {
 		t.Fatalf("Put failed: %v", err2)
 	}
@@ -141,6 +121,7 @@ func TestStore_OmitZero(t *testing.T) {
 	// Read the file content directly
 	hash := sha256.Sum256([]byte("task_zero"))
 	hexHash := hex.EncodeToString(hash[:])
+	storePath := filepath.Join(tmpDir, domain.DefaultStorePath())
 	taskFile := filepath.Join(storePath, hexHash+".json")
 
 	//nolint:gosec // Test file with controlled path
@@ -171,21 +152,33 @@ func TestStore_OmitZero(t *testing.T) {
 func TestNewStore_Error(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Create a file where the directory should be
-	filePath := filepath.Join(tmpDir, "file_blocking_dir")
+	filePath := filepath.Join(tmpDir, domain.DefaultStorePath())
+	// Create parent directory first
+	if err := os.MkdirAll(filepath.Dir(filePath), domain.DirPerm); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
 	if err := os.WriteFile(filePath, []byte("block"), domain.PrivateFilePerm); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
-	_, err := cas.NewStoreWithPath(filePath)
+	store, err := cas.NewStoreWithPath("")
+	if err != nil {
+		t.Fatal("NewStore should not fail (directory creation is lazy)")
+	}
+
+	// But Put should fail
+	info := domain.BuildInfo{
+		TaskName: "test",
+	}
+	err = store.Put(tmpDir, info)
 	if err == nil {
-		t.Fatal("NewStore should have failed when path is a file")
+		t.Fatal("Put should have failed when path is a file")
 	}
 }
 
 func TestGet_ReadError(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "same_state")
-	store, err := cas.NewStoreWithPath(storePath)
+	store, err := cas.NewStoreWithPath("")
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -194,6 +187,10 @@ func TestGet_ReadError(t *testing.T) {
 	taskName := "task_read_error"
 	hash := sha256.Sum256([]byte(taskName))
 	hexHash := hex.EncodeToString(hash[:])
+	storePath := filepath.Join(tmpDir, domain.DefaultStorePath())
+	if err = os.MkdirAll(storePath, domain.DirPerm); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
 	taskFile := filepath.Join(storePath, hexHash+".json")
 
 	// Write only
@@ -202,7 +199,7 @@ func TestGet_ReadError(t *testing.T) {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
-	_, err = store.Get(taskName)
+	_, err = store.Get(tmpDir, taskName)
 	if err == nil {
 		t.Fatal("Get should have failed due to read permissions")
 	}
@@ -210,8 +207,7 @@ func TestGet_ReadError(t *testing.T) {
 
 func TestGet_UnmarshalError(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "same_state")
-	store, err := cas.NewStoreWithPath(storePath)
+	store, err := cas.NewStoreWithPath("")
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -220,13 +216,17 @@ func TestGet_UnmarshalError(t *testing.T) {
 	taskName := "task_invalid_json"
 	hash := sha256.Sum256([]byte(taskName))
 	hexHash := hex.EncodeToString(hash[:])
+	storePath := filepath.Join(tmpDir, domain.DefaultStorePath())
+	if err = os.MkdirAll(storePath, domain.DirPerm); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
 	taskFile := filepath.Join(storePath, hexHash+".json")
 
 	if err = os.WriteFile(taskFile, []byte("{ invalid json"), domain.PrivateFilePerm); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
-	_, err = store.Get(taskName)
+	_, err = store.Get(tmpDir, taskName)
 	if err == nil {
 		t.Fatal("Get should have failed due to invalid JSON")
 	}
@@ -234,10 +234,15 @@ func TestGet_UnmarshalError(t *testing.T) {
 
 func TestPut_WriteError(t *testing.T) {
 	tmpDir := t.TempDir()
-	storePath := filepath.Join(tmpDir, "same_state")
-	store, err := cas.NewStoreWithPath(storePath)
+	store, err := cas.NewStoreWithPath("")
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
+	}
+
+	// Create the store directory first
+	storePath := filepath.Join(tmpDir, domain.DefaultStorePath())
+	if err = os.MkdirAll(storePath, domain.DirPerm); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
 	}
 
 	// Remove write permissions from the directory
@@ -256,7 +261,7 @@ func TestPut_WriteError(t *testing.T) {
 		TaskName: "task_write_error",
 	}
 
-	err = store.Put(info)
+	err = store.Put(tmpDir, info)
 	if err == nil {
 		t.Fatal("Put should have failed due to directory permissions")
 	}

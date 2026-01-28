@@ -71,9 +71,9 @@ func TestApp_Build(t *testing.T) {
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockStore.EXPECT().Get(".", "task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(".", gomock.Any()).Return(nil)
 
 		// Run
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
@@ -249,7 +249,7 @@ func TestApp_Run_BuildExecutionFailed(t *testing.T) {
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockStore.EXPECT().Get(".", "task1").Return(nil, nil)
 		// Mock Executor failure
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(errors.New("command failed"))
@@ -445,9 +445,9 @@ func TestApp_Run_LinearMode(t *testing.T) {
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockStore.EXPECT().Get(".", "task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(".", gomock.Any()).Return(nil)
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{
 			NoCache:    false,
@@ -506,9 +506,9 @@ func TestApp_Run_InspectMode(t *testing.T) {
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockStore.EXPECT().Get(".", "task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(".", gomock.Any()).Return(nil)
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{
 			NoCache: false,

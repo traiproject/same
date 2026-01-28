@@ -656,7 +656,7 @@ func (state *schedulerRunState) handleSuccess(res result) {
 	if !res.skipped {
 		outputHash := state.computeOutputHash(res)
 		if outputHash != "" || len(res.taskOutputs) == 0 {
-			err := state.s.store.Put(domain.BuildInfo{
+			err := state.s.store.Put(state.graph.Root(), domain.BuildInfo{
 				TaskName:   res.task.String(),
 				InputHash:  res.inputHash,
 				OutputHash: outputHash,
@@ -738,7 +738,7 @@ func (s *Scheduler) checkTaskCache(
 	}
 
 	// Step B: Get Build Info from Store
-	info, err := s.store.Get(task.Name.String())
+	info, err := s.store.Get(root, task.Name.String())
 	if err != nil {
 		return false, hash, zerr.Wrap(err, domain.ErrStoreReadFailed.Error())
 	}
