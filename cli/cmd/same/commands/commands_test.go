@@ -47,7 +47,7 @@ func TestRun_Success(t *testing.T) {
 	mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 
 	// 1. Loader.Load is called first
-	mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+	mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil).Times(1)
 
 	mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
 	// 2. Hasher.ComputeInputHash is called once to compute input hash
@@ -384,8 +384,8 @@ func TestRun_OutputModeFlags(t *testing.T) {
 			cli := commands.New(a)
 
 			mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
-			mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
-			mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(1)
+			mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil).Times(1)
+			mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
 			mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
 			mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
 			mockExecutor.EXPECT().Execute(

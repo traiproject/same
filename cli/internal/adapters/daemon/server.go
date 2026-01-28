@@ -195,6 +195,11 @@ func (s *Server) GetGraph(ctx context.Context, req *daemonv1.GetGraphRequest) (*
 		return nil, zerr.Wrap(err, "failed to load graph")
 	}
 
+	// Validate the graph to populate executionOrder for Walk()
+	if err := graph.Validate(); err != nil {
+		return nil, zerr.Wrap(err, "failed to validate graph")
+	}
+
 	// Store in cache
 	entry := &domain.GraphCacheEntry{
 		Graph:       graph,

@@ -65,9 +65,9 @@ func TestApp_Build(t *testing.T) {
 			WithDisableTick()
 
 		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
-		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil)
 		// Expectations
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get("task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -125,7 +125,7 @@ func TestApp_Run_NoTargets(t *testing.T) {
 
 		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 		// Expectations
-		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(domain.NewGraph(), nil)
 
 		// Execute
 		err = a.Run(context.Background(), nil, app.RunOptions{NoCache: false})
@@ -181,7 +181,7 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 
 		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
 		// Expectations - loader fails
-		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))
+		mockLoader.EXPECT().Load(gomock.Any()).Return(nil, errors.New("config load error"))
 
 		// Execute
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
@@ -246,9 +246,9 @@ func TestApp_Run_BuildExecutionFailed(t *testing.T) {
 			WithDisableTick()
 
 		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
-		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil)
 		// Expectations
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get("task1").Return(nil, nil)
 		// Mock Executor failure
@@ -444,8 +444,8 @@ func TestApp_Run_LinearMode(t *testing.T) {
 			WithDisableTick()
 
 		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
-		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get("task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -506,8 +506,8 @@ func TestApp_Run_InspectMode(t *testing.T) {
 			WithDisableTick()
 
 		mockConnector.EXPECT().Connect(gomock.Any()).Return(nil, errors.New("daemon not available"))
-		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get("task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
