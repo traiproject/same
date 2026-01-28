@@ -99,39 +99,41 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		return zerr.Wrap(err, "failed to get current working directory")
 	}
 
-	// 1. Connect to daemon (if available) and load graph from daemon or fallback to local
+	// 1. Connect to daemon (if available and not disabled) and load graph from daemon or fallback to local
 	var graph *domain.Graph
 	var client ports.DaemonClient
 	var daemonAvailable bool
 
-	client, clientErr := a.connector.Connect(ctx)
-	if clientErr == nil && client != nil {
-		// Daemon is available, try to get graph from daemon
-		daemonAvailable = true
-		defer func() {
-			_ = client.Close()
-		}()
+	if !opts.NoDaemon {
+		var clientErr error
+		client, clientErr = a.connector.Connect(ctx)
+		if clientErr == nil && client != nil {
+			// Daemon is available, try to get graph from daemon
+			daemonAvailable = true
+			defer func() {
+				_ = client.Close()
+			}()
 
-		// Discover config paths and mtimes
-		mtimes, mtimeErr := a.configLoader.DiscoverConfigPaths(cwd)
-		if mtimeErr != nil {
-			return zerr.Wrap(mtimeErr, "failed to discover config paths")
-		}
+			// Discover config paths and mtimes
+			mtimes, mtimeErr := a.configLoader.DiscoverConfigPaths(cwd)
+			if mtimeErr != nil {
+				return zerr.Wrap(mtimeErr, "failed to discover config paths")
+			}
 
-		// Try to get graph from daemon
-		graph, _, err = client.GetGraph(ctx, cwd, mtimes)
-		if err != nil {
-			// Fallback to local loading if daemon fails
-			if graph, err = a.configLoader.Load(cwd); err != nil {
-				return zerr.Wrap(err, "failed to load configuration")
+			// Try to get graph from daemon
+			graph, _, err = client.GetGraph(ctx, cwd, mtimes)
+			if err != nil {
+				// On daemon error, we'll fall through to local loading
+				graph = nil
 			}
 		}
-	} else {
-		// Daemon not available, use local loading
-		var loadErr error
-		graph, loadErr = a.configLoader.Load(cwd)
-		if loadErr != nil {
-			return zerr.Wrap(loadErr, "failed to load configuration")
+	}
+
+	// Load graph locally if not already loaded from daemon
+	if graph == nil || opts.NoDaemon {
+		graph, err = a.configLoader.Load(cwd)
+		if err != nil {
+			return zerr.Wrap(err, "failed to load configuration")
 		}
 	}
 
