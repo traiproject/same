@@ -14,9 +14,18 @@ import (
 	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	// gRPC backoff configuration for fast connection establishment.
+	grpcBaseDelay         = 50 * time.Millisecond
+	grpcMaxDelay          = 200 * time.Millisecond
+	grpcMinConnectTimeout = 100 * time.Millisecond
+	grpcBackoffMultiplier = 1.5
 )
 
 // Client implements ports.DaemonClient.
@@ -37,6 +46,14 @@ func Dial() (*Client, error) {
 
 	conn, err := grpc.NewClient(target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay:  grpcBaseDelay,
+				Multiplier: grpcBackoffMultiplier,
+				MaxDelay:   grpcMaxDelay,
+			},
+			MinConnectTimeout: grpcMinConnectTimeout,
+		}),
 	)
 	if err != nil {
 		return nil, zerr.Wrap(err, "daemon client creation failed")
