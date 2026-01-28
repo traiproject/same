@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"go.opentelemetry.io/otel"
@@ -286,6 +287,11 @@ func (a *App) ServeDaemon(ctx context.Context) error {
 
 // DaemonStatus returns the current daemon status.
 func (a *App) DaemonStatus(ctx context.Context) error {
+	if !a.connector.IsRunning() {
+		a.logger.Info("Running: false")
+		return nil
+	}
+
 	client, err := a.connector.Connect(ctx)
 	if err != nil {
 		return zerr.Wrap(err, "failed to connect to daemon")
@@ -299,12 +305,12 @@ func (a *App) DaemonStatus(ctx context.Context) error {
 		return zerr.Wrap(err, "failed to get daemon status")
 	}
 
-	a.logger.Info("Daemon Status:")
-	a.logger.Info(fmt.Sprintf("  Running: %v", status.Running))
-	a.logger.Info(fmt.Sprintf("  PID: %d", status.PID))
-	a.logger.Info(fmt.Sprintf("  Uptime: %v", status.Uptime))
-	a.logger.Info(fmt.Sprintf("  Last Activity: %v", status.LastActivity))
-	a.logger.Info(fmt.Sprintf("  Idle Remaining: %v", status.IdleRemaining))
+	a.logger.Info(fmt.Sprintf("Running: %v", status.Running))
+	a.logger.Info(fmt.Sprintf("PID: %d", status.PID))
+	a.logger.Info(fmt.Sprintf("Uptime: %v", status.Uptime))
+	ago := time.Since(status.LastActivity).Truncate(time.Second)
+	a.logger.Info(fmt.Sprintf("Last Activity: %s (%s ago)", status.LastActivity.Format("15:04:05"), ago))
+	a.logger.Info(fmt.Sprintf("Idle Remaining: %v", status.IdleRemaining))
 
 	return nil
 }
