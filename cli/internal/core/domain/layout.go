@@ -1,6 +1,9 @@
 package domain
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"time"
+)
 
 const (
 	// SameDirName is the name of the internal workspace directory.
@@ -18,6 +21,9 @@ const (
 	// EnvDirName is the name of the environment cache directory.
 	EnvDirName = "environments"
 
+	// DaemonDirName is the name of the daemon directory.
+	DaemonDirName = "daemon"
+
 	// SameFileName is the name of the project configuration file.
 	SameFileName = "same.yaml"
 
@@ -27,6 +33,15 @@ const (
 	// DebugLogFile is the name of the debug log file.
 	DebugLogFile = "debug.log"
 
+	// DaemonSocketName is the name of the daemon Unix socket file.
+	DaemonSocketName = "daemon.sock"
+
+	// DaemonPIDFileName is the name of the daemon PID file.
+	DaemonPIDFileName = "daemon.pid"
+
+	// DaemonLogFileName is the name of the daemon log file.
+	DaemonLogFileName = "daemon.log"
+
 	// DirPerm is the default permission for directories (rwxr-x---).
 	DirPerm = 0o750
 
@@ -35,6 +50,13 @@ const (
 
 	// PrivateFilePerm is the default permission for private files (rw-------).
 	PrivateFilePerm = 0o600
+
+	// SocketPerm is the permission for Unix domain sockets (rwxr-x---).
+	// This ensures the socket is accessible to the owner and group, but not others.
+	SocketPerm = 0o750
+
+	// DaemonInactivityTimeout is the duration after which the daemon shuts down.
+	DaemonInactivityTimeout = 3 * time.Hour
 )
 
 // DefaultSamePath returns the default root directory for same metadata.
@@ -64,4 +86,19 @@ func DefaultEnvCachePath() string {
 // It joins .same and debug.log.
 func DefaultDebugLogPath() string {
 	return filepath.Join(SameDirName, DebugLogFile)
+}
+
+// DefaultDaemonSocketPath returns the path to the daemon Unix socket.
+func DefaultDaemonSocketPath() string {
+	return filepath.Join(SameDirName, DaemonDirName, DaemonSocketName)
+}
+
+// DefaultDaemonPIDPath returns the path to the daemon PID file.
+func DefaultDaemonPIDPath() string {
+	return filepath.Join(SameDirName, DaemonDirName, DaemonPIDFileName)
+}
+
+// DefaultDaemonLogPath returns the path to the daemon log file.
+func DefaultDaemonLogPath() string {
+	return filepath.Join(SameDirName, DaemonDirName, DaemonLogFileName)
 }
