@@ -34,15 +34,20 @@ type Client struct {
 	client daemonv1.DaemonServiceClient
 }
 
-// Dial connects to the daemon over UDS.
+// Dial connects to the daemon over UDS at the specified workspace root.
 // Note: grpc.NewClient returns immediately; actual connection happens lazily on first RPC.
-func Dial() (*Client, error) {
-	socketPath := domain.DefaultDaemonSocketPath()
-	absSocketPath, err := filepath.Abs(socketPath)
-	if err != nil {
-		return nil, zerr.Wrap(err, "failed to resolve absolute socket path")
+func Dial(root string) (*Client, error) {
+	if root == "" {
+		return nil, zerr.New("root cannot be empty")
 	}
-	target := "unix://" + absSocketPath
+
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return nil, zerr.Wrap(err, "failed to resolve absolute root path")
+	}
+
+	socketPath := filepath.Join(absRoot, domain.DefaultDaemonSocketPath())
+	target := "unix://" + socketPath
 
 	conn, err := grpc.NewClient(target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

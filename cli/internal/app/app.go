@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -99,14 +100,20 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		return zerr.Wrap(err, "failed to get current working directory")
 	}
 
-	// 1. Connect to daemon (if available and not disabled) and load graph from daemon or fallback to local
+	// 1. Discover workspace root
+	root, err := a.configLoader.DiscoverRoot(cwd)
+	if err != nil {
+		return zerr.Wrap(err, "failed to discover workspace root")
+	}
+
+	// 2. Connect to daemon (if available and not disabled) and load graph from daemon or fallback to local
 	var graph *domain.Graph
 	var client ports.DaemonClient
 	var daemonAvailable bool
 
 	if !opts.NoDaemon {
 		var clientErr error
-		client, clientErr = a.connector.Connect(ctx)
+		client, clientErr = a.connector.Connect(ctx, root)
 		if clientErr == nil && client != nil {
 			// Daemon is available, try to get graph from daemon
 			daemonAvailable = true
@@ -137,12 +144,12 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		}
 	}
 
-	// 2. Validate targets
+	// 3. Validate targets
 	if len(targetNames) == 0 {
 		return domain.ErrNoTargetsSpecified
 	}
 
-	// 3. Initialize Renderer
+	// 4. Initialize Renderer
 	// Detect environment and resolve output mode
 	autoMode := detector.DetectEnvironment()
 	mode := detector.ResolveMode(autoMode, opts.OutputMode)
@@ -159,7 +166,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		renderer = linear.NewRenderer(os.Stdout, os.Stderr)
 	}
 
-	// 4. Initialize Telemetry
+	// 5. Initialize Telemetry
 	// Create a bridge that sends OTel spans to the renderer.
 	bridge := telemetry.NewBridge(renderer)
 
@@ -175,7 +182,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		_ = tracer.Shutdown(ctx)
 	}()
 
-	// 5. Initialize Scheduler
+	// 6. Initialize Scheduler
 	sched := scheduler.NewScheduler(
 		a.executor,
 		a.store,
@@ -190,7 +197,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 		sched.WithDaemon(client)
 	}
 
-	// 6. Run Renderer and Scheduler concurrently
+	// 7. Run Renderer and Scheduler concurrently
 	g, ctx := errgroup.WithContext(ctx)
 
 	// Renderer Routine
@@ -234,6 +241,17 @@ type CleanOptions struct {
 
 // Clean removes cache and build artifacts based on the provided options.
 func (a *App) Clean(_ context.Context, options CleanOptions) error {
+	// Discover workspace root
+	cwd, err := os.Getwd()
+	if err != nil {
+		return zerr.Wrap(err, "failed to get current working directory")
+	}
+
+	root, err := a.configLoader.DiscoverRoot(cwd)
+	if err != nil {
+		return zerr.Wrap(err, "failed to discover workspace root")
+	}
+
 	var errs error
 
 	// Helper to remove a directory and log the action
@@ -247,12 +265,12 @@ func (a *App) Clean(_ context.Context, options CleanOptions) error {
 	}
 
 	if options.Build {
-		remove(domain.DefaultStorePath(), "build info store")
+		remove(filepath.Join(root, domain.DefaultStorePath()), "build info store")
 	}
 
 	if options.Tools {
-		remove(domain.DefaultNixHubCachePath(), "nix tool cache")
-		remove(domain.DefaultEnvCachePath(), "environment cache")
+		remove(filepath.Join(root, domain.DefaultNixHubCachePath()), "nix tool cache")
+		remove(filepath.Join(root, domain.DefaultEnvCachePath()), "environment cache")
 	}
 
 	return errs
@@ -289,12 +307,22 @@ func (a *App) ServeDaemon(ctx context.Context) error {
 
 // DaemonStatus returns the current daemon status.
 func (a *App) DaemonStatus(ctx context.Context) error {
-	if !a.connector.IsRunning() {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return zerr.Wrap(err, "failed to get current working directory")
+	}
+
+	root, err := a.configLoader.DiscoverRoot(cwd)
+	if err != nil {
+		return zerr.Wrap(err, "failed to discover workspace root")
+	}
+
+	if !a.connector.IsRunning(root) {
 		a.logger.Info("Running: false")
 		return nil
 	}
 
-	client, err := a.connector.Connect(ctx)
+	client, err := a.connector.Connect(ctx, root)
 	if err != nil {
 		return zerr.Wrap(err, "failed to connect to daemon")
 	}
@@ -319,7 +347,17 @@ func (a *App) DaemonStatus(ctx context.Context) error {
 
 // StopDaemon stops the daemon.
 func (a *App) StopDaemon(ctx context.Context) error {
-	client, err := a.connector.Connect(ctx)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return zerr.Wrap(err, "failed to get current working directory")
+	}
+
+	root, err := a.configLoader.DiscoverRoot(cwd)
+	if err != nil {
+		return zerr.Wrap(err, "failed to discover workspace root")
+	}
+
+	client, err := a.connector.Connect(ctx, root)
 	if err != nil {
 		return zerr.Wrap(err, "failed to connect to daemon")
 	}

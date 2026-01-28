@@ -68,35 +68,54 @@ func (l *Loader) Load(cwd string) (*domain.Graph, error) {
 }
 
 func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
+	root, err := l.DiscoverRoot(cwd)
+	if err != nil {
+		return "", "", err
+	}
+
+	workfilePath := filepath.Join(root, domain.WorkFileName)
+	if _, err := os.Stat(workfilePath); err == nil {
+		return workfilePath, ModeWorkspace, nil
+	}
+
+	samefilePath := filepath.Join(root, domain.SameFileName)
+	if _, err := os.Stat(samefilePath); err == nil {
+		return samefilePath, ModeStandalone, nil
+	}
+
+	return "", "", zerr.With(domain.ErrConfigNotFound, "cwd", cwd)
+}
+
+// DiscoverRoot walks up from cwd to find the workspace root.
+func (l *Loader) DiscoverRoot(cwd string) (string, error) {
 	currentDir := cwd
 	var standaloneCandidate string
 
 	for {
 		workfilePath := filepath.Join(currentDir, domain.WorkFileName)
 		if _, err := l.FS.Stat(workfilePath); err == nil {
-			return workfilePath, ModeWorkspace, nil
+			return currentDir, nil
 		}
 
 		if standaloneCandidate == "" {
 			samefilePath := filepath.Join(currentDir, domain.SameFileName)
 			if _, err := l.FS.Stat(samefilePath); err == nil {
-				standaloneCandidate = samefilePath
+				standaloneCandidate = currentDir
 			}
 		}
 
 		parentDir := filepath.Dir(currentDir)
 		if parentDir == currentDir {
-			// Reached root
 			break
 		}
 		currentDir = parentDir
 	}
 
 	if standaloneCandidate != "" {
-		return standaloneCandidate, ModeStandalone, nil
+		return standaloneCandidate, nil
 	}
 
-	return "", "", zerr.With(domain.ErrConfigNotFound, "cwd", cwd)
+	return "", zerr.With(domain.ErrConfigNotFound, "cwd", cwd)
 }
 
 func (l *Loader) loadSamefile(configPath string) (*domain.Graph, error) {

@@ -33,8 +33,8 @@ func NewConnector() (*Connector, error) {
 }
 
 // Connect returns a client, spawning the daemon if necessary.
-func (c *Connector) Connect(ctx context.Context) (ports.DaemonClient, error) {
-	client, err := Dial()
+func (c *Connector) Connect(ctx context.Context, root string) (ports.DaemonClient, error) {
+	client, err := Dial(root)
 	if err == nil {
 		if pingErr := client.Ping(ctx); pingErr == nil {
 			return client, nil
@@ -42,11 +42,11 @@ func (c *Connector) Connect(ctx context.Context) (ports.DaemonClient, error) {
 		_ = client.Close()
 	}
 
-	if spawnErr := c.Spawn(ctx); spawnErr != nil {
+	if spawnErr := c.Spawn(ctx, root); spawnErr != nil {
 		return nil, spawnErr
 	}
 
-	client, err = Dial()
+	client, err = Dial(root)
 	if err != nil {
 		return nil, zerr.Wrap(err, "daemon client creation failed")
 	}
@@ -60,16 +60,20 @@ func (c *Connector) Connect(ctx context.Context) (ports.DaemonClient, error) {
 }
 
 // IsRunning checks if the daemon is running and responsive.
-func (c *Connector) IsRunning() bool {
+func (c *Connector) IsRunning(root string) bool {
+	if root == "" {
+		return false
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	return c.isRunningWithCtx(ctx)
+	return c.isRunningWithCtx(ctx, root)
 }
 
 // isRunningWithCtx checks if the daemon is running and responsive, respecting the provided context.
-func (c *Connector) isRunningWithCtx(ctx context.Context) bool {
-	client, err := Dial()
+func (c *Connector) isRunningWithCtx(ctx context.Context, root string) bool {
+	client, err := Dial(root)
 	if err != nil {
 		return false
 	}
@@ -83,14 +87,23 @@ func (c *Connector) isRunningWithCtx(ctx context.Context) bool {
 }
 
 // Spawn starts the daemon process in the background.
-func (c *Connector) Spawn(ctx context.Context) error {
-	daemonDir := filepath.Dir(domain.DefaultDaemonSocketPath())
-	if err := os.MkdirAll(daemonDir, domain.DirPerm); err != nil {
-		return zerr.Wrap(err, "failed to create daemon directory")
+func (c *Connector) Spawn(ctx context.Context, root string) error {
+	if root == "" {
+		return zerr.New("root cannot be empty")
 	}
 
-	logPath := domain.DefaultDaemonLogPath()
-	//nolint:gosec // G304: logPath is from domain.DefaultDaemonLogPath(), not user input
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return zerr.Wrap(err, "failed to resolve absolute root path")
+	}
+
+	daemonDir := filepath.Join(absRoot, filepath.Dir(domain.DefaultDaemonSocketPath()))
+	if mkdirErr := os.MkdirAll(daemonDir, domain.DirPerm); mkdirErr != nil {
+		return zerr.Wrap(mkdirErr, "failed to create daemon directory")
+	}
+
+	logPath := filepath.Join(absRoot, domain.DefaultDaemonLogPath())
+	//nolint:gosec // G304: logPath is from root + domain constant, not user input
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, domain.PrivateFilePerm)
 	if err != nil {
 		return zerr.Wrap(err, "failed to open daemon log")
@@ -98,6 +111,7 @@ func (c *Connector) Spawn(ctx context.Context) error {
 
 	//nolint:gosec // G204: executablePath is controlled, args are fixed literals
 	cmd := exec.Command(c.executablePath, "daemon", "serve")
+	cmd.Dir = absRoot
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -114,7 +128,7 @@ func (c *Connector) Spawn(ctx context.Context) error {
 		_ = logFile.Close()
 	}()
 
-	if err := c.waitForDaemonStartup(ctx); err != nil {
+	if err := c.waitForDaemonStartup(ctx, absRoot); err != nil {
 		return err
 	}
 
@@ -122,7 +136,7 @@ func (c *Connector) Spawn(ctx context.Context) error {
 }
 
 // waitForDaemonStartup waits for the daemon to become responsive.
-func (c *Connector) waitForDaemonStartup(ctx context.Context) error {
+func (c *Connector) waitForDaemonStartup(ctx context.Context, root string) error {
 	start := time.Now()
 	for time.Since(start) < maxPollDuration {
 		select {
@@ -130,7 +144,7 @@ func (c *Connector) waitForDaemonStartup(ctx context.Context) error {
 			return ctx.Err()
 		default:
 		}
-		if c.isRunningWithCtx(ctx) {
+		if c.isRunningWithCtx(ctx, root) {
 			return nil
 		}
 		select {

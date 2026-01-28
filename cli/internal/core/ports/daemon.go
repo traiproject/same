@@ -67,11 +67,12 @@ type DaemonClient interface {
 // DaemonConnector manages daemon lifecycle from the CLI perspective.
 type DaemonConnector interface {
 	// Connect returns a client to the daemon, spawning it if necessary.
-	Connect(ctx context.Context) (DaemonClient, error)
+	// root is the workspace root directory where the daemon operates.
+	Connect(ctx context.Context, root string) (DaemonClient, error)
 
-	// IsRunning checks if the daemon process is currently running.
-	IsRunning() bool
+	// IsRunning checks if the daemon process is currently running at the given root.
+	IsRunning(root string) bool
 
-	// Spawn starts a new daemon process in the background.
-	Spawn(ctx context.Context) error
+	// Spawn starts a new daemon process in the background at the given root.
+	Spawn(ctx context.Context, root string) error
 }
