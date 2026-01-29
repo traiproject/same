@@ -84,10 +84,11 @@ func (a *App) SetLogJSON(enable bool) {
 
 // RunOptions configuration for the Run method.
 type RunOptions struct {
-	NoCache    bool
-	Inspect    bool
-	OutputMode string
-	NoDaemon   bool // When true, bypass remote daemon execution
+	NoCache        bool
+	Inspect        bool
+	InspectOnError bool
+	OutputMode     string
+	NoDaemon       bool // When true, bypass remote daemon execution
 }
 
 // Run executes the build process for the specified targets.
@@ -217,9 +218,12 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 				// Print panic info before renderer shutdown
 				fmt.Fprintf(os.Stderr, "Scheduler panic: %v\n", r)
 			}
-			// Stop renderer unless Inspect mode is enabled
-			// We always want to flush logs/cleanup even on error
-			if !opts.Inspect {
+			// Calculate keepOpen state: renderer should stay open if
+			// 1. Inspect mode is enabled OR
+			// 2. InspectOnError is enabled AND an error occurred
+			keepOpen := opts.Inspect || (opts.InspectOnError && schedErr != nil)
+			// Stop renderer if keepOpen is false
+			if !keepOpen {
 				_ = renderer.Stop()
 			}
 		}()
