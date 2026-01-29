@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"go.trai.ch/same/internal/ui/style"
 )
 
 // View renders the UI.
@@ -73,7 +74,7 @@ func (m *Model) renderTreeRow(index int, node *TaskNode, maxNameWidth int) strin
 	}
 
 	icon := m.getTaskIcon(canonical)
-	style := m.getTaskStyle(canonical)
+	rowStyle := m.getTaskStyle(canonical)
 
 	// Build tree connector based on depth
 	indent := strings.Repeat("  ", node.Depth)
@@ -110,7 +111,7 @@ func (m *Model) renderTreeRow(index int, node *TaskNode, maxNameWidth int) strin
 	if index == m.SelectedIdx {
 		cursor = selectedStyle.Render("> ")
 		if canonical.Status != StatusDone && canonical.Status != StatusError {
-			style = selectedStyle
+			rowStyle = selectedStyle
 		}
 	} else {
 		cursor = "  "
@@ -119,7 +120,7 @@ func (m *Model) renderTreeRow(index int, node *TaskNode, maxNameWidth int) strin
 	content := fmt.Sprintf("%s%s%s%s %s%s %s",
 		indent, connector, expander, icon, node.Name, padding, status)
 
-	return cursor + style.Render(content)
+	return cursor + rowStyle.Render(content)
 }
 
 func isLastChild(node *TaskNode) bool {
@@ -250,18 +251,18 @@ func (m *Model) fullScreenLogView() string {
 
 func (m *Model) getTaskIcon(task *TaskNode) string {
 	if task.Cached {
-		return "⚡"
+		return style.Tilde
 	}
 
 	switch task.Status {
 	case StatusRunning:
-		return "●"
+		return style.Dot
 	case StatusDone:
-		return "✓"
+		return style.Check
 	case StatusError:
-		return "✗"
+		return style.Cross
 	default: // Pending
-		return "○"
+		return style.Circle
 	}
 }
 

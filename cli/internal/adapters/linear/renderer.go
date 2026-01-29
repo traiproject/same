@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/muesli/termenv"
+	"go.trai.ch/same/internal/ui/output"
+	"go.trai.ch/same/internal/ui/style"
 )
 
 var colorPalette = []termenv.Color{
@@ -52,27 +54,16 @@ func NewRenderer(stdout, stderr io.Writer) *Renderer {
 		stderr = os.Stderr
 	}
 
-	// Create termenv.Output for color support
-	// WithColorCache(false) ensures TTY detection happens correctly
-	profile := colorProfile()
-	output := termenv.NewOutput(stderr, termenv.WithProfile(profile))
+	// Create termenv.Output using shared output factory with ANSI profile for CI compatibility
+	out := output.NewWithProfile(stderr, output.ColorProfileANSI)
 
 	return &Renderer{
 		stdout:  stdout,
 		stderr:  stderr,
-		output:  output,
+		output:  out,
 		tasks:   make(map[string]*taskState),
 		buffers: make(map[string]*bytes.Buffer),
 	}
-}
-
-// colorProfile returns the color profile based on environment.
-func colorProfile() termenv.Profile {
-	if os.Getenv("NO_COLOR") != "" {
-		return termenv.Ascii
-	}
-	// Use ANSI for basic color support in CI
-	return termenv.ANSI
 }
 
 func assignColor(taskName string) termenv.Color {
@@ -185,15 +176,15 @@ func (r *Renderer) OnTaskComplete(spanID string, endTime time.Time, err error, c
 
 	switch {
 	case err != nil:
-		symbol := r.output.String("✗").Foreground(termenv.ANSIRed).String()
+		symbol := r.output.String(style.Cross).Foreground(termenv.ANSIRed).String()
 		_, _ = fmt.Fprintf(r.stderr, "%s %s Failed after %s: %v\n",
 			coloredPrefix, symbol, durationStr, err)
 	case cached:
-		symbol := r.output.String("⚡").Foreground(termenv.ANSIYellow).String()
+		symbol := r.output.String(style.Tilde).Foreground(termenv.ANSIYellow).String()
 		_, _ = fmt.Fprintf(r.stderr, "%s %s Cached (skipped in %s)\n",
 			coloredPrefix, symbol, durationStr)
 	default:
-		symbol := r.output.String("✓").Foreground(termenv.ANSIGreen).String()
+		symbol := r.output.String(style.Check).Foreground(termenv.ANSIGreen).String()
 		_, _ = fmt.Fprintf(r.stderr, "%s %s Completed in %s\n",
 			coloredPrefix, symbol, durationStr)
 	}
