@@ -377,3 +377,29 @@ func (a *App) StopDaemon(ctx context.Context) error {
 	a.logger.Info("daemon stopped")
 	return nil
 }
+
+// StartDaemon starts the daemon if it's not already running.
+func (a *App) StartDaemon(ctx context.Context) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return zerr.Wrap(err, "failed to get current working directory")
+	}
+
+	root, err := a.configLoader.DiscoverRoot(cwd)
+	if err != nil {
+		return zerr.Wrap(err, "failed to discover workspace root")
+	}
+
+	if a.connector.IsRunning(root) {
+		a.logger.Info("daemon is already running")
+		return nil
+	}
+
+	a.logger.Info("starting daemon...")
+	if err := a.connector.Spawn(ctx, root); err != nil {
+		return zerr.Wrap(err, "failed to spawn daemon")
+	}
+
+	a.logger.Info("daemon started")
+	return nil
+}
