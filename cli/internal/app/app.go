@@ -193,7 +193,6 @@ func (a *App) Clean(_ context.Context, options CleanOptions) error {
 	// Helper to remove a directory and log the action
 	remove := func(path string, name string) {
 		// Log what we are doing
-		a.logger.Info(fmt.Sprintf("removing %s...", name))
 		if err := os.RemoveAll(path); err != nil {
 			errs = errors.Join(errs, zerr.Wrap(err, fmt.Sprintf("failed to remove %s", name)))
 			return
