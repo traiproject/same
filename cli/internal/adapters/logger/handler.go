@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/muesli/termenv"
 	"go.trai.ch/same/internal/ui/output"
@@ -16,6 +17,7 @@ import (
 // PrettyHandler is a custom slog.Handler that produces human-readable,
 // colored output using the shared UI components.
 type PrettyHandler struct {
+	mu    *sync.Mutex
 	out   *termenv.Output
 	level slog.Leveler
 	attrs []slog.Attr
@@ -37,6 +39,7 @@ func NewPrettyHandler(w io.Writer, opts *slog.HandlerOptions) *PrettyHandler {
 	levelVar.Set(level)
 
 	return &PrettyHandler{
+		mu:    &sync.Mutex{},
 		out:   output.New(w),
 		level: levelVar,
 	}
@@ -51,6 +54,9 @@ func (h *PrettyHandler) Enabled(_ context.Context, level slog.Level) bool {
 //
 //nolint:gocritic // slog.Handler interface requires slog.Record by value
 func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	var msg string
 	var color termenv.Color
 
@@ -72,16 +78,12 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 
 	// Add handler-level attrs (already have group prefix applied)
 	for _, attr := range h.attrs {
-		attrParts = append(attrParts, attr.Key+"="+attr.Value.String())
+		h.appendAttr(&attrParts, attr, "")
 	}
 
 	// Add record-level attrs (apply current group prefix)
 	r.Attrs(func(attr slog.Attr) bool {
-		key := attr.Key
-		if h.group != "" {
-			key = h.group + "." + key
-		}
-		attrParts = append(attrParts, key+"="+attr.Value.String())
+		h.appendAttr(&attrParts, attr, h.group)
 		return true
 	})
 
@@ -93,6 +95,23 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 	_, err := h.out.WriteString(styled.String() + "\n")
 
 	return err
+}
+
+// appendAttr recursively flattens and appends an attribute to the parts slice.
+// If the attribute is a group, it recursively appends all nested attributes with dotted keys.
+func (h *PrettyHandler) appendAttr(parts *[]string, attr slog.Attr, prefix string) {
+	key := attr.Key
+	if prefix != "" {
+		key = prefix + "." + key
+	}
+
+	if attr.Value.Kind() == slog.KindGroup {
+		for _, groupAttr := range attr.Value.Group() {
+			h.appendAttr(parts, groupAttr, key)
+		}
+	} else {
+		*parts = append(*parts, key+"="+attr.Value.String())
+	}
 }
 
 // WithAttrs returns a new Handler with the given attributes appended.
@@ -111,6 +130,7 @@ func (h *PrettyHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 
 	return &PrettyHandler{
+		mu:    h.mu,
 		out:   h.out,
 		level: h.level,
 		attrs: newAttrs,
@@ -132,6 +152,7 @@ func (h *PrettyHandler) WithGroup(name string) slog.Handler {
 	}
 
 	return &PrettyHandler{
+		mu:    h.mu,
 		out:   h.out,
 		level: h.level,
 		attrs: h.attrs,

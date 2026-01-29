@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.trai.ch/same/internal/app"
 	"go.trai.ch/same/internal/build"
+	"go.trai.ch/zerr"
 )
 
 // CLI represents the command line interface for same.
@@ -27,7 +28,7 @@ func New(a *app.App) *CLI {
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			jsonFlag, err := cmd.Flags().GetBool("json")
 			if err != nil {
-				return fmt.Errorf("failed to get json flag: %w", err)
+				return zerr.Wrap(err, "failed to get json flag")
 			}
 			a.SetLogJSON(jsonFlag)
 			return nil

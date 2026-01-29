@@ -11,13 +11,13 @@ import (
 
 // ColorProfile returns the color profile to use for interactive TUI environments.
 // It checks if NO_COLOR is set, returning Ascii if so.
-// Otherwise, it returns TrueColor for maximum color fidelity in modern terminals.
+// Otherwise, it detects the terminal's capabilities automatically.
 // For CI environments, consider using ColorProfileANSI() instead.
 func ColorProfile() termenv.Profile {
 	if os.Getenv("NO_COLOR") != "" {
 		return termenv.Ascii
 	}
-	return termenv.TrueColor
+	return termenv.EnvColorProfile()
 }
 
 // ColorProfileANSI returns the color profile for CI/non-interactive environments.
