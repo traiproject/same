@@ -6,13 +6,13 @@ before:
   hooks:
     # Generate completions
     - mkdir -p completions
-    - sh -c "go run ./cmd/same completion bash > completions/same.bash"
-    - sh -c "go run ./cmd/same completion zsh > completions/same.zsh"
-    - sh -c "go run ./cmd/same completion fish > completions/_same.fish"
+    - sh -c "go run ./cli/cmd/same completion bash > completions/same.bash"
+    - sh -c "go run ./cli/cmd/same completion zsh > completions/same.zsh"
+    - sh -c "go run ./cli/cmd/same completion fish > completions/_same.fish"
 
 builds:
   - id: same
-    main: ./cmd/same
+    main: ./cli/cmd/same
     binary: same
     env:
       - CGO_ENABLED=0

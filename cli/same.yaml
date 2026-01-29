@@ -10,7 +10,7 @@ tasks:
   # Run linter
   lint:
     input: ["cmd", "internal"]
-    cmd: ["golangci-lint", "run"]
+    cmd: ["golangci-lint", "run", "--config", "../.golangci.yaml", "./..."]
     tools: ["lint"]
     dependsOn: ["generate"]
 
