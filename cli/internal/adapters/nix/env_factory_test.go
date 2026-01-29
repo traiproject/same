@@ -506,6 +506,7 @@ func TestGetEnvironment_Concurrency(t *testing.T) {
 		synctest.Wait()
 
 		wg.Wait()
+		synctest.Wait()
 
 		if atomic.LoadInt32(&callCount) != 1 {
 			t.Errorf("Resolve called %d times, want 1", callCount)
