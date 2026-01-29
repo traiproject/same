@@ -36,6 +36,8 @@ executions in `nix develop`.
 2. **Linting:** `nix develop -c golangci-lint run ./cli/...`
 3. **Testing:** `nix develop -c go test -race ./cli/...` (The `-race` flag is
    mandatory).
+4. **Documentation:** Verify if `docs/` need updates based on changes (flags,
+   config, logic).
 
 ### 3. Modern Go Standards (Go 1.25+)
 
@@ -45,28 +47,45 @@ Do not use legacy Go patterns.
   iteration).
 - **Interning:** Use the `unique` package for high-cardinality strings (paths,
   IDs).
-- **Concurrency:** Use `testing/synctest` for all concurrency/time-based
-  testing.
+- **Concurrency:** You must utilize `testing/synctest` standards. Refer to
+  `cli/TESTING.md` for specific concurrency testing patterns.
 - **Errors:** Use `go.trai.ch/zerr` for structure. **NEVER** use `fmt.Errorf`.
 
 ### 4. Test Strategy
 
-- **Unit:** Isolate adapters with `gomock`.
-- **Integration:** Use `testing/synctest` to simulate time/goroutines
-  deterministically.
-- **Golden Files:** Nix generation must match golden files exactly.
-- **TUI:** Test `Update()` state transitions, not `View()` string output.
+**CRITICAL MANDATE:** You must strictly follow the testing concepts, philosophy,
+and standards defined in `cli/TESTING.md`.
+
+- **Authority:** `cli/TESTING.md` is the single source of truth for all testing
+  rules.
+- **Requirement:** You are forced to read `cli/TESTING.md` and strictly adhere
+  to its content regarding:
+  - **Core Philosophy:** Determinism, Isolation, and Strictness.
+  - **Layers:** Unit (Mocking), Integration (Synctest/Goldie), and E2E
+    (Testscript).
+  - **Tooling:** Usage of `gomock`, `goldie`, and `synctest`.
+- **No Deviations:** Do not implement tests based on prior assumptions; use the
+  patterns explicitly defined in that file.
 
 ### 5. Documentation
 
-- If you modify CLI flags, configuration structs, or core logic, you must update
+You must treat documentation as a first-class citizen.
+
+- **Trigger:** If you modify CLI flags, configuration structs (e.g.,
+  `same.yaml`), or core logic that affects user behavior, you **MUST** update
   the corresponding `.mdx` files in `docs/`.
+- **Location:**
+  - CLI Commands: `docs/cli/*.mdx`
+  - Configuration: `docs/configuration/*.mdx`
+  - Internals: `docs/internals/*.mdx`
+- **Synchronization:** Documentation updates must be included in the same atomic
+  commit (or logical unit of work) as the code changes.
 
 ### 6. Version Control & Atomicity
 
 - **Frequency:** You must separate work into atomic commits. Create a commit
   immediately after a logical unit of work passes the **Verification** steps
-  (Format, Lint, Test).
+  (Format, Lint, Test, Docs).
 - **Message Format:** Strictly follow **Conventional Commits**
   (`type(scope): description`).
   - **Types:** `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `perf`.
@@ -82,5 +101,5 @@ Do not use legacy Go patterns.
 - When writing code, prefer modern idioms (`iter`, `unique`) immediately.
 - If an architectural violation is requested, refuse and explain the dependency
   rule.
-- **Checkpointing:** Explicitly mention when you are creating a `jj` commit in
-  your plan or summary.
+- **Checkpointing:** Explicitly mention when you are creating a commit in your
+  plan or summary.
