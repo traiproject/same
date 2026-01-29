@@ -11,6 +11,7 @@ func (c *CLI) newDaemonCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(c.newDaemonServeCmd())
+	cmd.AddCommand(c.newDaemonStartCmd())
 	cmd.AddCommand(c.newDaemonStatusCmd())
 	cmd.AddCommand(c.newDaemonStopCmd())
 
@@ -24,6 +25,16 @@ func (c *CLI) newDaemonServeCmd() *cobra.Command {
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return c.app.ServeDaemon(cmd.Context())
+		},
+	}
+}
+
+func (c *CLI) newDaemonStartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "start",
+		Short: "Start the daemon in the background",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return c.app.StartDaemon(cmd.Context())
 		},
 	}
 }
