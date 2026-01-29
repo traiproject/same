@@ -12,8 +12,10 @@ import (
 
 // Logger implements ports.Logger using log/slog.
 type Logger struct {
-	logger *slog.Logger
-	mu     sync.RWMutex
+	logger   *slog.Logger
+	mu       sync.RWMutex
+	jsonMode bool
+	output   io.Writer
 }
 
 // New creates a new Logger instance.
@@ -23,17 +25,60 @@ func New() ports.Logger {
 	})
 	return &Logger{
 		logger: slog.New(handler),
+		output: os.Stderr,
 	}
 }
 
 // SetOutput updates the logger's output destination.
 // This is thread-safe and updates the underlying slog handler.
+// It preserves the current JSON mode setting.
+// If w is nil, os.Stderr is used as the default.
 func (l *Logger) SetOutput(w io.Writer) {
-	handler := NewPrettyHandler(w, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if w == nil {
+		w = os.Stderr
+	}
+	l.output = w
+
+	var handler slog.Handler
+	if l.jsonMode {
+		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})
+	} else {
+		handler = NewPrettyHandler(w, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})
+	}
+	l.logger = slog.New(handler)
+}
+
+// SetJSON switches between JSON and pretty logging.
+// When enabled, logs are output as JSON. When disabled, pretty-printed logs are used.
+// The output destination is preserved from SetOutput calls.
+func (l *Logger) SetJSON(enable bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.jsonMode = enable
+
+	w := l.output
+	if w == nil {
+		w = os.Stderr
+	}
+
+	var handler slog.Handler
+	if enable {
+		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})
+	} else {
+		handler = NewPrettyHandler(w, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})
+	}
 	l.logger = slog.New(handler)
 }
 

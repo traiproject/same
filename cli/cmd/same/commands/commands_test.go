@@ -41,22 +41,25 @@ func TestRun_Success(t *testing.T) {
 	cli := commands.New(a)
 
 	// Setup strict expectations in the correct sequence
-	// 1. Loader.Load is called first
+	// 1. Logger.SetJSON is called in PersistentPreRunE
+	mockLogger.EXPECT().SetJSON(false).Times(1)
+
+	// 2. Loader.Load is called first
 	mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
 
 	mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
-	// 2. Hasher.ComputeInputHash is called once to compute input hash
+	// 3. Hasher.ComputeInputHash is called once to compute input hash
 	mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
 
-	// 3. Store.Get is called once to check for cached build info (simulate cache miss by returning nil)
+	// 4. Store.Get is called once to check for cached build info (simulate cache miss by returning nil)
 	mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
 
-	// 4. Executor.Execute is called once to run the task (since it's a cache miss)
+	// 5. Executor.Execute is called once to run the task (since it's a cache miss)
 	mockExecutor.EXPECT().Execute(
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Return(nil).Times(1)
 
-	// 5. Store.Put is called once to save the new build result
+	// 6. Store.Put is called once to save the new build result
 	mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
 
 	// Set command args
@@ -90,6 +93,9 @@ func TestRun_NoTargets(t *testing.T) {
 	// Initialize CLI
 	cli := commands.New(a)
 
+	// Logger.SetJSON is called in PersistentPreRunE
+	mockLogger.EXPECT().SetJSON(false).Times(1)
+
 	// Set command args (no targets)
 	cli.SetArgs([]string{"run"})
 
@@ -122,6 +128,9 @@ func TestRoot_Help(t *testing.T) {
 	// Initialize CLI
 	cli := commands.New(a)
 
+	// Note: Logger.SetJSON is NOT called for --help because Cobra handles it specially
+	// and doesn't run PersistentPreRunE
+
 	// Set command args to help
 	cli.SetArgs([]string{"--help"})
 
@@ -153,6 +162,9 @@ func TestRoot_Version(t *testing.T) {
 	// Initialize CLI
 	cli := commands.New(a)
 
+	// Note: Logger.SetJSON is NOT called for --version because Cobra handles it specially
+	// and doesn't run PersistentPreRunE
+
 	// Set command args to version
 	cli.SetArgs([]string{"--version"})
 
@@ -183,6 +195,9 @@ func TestVersionCmd(t *testing.T) {
 
 	// Initialize CLI
 	cli := commands.New(a)
+
+	// Logger.SetJSON is called in PersistentPreRunE
+	mockLogger.EXPECT().SetJSON(false).Times(1)
 
 	// Set command args to version subcommand
 	cli.SetArgs([]string{"version"})
@@ -244,6 +259,7 @@ func createDirWithMarker(t *testing.T, dirPath string) {
 
 func TestCleanCmd_Default(t *testing.T) {
 	cli, mockLogger := setupCleanTest(t)
+	mockLogger.EXPECT().SetJSON(false).Times(1)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
@@ -268,6 +284,7 @@ func TestCleanCmd_Default(t *testing.T) {
 
 func TestCleanCmd_Tools(t *testing.T) {
 	cli, mockLogger := setupCleanTest(t)
+	mockLogger.EXPECT().SetJSON(false).Times(1)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 	nixHubPath := domain.DefaultNixHubCachePath()
@@ -304,6 +321,7 @@ func TestCleanCmd_Tools(t *testing.T) {
 
 func TestCleanCmd_All(t *testing.T) {
 	cli, mockLogger := setupCleanTest(t)
+	mockLogger.EXPECT().SetJSON(false).Times(1)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
@@ -370,6 +388,8 @@ func TestRun_OutputModeFlags(t *testing.T) {
 
 			cli := commands.New(a)
 
+			mockLogger.EXPECT().SetJSON(false).Times(1)
+
 			mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
 			mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(1)
 			mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
@@ -386,5 +406,63 @@ func TestRun_OutputModeFlags(t *testing.T) {
 				t.Errorf("Expected no error, got: %v", err)
 			}
 		})
+	}
+}
+
+func TestRun_JSONFlag(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup mocks
+	mockLoader := mocks.NewMockConfigLoader(ctrl)
+	mockExecutor := mocks.NewMockExecutor(ctrl)
+	mockStore := mocks.NewMockBuildInfoStore(ctrl)
+	mockHasher := mocks.NewMockHasher(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+
+	// Create a graph with one task named "build"
+	g := domain.NewGraph()
+	buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
+	_ = g.AddTask(buildTask)
+
+	// Setup app
+	mockLogger := mocks.NewMockLogger(ctrl)
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	// Initialize CLI
+	cli := commands.New(a)
+
+	// Setup strict expectations in the correct sequence
+	// 1. Logger.SetJSON(true) is called in PersistentPreRunE when --json flag is set
+	mockLogger.EXPECT().SetJSON(true).Times(1)
+
+	// 2. Loader.Load is called first
+	mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+
+	mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
+	// 3. Hasher.ComputeInputHash is called once to compute input hash
+	mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
+
+	// 4. Store.Get is called once to check for cached build info (simulate cache miss by returning nil)
+	mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+
+	// 5. Executor.Execute is called once to run the task (since it's a cache miss)
+	mockExecutor.EXPECT().Execute(
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+	).Return(nil).Times(1)
+
+	// 6. Store.Put is called once to save the new build result
+	mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
+
+	// Set command args with --json flag
+	cli.SetArgs([]string{"--json", "run", "build"})
+
+	// Execute
+	err := cli.Execute(context.Background())
+	// Assert
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
 	}
 }

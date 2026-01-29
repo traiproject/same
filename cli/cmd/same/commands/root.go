@@ -24,6 +24,14 @@ func New(a *app.App) *CLI {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       build.Version,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			jsonFlag, err := cmd.Flags().GetBool("json")
+			if err != nil {
+				return fmt.Errorf("failed to get json flag: %w", err)
+			}
+			a.SetLogJSON(jsonFlag)
+			return nil
+		},
 	}
 
 	rootCmd.SetVersionTemplate(fmt.Sprintf(
@@ -36,6 +44,8 @@ func New(a *app.App) *CLI {
 
 	rootCmd.InitDefaultHelpFlag()
 	rootCmd.Flags().Lookup("help").Usage = "Show help for command"
+
+	rootCmd.PersistentFlags().Bool("json", false, "Output logs in JSON format")
 
 	c := &CLI{
 		app:     a,

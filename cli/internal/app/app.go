@@ -70,6 +70,12 @@ func (a *App) WithDisableTick() *App {
 	return a
 }
 
+// SetLogJSON enables or disables JSON logging output.
+// When enabled, logs are output as JSON. When disabled, pretty-printed logs are used.
+func (a *App) SetLogJSON(enable bool) {
+	a.logger.SetJSON(enable)
+}
+
 // RunOptions configuration for the Run method.
 type RunOptions struct {
 	NoCache    bool
