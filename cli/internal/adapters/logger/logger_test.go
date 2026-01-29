@@ -98,6 +98,11 @@ func TestLogger_Error(t *testing.T) {
 		t.Errorf("Expected output to contain 'operation failed', got: %s", output)
 	}
 
+	// Assert that the error details are visible (the actual error attribute)
+	if !strings.Contains(output, "permission denied") {
+		t.Errorf("Expected output to contain error details 'permission denied', got: %s", output)
+	}
+
 	// Assert that the output does NOT contain "ERROR" (pretty format has no level prefix)
 	if strings.Contains(output, "ERROR") {
 		t.Errorf("Expected output to NOT contain 'ERROR' in pretty format, got: %s", output)

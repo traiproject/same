@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/muesli/termenv"
 	"go.trai.ch/same/internal/ui/output"
@@ -62,7 +63,25 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 		color = termenv.RGBColor(string(style.Red))
 	default:
 		msg = r.Message
-		color = termenv.RGBColor(string(style.White))
+		color = termenv.RGBColor(string(style.Slate))
+	}
+
+	// Build attribute string from handler attrs and record attrs
+	attrParts := make([]string, 0, len(h.attrs)+r.NumAttrs())
+
+	// Add handler-level attrs
+	for _, attr := range h.attrs {
+		attrParts = append(attrParts, formatAttr(h.group, attr))
+	}
+
+	// Add record-level attrs
+	r.Attrs(func(attr slog.Attr) bool {
+		attrParts = append(attrParts, formatAttr(h.group, attr))
+		return true
+	})
+
+	if len(attrParts) > 0 {
+		msg += " " + strings.Join(attrParts, " ")
 	}
 
 	styled := h.out.String(msg).Foreground(color)
@@ -93,4 +112,14 @@ func (h *PrettyHandler) WithGroup(name string) slog.Handler {
 		attrs: h.attrs,
 		group: name,
 	}
+}
+
+// formatAttr formats a single attribute for output.
+// If a group is set, the key is prefixed with the group name.
+func formatAttr(group string, attr slog.Attr) string {
+	key := attr.Key
+	if group != "" {
+		key = group + "." + key
+	}
+	return key + "=" + attr.Value.String()
 }
