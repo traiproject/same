@@ -40,7 +40,7 @@ tasks:
 				}
 				return configPath
 			},
-			args:         []string{"same", "run", "test"},
+			args:         []string{"same", "run", "test", "--no-daemon"},
 			expectedExit: 0,
 		},
 	}
@@ -116,7 +116,7 @@ tasks:
 	}()
 
 	// Set args
-	os.Args = []string{"same", "run", "test"}
+	os.Args = []string{"same", "run", "test", "--no-daemon"}
 
 	// Run and expect error exit code
 	exitCode := run()
