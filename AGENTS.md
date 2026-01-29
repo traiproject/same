@@ -47,17 +47,25 @@ Do not use legacy Go patterns.
   iteration).
 - **Interning:** Use the `unique` package for high-cardinality strings (paths,
   IDs).
-- **Concurrency:** Use `testing/synctest` for all concurrency/time-based
-  testing.
+- **Concurrency:** You must utilize `testing/synctest` standards. Refer to
+  `cli/TESTING.md` for specific concurrency testing patterns.
 - **Errors:** Use `go.trai.ch/zerr` for structure. **NEVER** use `fmt.Errorf`.
 
 ### 4. Test Strategy
 
-- **Unit:** Isolate adapters with `gomock`.
-- **Integration:** Use `testing/synctest` to simulate time/goroutines
-  deterministically.
-- **Golden Files:** Nix generation must match golden files exactly.
-- **TUI:** Test `Update()` state transitions, not `View()` string output.
+**CRITICAL MANDATE:** You must strictly follow the testing concepts, philosophy,
+and standards defined in `cli/TESTING.md`.
+
+- **Authority:** `cli/TESTING.md` is the single source of truth for all testing
+  rules.
+- **Requirement:** You are forced to read `cli/TESTING.md` and strictly adhere
+  to its content regarding:
+  - **Core Philosophy:** Determinism, Isolation, and Strictness.
+  - **Layers:** Unit (Mocking), Integration (Synctest/Goldie), and E2E
+    (Testscript).
+  - **Tooling:** Usage of `gomock`, `goldie`, and `synctest`.
+- **No Deviations:** Do not implement tests based on prior assumptions; use the
+  patterns explicitly defined in that file.
 
 ### 5. Documentation
 
