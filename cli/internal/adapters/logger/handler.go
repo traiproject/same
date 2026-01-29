@@ -63,20 +63,24 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 		color = termenv.RGBColor(string(style.Red))
 	default:
 		msg = r.Message
-		color = termenv.RGBColor(string(style.Slate))
+		color = termenv.RGBColor(string(style.Mist))
 	}
 
 	// Build attribute string from handler attrs and record attrs
 	attrParts := make([]string, 0, len(h.attrs)+r.NumAttrs())
 
-	// Add handler-level attrs
+	// Add handler-level attrs (already have group prefix applied)
 	for _, attr := range h.attrs {
-		attrParts = append(attrParts, formatAttr(h.group, attr))
+		attrParts = append(attrParts, attr.Key+"="+attr.Value.String())
 	}
 
-	// Add record-level attrs
+	// Add record-level attrs (apply current group prefix)
 	r.Attrs(func(attr slog.Attr) bool {
-		attrParts = append(attrParts, formatAttr(h.group, attr))
+		key := attr.Key
+		if h.group != "" {
+			key = h.group + "." + key
+		}
+		attrParts = append(attrParts, key+"="+attr.Value.String())
 		return true
 	})
 
@@ -91,10 +95,19 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 }
 
 // WithAttrs returns a new Handler with the given attributes appended.
+// Attributes are stored with the current group prefix already applied.
 func (h *PrettyHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
 	copy(newAttrs, h.attrs)
-	copy(newAttrs[len(h.attrs):], attrs)
+
+	// Apply current group prefix to new attrs before storing
+	for i, attr := range attrs {
+		key := attr.Key
+		if h.group != "" {
+			key = h.group + "." + key
+		}
+		newAttrs[len(h.attrs)+i] = slog.Attr{Key: key, Value: attr.Value}
+	}
 
 	return &PrettyHandler{
 		out:   h.out,
@@ -105,21 +118,22 @@ func (h *PrettyHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 // WithGroup returns a new Handler with the given group name.
+// Groups nest: calling WithGroup("a").WithGroup("b") results in group "a.b".
+// Per slog.Handler contract, WithGroup("") returns the receiver unchanged.
 func (h *PrettyHandler) WithGroup(name string) slog.Handler {
+	if name == "" {
+		return h
+	}
+
+	newGroup := name
+	if h.group != "" {
+		newGroup = h.group + "." + name
+	}
+
 	return &PrettyHandler{
 		out:   h.out,
 		level: h.level,
 		attrs: h.attrs,
-		group: name,
+		group: newGroup,
 	}
-}
-
-// formatAttr formats a single attribute for output.
-// If a group is set, the key is prefixed with the group name.
-func formatAttr(group string, attr slog.Attr) string {
-	key := attr.Key
-	if group != "" {
-		key = group + "." + key
-	}
-	return key + "=" + attr.Value.String()
 }
