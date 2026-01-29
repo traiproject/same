@@ -12,6 +12,7 @@ func TestLifecycle_AutoShutdown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		timeout := 100 * time.Millisecond
 		lc := daemon.NewLifecycle(timeout)
+		defer lc.Shutdown()
 
 		select {
 		case <-lc.ShutdownChan():
@@ -26,6 +27,7 @@ func TestLifecycle_ResetPreventsShutdown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		timeout := 100 * time.Millisecond
 		lc := daemon.NewLifecycle(timeout)
+		defer lc.Shutdown()
 
 		time.Sleep(50 * time.Millisecond)
 		lc.ResetTimer()
@@ -43,6 +45,7 @@ func TestLifecycle_IdleRemaining(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		timeout := 100 * time.Millisecond
 		lc := daemon.NewLifecycle(timeout)
+		defer lc.Shutdown()
 
 		remaining := lc.IdleRemaining()
 		if remaining > timeout {
@@ -62,6 +65,7 @@ func TestLifecycle_IdleRemaining(t *testing.T) {
 func TestLifecycle_Uptime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		lc := daemon.NewLifecycle(1 * time.Hour)
+		defer lc.Shutdown()
 
 		time.Sleep(10 * time.Millisecond)
 		uptime := lc.Uptime()
@@ -76,6 +80,7 @@ func TestLifecycle_Uptime(t *testing.T) {
 func TestLifecycle_LastActivity(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		lc := daemon.NewLifecycle(1 * time.Hour)
+		defer lc.Shutdown()
 
 		initialActivity := lc.LastActivity()
 		if initialActivity.IsZero() {
@@ -96,6 +101,7 @@ func TestLifecycle_LastActivity(t *testing.T) {
 func TestLifecycle_Shutdown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		lc := daemon.NewLifecycle(1 * time.Hour)
+		defer lc.Shutdown()
 
 		select {
 		case <-lc.ShutdownChan():
