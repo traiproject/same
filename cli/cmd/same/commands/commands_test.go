@@ -75,6 +75,7 @@ func TestRun_Success(t *testing.T) {
 	tc := setupTestCLI(t)
 
 	g := domain.NewGraph()
+	g.SetRoot(".")
 	buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
 	_ = g.AddTask(buildTask)
 

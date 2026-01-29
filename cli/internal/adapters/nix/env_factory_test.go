@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"testing/synctest"
 
@@ -448,69 +447,120 @@ func TestSaveEnvToCache_MkdirError(t *testing.T) {
 	}
 }
 
-func TestGetEnvironment_Concurrency(t *testing.T) {
+func TestGetEnvironment_ConcurrentCacheHit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// No EXPECT: cache hit should bypass resolver entirely
+	resolver := mocks.NewMockDependencyResolver(ctrl)
+
+	tmpDir := t.TempDir()
+
+	tools := map[string]string{
+		"go": "go@1.25.4",
+	}
+
+	envID := domain.GenerateEnvID(tools)
+	cachePath := filepath.Join(tmpDir, "environments", envID+".json")
+	cachedEnv := []string{"GOROOT=/nix/store/test", "PATH=/nix/store/bin"}
+	if err := nix.SaveEnvToCache(cachePath, cachedEnv); err != nil {
+		t.Fatalf("Failed to setup cache: %v", err)
+	}
+
+	factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
+	ctx := context.Background()
+
+	var wg sync.WaitGroup
+	const numGoroutines = 5
+	wg.Add(numGoroutines)
+
+	results := make(chan []string, numGoroutines)
+	errs := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			env, err := factory.GetEnvironment(ctx, tools)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- env
+		}()
+	}
+
+	wg.Wait()
+	close(results)
+	close(errs)
+
+	for err := range errs {
+		t.Errorf("GetEnvironment failed: %v", err)
+	}
+
+	count := 0
+	for env := range results {
+		count++
+		if len(env) == 0 {
+			t.Error("GetEnvironment returned empty environment")
+		}
+	}
+
+	if count != numGoroutines {
+		t.Errorf("Expected %d results, got %d", numGoroutines, count)
+	}
+}
+
+func TestGetEnvironment_Singleflight(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		resolver := mocks.NewMockDependencyResolver(ctrl)
 
-		// Use atomic counter to verify single execution
-		var callCount int32
-
-		started := make(chan struct{})
-		proceed := make(chan struct{})
-
-		// Mock Resolve to wait for signal
-		resolver.EXPECT().
-			Resolve(gomock.Any(), "go", "1.25.4").
-			DoAndReturn(func(_ context.Context, _, _ string) (string, string, error) {
-				atomic.AddInt32(&callCount, 1)
-				close(started)
-				<-proceed // Wait for signal to complete
-				return "2788904d26dda6cfa1921c5abb7a2466ffe3cb8c", "pkgs.go", nil
-			}).
-			Times(1)
-
 		tmpDir := t.TempDir()
-		factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
-		ctx := context.Background()
 
 		tools := map[string]string{
 			"go": "go@1.25.4",
 		}
 
-		var wg sync.WaitGroup
-		wg.Add(2)
+		started := make(chan struct{})
+		proceed := make(chan struct{})
 
-		// Start two concurrent requests
-		for i := 0; i < 2; i++ {
+		resolver.EXPECT().
+			Resolve(gomock.Any(), "go", "1.25.4").
+			DoAndReturn(func(_ context.Context, _, _ string) (string, string, error) {
+				close(started)
+				<-proceed
+				return "", "", errors.New("intentional error to short-circuit nix call")
+			}).
+			Times(1)
+
+		factory := nix.NewEnvFactoryWithCache(resolver, tmpDir)
+		ctx := context.Background()
+
+		const numGoroutines = 3
+		var wg sync.WaitGroup
+		wg.Add(numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
 			go func() {
 				defer wg.Done()
 				_, _ = factory.GetEnvironment(ctx, tools)
 			}()
 		}
 
-		// Wait for one routine to hit the mock
 		synctest.Wait()
 
 		select {
 		case <-started:
-			// One routine has started processing
 		default:
 			t.Fatal("Resolve was not called")
 		}
 
-		// Allow processing to complete
 		close(proceed)
 		synctest.Wait()
 
 		wg.Wait()
-		synctest.Wait()
-
-		if atomic.LoadInt32(&callCount) != 1 {
-			t.Errorf("Resolve called %d times, want 1", callCount)
-		}
 	})
 }
 
