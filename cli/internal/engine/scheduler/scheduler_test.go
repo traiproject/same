@@ -133,6 +133,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 
 		close(bProceed)
 		close(cProceed)
+		synctest.Wait()
 
 		err := <-errCh
 		if err == nil {
