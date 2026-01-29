@@ -369,7 +369,6 @@ func (a *App) StopDaemon(ctx context.Context) error {
 		_ = client.Close()
 	}()
 
-	a.logger.Info("stopping daemon")
 	if err := client.Shutdown(ctx); err != nil {
 		return zerr.Wrap(err, "failed to stop daemon")
 	}
@@ -395,7 +394,6 @@ func (a *App) StartDaemon(ctx context.Context) error {
 		return nil
 	}
 
-	a.logger.Info("starting daemon...")
 	if err := a.connector.Spawn(ctx, root); err != nil {
 		return zerr.Wrap(err, "failed to spawn daemon")
 	}

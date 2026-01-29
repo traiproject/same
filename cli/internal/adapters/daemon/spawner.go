@@ -97,6 +97,11 @@ func (c *Connector) Spawn(ctx context.Context, root string) error {
 		return zerr.Wrap(err, "failed to resolve absolute root path")
 	}
 
+	// Early exit if daemon is already running (idempotent behavior)
+	if c.isRunningWithCtx(ctx, root) {
+		return nil
+	}
+
 	daemonDir := filepath.Join(absRoot, filepath.Dir(domain.DefaultDaemonSocketPath()))
 	if mkdirErr := os.MkdirAll(daemonDir, domain.DirPerm); mkdirErr != nil {
 		return zerr.Wrap(mkdirErr, "failed to create daemon directory")
