@@ -63,7 +63,8 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 		color = termenv.RGBColor(string(style.Red))
 	default:
 		msg = r.Message
-		color = termenv.RGBColor(string(style.Mist))
+		// Use default terminal color (no color override) for info logs
+		color = nil
 	}
 
 	// Build attribute string from handler attrs and record attrs
