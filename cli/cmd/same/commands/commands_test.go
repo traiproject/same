@@ -15,196 +15,130 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestRun_Success(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+type testCLI struct {
+	CLI          *commands.CLI
+	Ctrl         *gomock.Controller
+	MockLoader   *mocks.MockConfigLoader
+	MockExecutor *mocks.MockExecutor
+	MockStore    *mocks.MockBuildInfoStore
+	MockHasher   *mocks.MockHasher
+	MockResolver *mocks.MockInputResolver
+	MockLogger   *mocks.MockLogger
+}
 
-	// Setup mocks
+func setupTestCLI(t *testing.T) *testCLI {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
 	mockLoader := mocks.NewMockConfigLoader(ctrl)
 	mockExecutor := mocks.NewMockExecutor(ctrl)
 	mockStore := mocks.NewMockBuildInfoStore(ctrl)
 	mockHasher := mocks.NewMockHasher(ctrl)
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+	mockLogger := mocks.NewMockLogger(ctrl)
 
-	// Create a graph with one task named "build"
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	return &testCLI{
+		CLI:          commands.New(a),
+		Ctrl:         ctrl,
+		MockLoader:   mockLoader,
+		MockExecutor: mockExecutor,
+		MockStore:    mockStore,
+		MockHasher:   mockHasher,
+		MockResolver: mockResolver,
+		MockLogger:   mockLogger,
+	}
+}
+
+func setupSimpleTestCLI(t *testing.T) (*commands.CLI, *gomock.Controller, *mocks.MockLogger) {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	mockLoader := mocks.NewMockConfigLoader(ctrl)
+	mockExecutor := mocks.NewMockExecutor(ctrl)
+	mockStore := mocks.NewMockBuildInfoStore(ctrl)
+	mockHasher := mocks.NewMockHasher(ctrl)
+	mockResolver := mocks.NewMockInputResolver(ctrl)
+	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+	mockLogger := mocks.NewMockLogger(ctrl)
+
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
+
+	return commands.New(a), ctrl, mockLogger
+}
+
+func TestRun_Success(t *testing.T) {
+	tc := setupTestCLI(t)
+
 	g := domain.NewGraph()
 	buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
 	_ = g.AddTask(buildTask)
 
-	// Setup app
-	mockLogger := mocks.NewMockLogger(ctrl)
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
-		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
-
-	// Initialize CLI
-	cli := commands.New(a)
-
-	// Setup strict expectations in the correct sequence
-	// 1. Logger.SetJSON is called in PersistentPreRunE
-	mockLogger.EXPECT().SetJSON(false).Times(1)
-
-	// 2. Loader.Load is called first
-	mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
-
-	mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
-	// 3. Hasher.ComputeInputHash is called once to compute input hash
-	mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
-
-	// 4. Store.Get is called once to check for cached build info (simulate cache miss by returning nil)
-	mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
-
-	// 5. Executor.Execute is called once to run the task (since it's a cache miss)
-	mockExecutor.EXPECT().Execute(
+	tc.MockLogger.EXPECT().SetJSON(false).Times(1)
+	tc.MockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+	tc.MockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
+	tc.MockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
+	tc.MockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+	tc.MockExecutor.EXPECT().Execute(
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Return(nil).Times(1)
+	tc.MockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
 
-	// 6. Store.Put is called once to save the new build result
-	mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
+	tc.CLI.SetArgs([]string{"run", "build"})
 
-	// Set command args
-	cli.SetArgs([]string{"run", "build"})
-
-	// Execute
-	err := cli.Execute(context.Background())
-	// Assert
+	err := tc.CLI.Execute(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
 }
 
 func TestRun_NoTargets(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	cli, _, mockLogger := setupSimpleTestCLI(t)
 
-	// Setup mocks
-	mockLoader := mocks.NewMockConfigLoader(ctrl)
-	mockExecutor := mocks.NewMockExecutor(ctrl)
-	mockStore := mocks.NewMockBuildInfoStore(ctrl)
-	mockHasher := mocks.NewMockHasher(ctrl)
-	mockResolver := mocks.NewMockInputResolver(ctrl)
-	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
-
-	// Setup app
-	mockLogger := mocks.NewMockLogger(ctrl)
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
-		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
-
-	// Initialize CLI
-	cli := commands.New(a)
-
-	// Logger.SetJSON is called in PersistentPreRunE
 	mockLogger.EXPECT().SetJSON(false).Times(1)
 
-	// Set command args (no targets)
 	cli.SetArgs([]string{"run"})
 
-	// Execute
 	err := cli.Execute(context.Background())
-	// With the updated implementation, no error should be returned
-	// when no targets are provided (just displays help)
 	if err != nil {
 		t.Errorf("Expected no error for no targets, got: %v", err)
 	}
 }
 
 func TestRoot_Help(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	cli, _, _ := setupSimpleTestCLI(t)
 
-	// Setup mocks
-	mockLoader := mocks.NewMockConfigLoader(ctrl)
-	mockExecutor := mocks.NewMockExecutor(ctrl)
-	mockStore := mocks.NewMockBuildInfoStore(ctrl)
-	mockHasher := mocks.NewMockHasher(ctrl)
-	mockResolver := mocks.NewMockInputResolver(ctrl)
-	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
-
-	// Setup app
-	mockLogger := mocks.NewMockLogger(ctrl)
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
-		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
-
-	// Initialize CLI
-	cli := commands.New(a)
-
-	// Note: Logger.SetJSON is NOT called for --help because Cobra handles it specially
-	// and doesn't run PersistentPreRunE
-
-	// Set command args to help
 	cli.SetArgs([]string{"--help"})
 
-	// Execute
 	err := cli.Execute(context.Background())
-	// Assert no error (Cobra handles help automatically)
 	if err != nil {
 		t.Errorf("Expected no error for help, got: %v", err)
 	}
 }
 
 func TestRoot_Version(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	cli, _, _ := setupSimpleTestCLI(t)
 
-	// Setup mocks
-	mockLoader := mocks.NewMockConfigLoader(ctrl)
-	mockExecutor := mocks.NewMockExecutor(ctrl)
-	mockStore := mocks.NewMockBuildInfoStore(ctrl)
-	mockHasher := mocks.NewMockHasher(ctrl)
-	mockResolver := mocks.NewMockInputResolver(ctrl)
-	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
-
-	// Setup app
-	mockLogger := mocks.NewMockLogger(ctrl)
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
-		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
-
-	// Initialize CLI
-	cli := commands.New(a)
-
-	// Note: Logger.SetJSON is NOT called for --version because Cobra handles it specially
-	// and doesn't run PersistentPreRunE
-
-	// Set command args to version
 	cli.SetArgs([]string{"--version"})
 
-	// Execute
 	err := cli.Execute(context.Background())
-	// Assert no error (Cobra handles version automatically)
 	if err != nil {
 		t.Errorf("Expected no error for version, got: %v", err)
 	}
 }
 
 func TestVersionCmd(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	cli, _, mockLogger := setupSimpleTestCLI(t)
 
-	// Setup mocks
-	mockLoader := mocks.NewMockConfigLoader(ctrl)
-	mockExecutor := mocks.NewMockExecutor(ctrl)
-	mockStore := mocks.NewMockBuildInfoStore(ctrl)
-	mockHasher := mocks.NewMockHasher(ctrl)
-	mockResolver := mocks.NewMockInputResolver(ctrl)
-	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
-
-	// Setup app
-	mockLogger := mocks.NewMockLogger(ctrl)
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
-		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
-
-	// Initialize CLI
-	cli := commands.New(a)
-
-	// Logger.SetJSON is called in PersistentPreRunE
 	mockLogger.EXPECT().SetJSON(false).Times(1)
 
-	// Set command args to version subcommand
 	cli.SetArgs([]string{"version"})
 
-	// Execute
 	err := cli.Execute(context.Background())
-	// Assert no error
 	if err != nil {
 		t.Errorf("Expected no error for version command, got: %v", err)
 	}
@@ -230,7 +164,6 @@ func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger) {
 	}
 
 	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
 
 	mockLoader := mocks.NewMockConfigLoader(ctrl)
 	mockExecutor := mocks.NewMockExecutor(ctrl)
@@ -367,41 +300,26 @@ func TestRun_OutputModeFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockLoader := mocks.NewMockConfigLoader(ctrl)
-			mockExecutor := mocks.NewMockExecutor(ctrl)
-			mockStore := mocks.NewMockBuildInfoStore(ctrl)
-			mockHasher := mocks.NewMockHasher(ctrl)
-			mockResolver := mocks.NewMockInputResolver(ctrl)
-			mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+			tc := setupTestCLI(t)
 
 			g := domain.NewGraph()
 			g.SetRoot(".")
 			buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
 			_ = g.AddTask(buildTask)
 
-			mockLogger := mocks.NewMockLogger(ctrl)
-			a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
-				WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
-
-			cli := commands.New(a)
-
-			mockLogger.EXPECT().SetJSON(false).Times(1)
-
-			mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
-			mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(1)
-			mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
-			mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
-			mockExecutor.EXPECT().Execute(
+			tc.MockLogger.EXPECT().SetJSON(false).Times(1)
+			tc.MockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+			tc.MockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(1)
+			tc.MockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
+			tc.MockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+			tc.MockExecutor.EXPECT().Execute(
 				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 			).Return(nil).Times(1)
-			mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
+			tc.MockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
 
-			cli.SetArgs(tt.args)
+			tc.CLI.SetArgs(tt.args)
 
-			err := cli.Execute(context.Background())
+			err := tc.CLI.Execute(context.Background())
 			if err != nil {
 				t.Errorf("Expected no error, got: %v", err)
 			}
@@ -410,58 +328,25 @@ func TestRun_OutputModeFlags(t *testing.T) {
 }
 
 func TestRun_JSONFlag(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	tc := setupTestCLI(t)
 
-	// Setup mocks
-	mockLoader := mocks.NewMockConfigLoader(ctrl)
-	mockExecutor := mocks.NewMockExecutor(ctrl)
-	mockStore := mocks.NewMockBuildInfoStore(ctrl)
-	mockHasher := mocks.NewMockHasher(ctrl)
-	mockResolver := mocks.NewMockInputResolver(ctrl)
-	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
-
-	// Create a graph with one task named "build"
 	g := domain.NewGraph()
 	buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
 	_ = g.AddTask(buildTask)
 
-	// Setup app
-	mockLogger := mocks.NewMockLogger(ctrl)
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
-		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
-
-	// Initialize CLI
-	cli := commands.New(a)
-
-	// Setup strict expectations in the correct sequence
-	// 1. Logger.SetJSON(true) is called in PersistentPreRunE when --json flag is set
-	mockLogger.EXPECT().SetJSON(true).Times(1)
-
-	// 2. Loader.Load is called first
-	mockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
-
-	mockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
-	// 3. Hasher.ComputeInputHash is called once to compute input hash
-	mockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
-
-	// 4. Store.Get is called once to check for cached build info (simulate cache miss by returning nil)
-	mockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
-
-	// 5. Executor.Execute is called once to run the task (since it's a cache miss)
-	mockExecutor.EXPECT().Execute(
+	tc.MockLogger.EXPECT().SetJSON(true).Times(1)
+	tc.MockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+	tc.MockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
+	tc.MockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
+	tc.MockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+	tc.MockExecutor.EXPECT().Execute(
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Return(nil).Times(1)
+	tc.MockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
 
-	// 6. Store.Put is called once to save the new build result
-	mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
+	tc.CLI.SetArgs([]string{"--json", "run", "build"})
 
-	// Set command args with --json flag
-	cli.SetArgs([]string{"--json", "run", "build"})
-
-	// Execute
-	err := cli.Execute(context.Background())
-	// Assert
+	err := tc.CLI.Execute(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
