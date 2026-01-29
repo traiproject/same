@@ -72,9 +72,9 @@ func TestLogger_Info(t *testing.T) {
 		t.Errorf("Expected output to contain 'some message', got: %s", output)
 	}
 
-	// Assert that the output contains "INFO"
-	if !strings.Contains(output, "INFO") {
-		t.Errorf("Expected output to contain 'INFO', got: %s", output)
+	// Assert that the output does NOT contain "INFO" (pretty format has no level prefix)
+	if strings.Contains(output, "INFO") {
+		t.Errorf("Expected output to NOT contain 'INFO' in pretty format, got: %s", output)
 	}
 }
 
@@ -89,14 +89,18 @@ func TestLogger_Error(t *testing.T) {
 		t.Fatalf("Failed to capture stderr: %v", err)
 	}
 
-	// Assert that the output contains the error message
-	if !strings.Contains(output, "permission denied") {
-		t.Errorf("Expected output to contain 'permission denied', got: %s", output)
+	// Assert that the output contains the error icon and message
+	if !strings.Contains(output, "✗") {
+		t.Errorf("Expected output to contain error icon '✗', got: %s", output)
 	}
 
-	// Assert that the output contains "ERROR"
-	if !strings.Contains(output, "ERROR") {
-		t.Errorf("Expected output to contain 'ERROR', got: %s", output)
+	if !strings.Contains(output, "operation failed") {
+		t.Errorf("Expected output to contain 'operation failed', got: %s", output)
+	}
+
+	// Assert that the output does NOT contain "ERROR" (pretty format has no level prefix)
+	if strings.Contains(output, "ERROR") {
+		t.Errorf("Expected output to NOT contain 'ERROR' in pretty format, got: %s", output)
 	}
 }
 
@@ -111,14 +115,18 @@ func TestLogger_Warn(t *testing.T) {
 		t.Fatalf("Failed to capture stderr: %v", err)
 	}
 
-	// Assert that the output contains "some warning"
+	// Assert that the output contains the warning icon and message
+	if !strings.Contains(output, "!") {
+		t.Errorf("Expected output to contain warning icon '!', got: %s", output)
+	}
+
 	if !strings.Contains(output, "some warning") {
 		t.Errorf("Expected output to contain 'some warning', got: %s", output)
 	}
 
-	// Assert that the output contains "WARN"
-	if !strings.Contains(output, "WARN") {
-		t.Errorf("Expected output to contain 'WARN', got: %s", output)
+	// Assert that the output does NOT contain "WARN" (pretty format has no level prefix)
+	if strings.Contains(output, "WARN") {
+		t.Errorf("Expected output to NOT contain 'WARN' in pretty format, got: %s", output)
 	}
 }
 
