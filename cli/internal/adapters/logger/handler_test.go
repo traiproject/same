@@ -171,7 +171,13 @@ func TestPrettyHandler_WithGroup(t *testing.T) {
 			}
 
 			lg := slog.New(handler)
-			lg.Info(tt.msg, tt.attrs[0].Key, tt.attrs[0].Value.Any())
+
+			// Convert attrs to variadic arguments safely
+			var args []any
+			for _, attr := range tt.attrs {
+				args = append(args, attr.Key, attr.Value.Any())
+			}
+			lg.Info(tt.msg, args...)
 
 			g := goldie.New(t)
 			g.Assert(t, tt.goldenName, buf.Bytes())
