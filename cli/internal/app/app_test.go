@@ -64,7 +64,7 @@ func TestApp_Build(t *testing.T) {
 			).
 			WithDisableTick()
 
-		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
@@ -233,7 +233,7 @@ func TestApp_Run_BuildExecutionFailed(t *testing.T) {
 			).
 			WithDisableTick()
 
-		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
 		// Expectations
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
@@ -427,7 +427,7 @@ func TestApp_Run_LinearMode(t *testing.T) {
 			).
 			WithDisableTick()
 
-		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get("task1").Return(nil, nil)
@@ -485,7 +485,7 @@ func TestApp_Run_InspectMode(t *testing.T) {
 			).
 			WithDisableTick()
 
-		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
 		mockLoader.EXPECT().Load(".").Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get("task1").Return(nil, nil)
@@ -496,6 +496,824 @@ func TestApp_Run_InspectMode(t *testing.T) {
 			NoCache: false,
 			Inspect: true,
 		})
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_TaskNotFound(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+
+		err = a.Run(context.Background(), []string{"nonexistent"}, app.RunOptions{NoCache: false})
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		// TaskNotFound is wrapped in ErrBuildExecutionFailed
+		if !errors.Is(err, domain.ErrBuildExecutionFailed) {
+			t.Errorf("Expected error to wrap ErrBuildExecutionFailed, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_HasherError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("", errors.New("hash computation failed"))
+
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		if !errors.Is(err, domain.ErrBuildExecutionFailed) {
+			t.Errorf("Expected error to wrap ErrBuildExecutionFailed, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_StoreGetError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
+		mockStore.EXPECT().Get("task1").Return(nil, errors.New("store read error"))
+
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		if !errors.Is(err, domain.ErrBuildExecutionFailed) {
+			t.Errorf("Expected error to wrap ErrBuildExecutionFailed, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_InputResolverError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return(nil, errors.New("input resolution failed"))
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		if !errors.Is(err, domain.ErrBuildExecutionFailed) {
+			t.Errorf("Expected error to wrap ErrBuildExecutionFailed, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_EnvironmentFactoryError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		tools := map[string]string{"go": "go@1.23"}
+		task := &domain.Task{
+			Name:       domain.NewInternedString("task1"),
+			WorkingDir: domain.NewInternedString("Root"),
+			Tools:      tools,
+		}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		// Environment factory is called BEFORE hasher and store in Phase 1 (prepareEnvironments)
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), tools).Return(nil, errors.New("environment resolution failed"))
+
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		if !errors.Is(err, domain.ErrBuildExecutionFailed) {
+			t.Errorf("Expected error to wrap ErrBuildExecutionFailed, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_CacheHit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash123", nil)
+		mockStore.EXPECT().Get("task1").Return(&domain.BuildInfo{
+			TaskName:   "task1",
+			InputHash:  "hash123",
+			OutputHash: "",
+		}, nil)
+		// Executor should NOT be called for cache hit
+
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_NoCacheMode(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		// With NoCache=true, ComputeInputHash is called but store.Get is skipped
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: true})
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_RebuildAlwaysStrategy(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{
+			Name:            domain.NewInternedString("task1"),
+			WorkingDir:      domain.NewInternedString("Root"),
+			RebuildStrategy: domain.RebuildAlways,
+		}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		// With RebuildAlways, store.Get is skipped
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_MultipleTasks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task1 := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		task2 := &domain.Task{Name: domain.NewInternedString("task2"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task1)
+		_ = g.AddTask(task2)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(task1, nil, []string{}).Return("hash1", nil)
+		mockHasher.EXPECT().ComputeInputHash(task2, nil, []string{}).Return("hash2", nil)
+		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockStore.EXPECT().Get("task2").Return(nil, nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), task1, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), task2, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
+
+		err = a.Run(context.Background(), []string{"task1", "task2"}, app.RunOptions{NoCache: false})
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_TaskWithDependencies(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		depTask := &domain.Task{Name: domain.NewInternedString("dep"), WorkingDir: domain.NewInternedString("Root")}
+		mainTask := &domain.Task{
+			Name:         domain.NewInternedString("main"),
+			WorkingDir:   domain.NewInternedString("Root"),
+			Dependencies: []domain.InternedString{domain.NewInternedString("dep")},
+		}
+		_ = g.AddTask(depTask)
+		_ = g.AddTask(mainTask)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(depTask, nil, []string{}).Return("hash1", nil)
+		mockHasher.EXPECT().ComputeInputHash(mainTask, nil, []string{}).Return("hash2", nil)
+		mockStore.EXPECT().Get("dep").Return(nil, nil)
+		mockStore.EXPECT().Get("main").Return(nil, nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), depTask, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), mainTask, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
+
+		err = a.Run(context.Background(), []string{"main"}, app.RunOptions{NoCache: false})
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_AllTarget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task1 := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		task2 := &domain.Task{Name: domain.NewInternedString("task2"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task1)
+		_ = g.AddTask(task2)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(task1, nil, []string{}).Return("hash1", nil)
+		mockHasher.EXPECT().ComputeInputHash(task2, nil, []string{}).Return("hash2", nil)
+		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockStore.EXPECT().Get("task2").Return(nil, nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), task1, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockExecutor.EXPECT().Execute(gomock.Any(), task2, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
+
+		err = a.Run(context.Background(), []string{"all"}, app.RunOptions{NoCache: false})
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Run_ContextCancellation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
+		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		// Cancel context before execution completes
+		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ *domain.Task, _ []string, _, _ interface{}) error {
+				cancel()
+				return ctx.Err()
+			})
+
+		err = a.Run(ctx, []string{"task1"}, app.RunOptions{NoCache: false})
+		if err == nil {
+			t.Fatal("Expected error due to context cancellation, got nil")
+		}
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, domain.ErrBuildExecutionFailed) {
+			t.Errorf("Expected context cancellation or build execution error, got: %v", err)
+		}
+	})
+}
+
+func TestApp_Clean_NoOptions(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		// Create directories that should remain
+		require.NoError(t, os.MkdirAll(domain.DefaultStorePath(), domain.DirPerm))
+		require.NoError(t, os.MkdirAll(domain.DefaultNixHubCachePath(), domain.DirPerm))
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		a := app.New(nil, nil, mockLogger, nil, nil, nil, nil)
+
+		// Clean with no options - should not remove anything
+		err = a.Clean(context.Background(), app.CleanOptions{Build: false, Tools: false})
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		// Verify directories still exist
+		if _, statErr := os.Stat(domain.DefaultStorePath()); statErr != nil {
+			t.Error("Store should still exist when CleanOptions is empty")
+		}
+		if _, statErr := os.Stat(domain.DefaultNixHubCachePath()); statErr != nil {
+			t.Error("Nix cache should still exist when CleanOptions is empty")
+		}
+	})
+}
+
+func TestApp_Run_TaskWithTools(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+		defer func() {
+			if errChdir := os.Chdir(cwd); errChdir != nil {
+				t.Fatalf("Failed to restore working directory: %v", errChdir)
+			}
+		}()
+
+		tmpDir := t.TempDir()
+		if errChdir := os.Chdir(tmpDir); errChdir != nil {
+			t.Fatalf("Failed to change into temp directory: %v", errChdir)
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
+		mockExecutor := mocks.NewMockExecutor(ctrl)
+		mockStore := mocks.NewMockBuildInfoStore(ctrl)
+		mockHasher := mocks.NewMockHasher(ctrl)
+		mockResolver := mocks.NewMockInputResolver(ctrl)
+		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		g := domain.NewGraph()
+		g.SetRoot(".")
+		tools := map[string]string{"go": "go@1.23"}
+		task := &domain.Task{
+			Name:       domain.NewInternedString("task1"),
+			WorkingDir: domain.NewInternedString("Root"),
+			Tools:      tools,
+		}
+		_ = g.AddTask(task)
+
+		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+			WithTeaOptions(
+				tea.WithInput(strings.NewReader("")),
+				tea.WithOutput(io.Discard),
+				tea.WithoutSignalHandler(),
+				tea.WithoutRenderer(),
+			).
+			WithDisableTick()
+
+		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
+		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
+		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), tools).Return([]string{"PATH=/nix/store/go/bin"}, nil)
+		mockExecutor.EXPECT().Execute(
+			gomock.Any(), task, []string{"PATH=/nix/store/go/bin"}, gomock.Any(), gomock.Any(),
+		).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+
+		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
