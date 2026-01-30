@@ -137,12 +137,15 @@ func (l *Logger) Error(err error) {
 		return
 	}
 
+	entries := collectErrorEntries(err)
+
 	if l.jsonMode {
-		l.logger.Error("operation failed", "error", err)
+		// Build structured attributes from error entries to preserve metadata
+		attrs := buildJSONErrorAttrs(entries)
+		l.logger.Error("operation failed", attrs...)
 		return
 	}
 
-	entries := collectErrorEntries(err)
 	msg := formatErrorEntries(entries)
 	l.logger.Error(msg)
 }
@@ -245,4 +248,37 @@ func formatErrorMetadata(index int, metadata map[string]any) []string {
 	}
 
 	return result
+}
+
+// buildJSONErrorAttrs converts error entries to slog attributes for structured logging.
+// This preserves error chain messages and metadata in JSON output.
+func buildJSONErrorAttrs(entries []errorEntry) []any {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	attrs := make([]any, 0, len(entries)*2+2)
+
+	// Primary error message
+	attrs = append(attrs, slog.String("error", entries[0].message))
+
+	// Primary error metadata
+	if len(entries[0].metadata) > 0 {
+		attrs = append(attrs, slog.Any("metadata", entries[0].metadata))
+	}
+
+	// Error chain (causes)
+	if len(entries) > 1 {
+		causes := make([]map[string]any, 0, len(entries)-1)
+		for _, entry := range entries[1:] {
+			cause := map[string]any{"message": entry.message}
+			if len(entry.metadata) > 0 {
+				cause["metadata"] = entry.metadata
+			}
+			causes = append(causes, cause)
+		}
+		attrs = append(attrs, slog.Any("causes", causes))
+	}
+
+	return attrs
 }
