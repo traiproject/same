@@ -5,11 +5,14 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/synctest"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/require"
 	"go.trai.ch/same/internal/app"
 	"go.trai.ch/same/internal/core/domain"
 	"go.trai.ch/same/internal/core/ports/mocks"
@@ -496,5 +499,63 @@ func TestApp_Run_InspectMode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
+	})
+}
+
+func TestApp_SetLogJSON(t *testing.T) {
+	tests := []struct {
+		name   string
+		enable bool
+	}{
+		{"Enable JSON logging", true},
+		{"Disable JSON logging", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockLogger := mocks.NewMockLogger(ctrl)
+			mockLogger.EXPECT().SetJSON(tt.enable).Times(1)
+
+			a := app.New(nil, nil, mockLogger, nil, nil, nil, nil)
+			a.SetLogJSON(tt.enable)
+		})
+	}
+}
+
+func TestApp_Clean_RemoveAllError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping permission-based test on Windows")
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		cwd, err := os.Getwd()
+		require.NoError(t, err)
+		defer func() { _ = os.Chdir(cwd) }()
+
+		tmpDir := t.TempDir()
+		require.NoError(t, os.Chdir(tmpDir))
+
+		storePath := domain.DefaultStorePath()
+		require.NoError(t, os.MkdirAll(storePath, domain.DirPerm))
+
+		childFile := filepath.Join(storePath, "marker.txt")
+		require.NoError(t, os.WriteFile(childFile, []byte("test"), domain.FilePerm))
+		//nolint:gosec // Intentionally setting restrictive permissions to test error handling
+		require.NoError(t, os.Chmod(storePath, 0o555))
+		defer func() { _ = os.Chmod(storePath, domain.DirPerm) }()
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLogger := mocks.NewMockLogger(ctrl)
+
+		a := app.New(nil, nil, mockLogger, nil, nil, nil, nil)
+		err = a.Clean(context.Background(), app.CleanOptions{Build: true})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to remove build info store")
 	})
 }
