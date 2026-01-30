@@ -1,12 +1,15 @@
 package logger_test
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
 	"go.trai.ch/same/internal/adapters/logger"
+	"go.trai.ch/zerr"
 )
 
 // captureStderr captures output written to os.Stderr during the execution of fn.
@@ -94,11 +97,12 @@ func TestLogger_Error(t *testing.T) {
 		t.Errorf("Expected output to contain error icon '✗', got: %s", output)
 	}
 
-	if !strings.Contains(output, "operation failed") {
-		t.Errorf("Expected output to contain 'operation failed', got: %s", output)
+	// Assert that the output contains "Error:" prefix (new format)
+	if !strings.Contains(output, "Error:") {
+		t.Errorf("Expected output to contain 'Error:', got: %s", output)
 	}
 
-	// Assert that the error details are visible (the actual error attribute)
+	// Assert that the error details are visible
 	if !strings.Contains(output, "permission denied") {
 		t.Errorf("Expected output to contain error details 'permission denied', got: %s", output)
 	}
@@ -106,6 +110,154 @@ func TestLogger_Error(t *testing.T) {
 	// Assert that the output does NOT contain "ERROR" (pretty format has no level prefix)
 	if strings.Contains(output, "ERROR") {
 		t.Errorf("Expected output to NOT contain 'ERROR' in pretty format, got: %s", output)
+	}
+}
+
+func TestLogger_Error_Wrapped(t *testing.T) {
+	// Create a wrapped error chain using zerr.Wrap
+	innerErr := errors.New("database connection failed")
+	middleErr := zerr.Wrap(innerErr, "failed to load user data")
+	outerErr := zerr.Wrap(middleErr, "failed to process request")
+
+	// Capture stderr output
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.Error(outerErr)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert that the output contains the error icon
+	if !strings.Contains(output, "✗") {
+		t.Errorf("Expected output to contain error icon '✗', got: %s", output)
+	}
+
+	// Assert that the output contains "Error:" prefix
+	if !strings.Contains(output, "Error:") {
+		t.Errorf("Expected output to contain 'Error:', got: %s", output)
+	}
+
+	// Assert that the main error is displayed
+	if !strings.Contains(output, "failed to process request") {
+		t.Errorf("Expected output to contain main error 'failed to process request', got: %s", output)
+	}
+
+	// Assert that the cause chain is displayed
+	if !strings.Contains(output, "Caused by:") {
+		t.Errorf("Expected output to contain 'Caused by:', got: %s", output)
+	}
+
+	// Assert that all chain elements are displayed
+	if !strings.Contains(output, "failed to load user data") {
+		t.Errorf("Expected output to contain 'failed to load user data', got: %s", output)
+	}
+
+	if !strings.Contains(output, "database connection failed") {
+		t.Errorf("Expected output to contain 'database connection failed', got: %s", output)
+	}
+
+	// Assert that the arrow is used for causes
+	if !strings.Contains(output, "→") {
+		t.Errorf("Expected output to contain arrow '→', got: %s", output)
+	}
+}
+
+func TestLogger_Error_Multiline(t *testing.T) {
+	// Create a multi-line error wrapped with zerr
+	innerErr := errors.New("yaml: unmarshal errors:\n  line 30: cannot unmarshal !!str `go test...` into []string")
+	wrappedErr := zerr.Wrap(innerErr, "failed to parse project config")
+
+	// Capture stderr output
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.Error(wrappedErr)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert that the output contains the error icon
+	if !strings.Contains(output, "✗") {
+		t.Errorf("Expected output to contain error icon '✗', got: %s", output)
+	}
+
+	// Assert that the main error is displayed
+	if !strings.Contains(output, "failed to parse project config") {
+		t.Errorf("Expected output to contain main error 'failed to parse project config', got: %s", output)
+	}
+
+	// Assert that the multi-line content is preserved
+	if !strings.Contains(output, "yaml") {
+		t.Errorf("Expected output to contain 'yaml', got: %s", output)
+	}
+
+	if !strings.Contains(output, "line 30") {
+		t.Errorf("Expected output to contain 'line 30', got: %s", output)
+	}
+
+	// Verify the hierarchical structure is shown
+	if !strings.Contains(output, "Caused by:") {
+		t.Errorf("Expected output to contain 'Caused by:', got: %s", output)
+	}
+
+	if !strings.Contains(output, "→") {
+		t.Errorf("Expected output to contain arrow '→', got: %s", output)
+	}
+}
+
+func TestLogger_Error_StandardWrapped(t *testing.T) {
+	// Create a chain using fmt.Errorf (standard wrapping without zerr)
+	innerErr := errors.New("connection refused")
+	middleErr := fmt.Errorf("failed to connect to database: %w", innerErr)
+	outerErr := fmt.Errorf("failed to initialize service: %w", middleErr)
+
+	// Capture stderr output
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.Error(outerErr)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert that the output contains the error icon
+	if !strings.Contains(output, "✗") {
+		t.Errorf("Expected output to contain error icon '✗', got: %s", output)
+	}
+
+	// Assert that the output contains "Error:" prefix
+	if !strings.Contains(output, "Error:") {
+		t.Errorf("Expected output to contain 'Error:', got: %s", output)
+	}
+
+	// Assert that the full error message is displayed as a single line
+	// (since fmt.Errorf doesn't implement messager, it falls back to Error())
+	if !strings.Contains(output, "failed to initialize service") {
+		t.Errorf("Expected output to contain 'failed to initialize service', got: %s", output)
+	}
+
+	// Verify that "Caused by:" is NOT shown for standard errors
+	// (they are displayed as a single error message without hierarchy)
+	if strings.Contains(output, "Caused by:") {
+		t.Errorf("Expected output to NOT contain 'Caused by:' for standard errors, got: %s", output)
+	}
+}
+
+func TestLogger_Error_Nil(t *testing.T) {
+	// Test that calling Error with nil does not panic
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.Error(nil)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert that nothing was logged (empty output or just whitespace)
+	trimmed := strings.TrimSpace(output)
+	if trimmed != "" {
+		t.Errorf("Expected no output for nil error, got: %s", output)
 	}
 }
 

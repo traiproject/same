@@ -91,8 +91,14 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 		msg += " " + strings.Join(attrParts, " ")
 	}
 
-	styled := h.out.String(msg).Foreground(color)
-	_, err := h.out.WriteString(styled.String() + "\n")
+	// For multi-line messages, we need to style each line separately
+	// to ensure color is applied consistently
+	lines := strings.Split(msg, "\n")
+	for i, line := range lines {
+		styled := h.out.String(line).Foreground(color)
+		lines[i] = styled.String()
+	}
+	_, err := h.out.WriteString(strings.Join(lines, "\n") + "\n")
 
 	return err
 }
