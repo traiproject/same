@@ -39,6 +39,9 @@ var (
 	// ErrInvalidTaskName is returned when a task name contains invalid characters.
 	ErrInvalidTaskName = zerr.New("invalid task name")
 
+	// ErrInvalidTaskDefinition is returned when a task definition is empty or nil.
+	ErrInvalidTaskDefinition = zerr.New("task definition is empty")
+
 	// ErrInvalidRebuildStrategy is returned when a rebuild strategy is invalid.
 	ErrInvalidRebuildStrategy = zerr.New("invalid rebuild strategy, expected 'always' or 'on-change'")
 

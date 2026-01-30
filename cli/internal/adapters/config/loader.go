@@ -315,6 +315,11 @@ func (l *Loader) addProjectTasks(
 ) error {
 	for taskName := range samefile.Tasks {
 		dto := samefile.Tasks[taskName]
+		if dto == nil {
+			err := zerr.With(domain.ErrInvalidTaskDefinition, "project", samefile.Project)
+			err = zerr.With(err, "task", taskName)
+			return err
+		}
 		if err := validateTaskName(taskName); err != nil {
 			return err
 		}
