@@ -310,3 +310,169 @@ func TestNew(t *testing.T) {
 		t.Errorf("Expected logger to log 'test initialization', got: %s", output)
 	}
 }
+
+func TestLogger_Error_WithMetadata(t *testing.T) {
+	// Create an error with metadata using zerr.With
+	baseErr := zerr.New("task definition is empty")
+	metaErr := zerr.With(baseErr, "project", "cli")
+	metaErr = zerr.With(metaErr, "task", "try")
+
+	// Wrap it to create a chain
+	outerErr := zerr.Wrap(metaErr, "failed to load configuration")
+
+	// Capture stderr output
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.Error(outerErr)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert that the output contains the error icon
+	if !strings.Contains(output, "✗") {
+		t.Errorf("Expected output to contain error icon '✗', got: %s", output)
+	}
+
+	// Assert that the main error is displayed
+	if !strings.Contains(output, "failed to load configuration") {
+		t.Errorf("Expected output to contain 'failed to load configuration', got: %s", output)
+	}
+
+	// Assert that the cause chain is displayed
+	if !strings.Contains(output, "Caused by:") {
+		t.Errorf("Expected output to contain 'Caused by:', got: %s", output)
+	}
+
+	// Assert that the cause message is displayed
+	if !strings.Contains(output, "task definition is empty") {
+		t.Errorf("Expected output to contain 'task definition is empty', got: %s", output)
+	}
+
+	// Assert that metadata fields are displayed with proper indentation
+	if !strings.Contains(output, "project: cli") {
+		t.Errorf("Expected output to contain 'project: cli', got: %s", output)
+	}
+
+	if !strings.Contains(output, "task: try") {
+		t.Errorf("Expected output to contain 'task: try', got: %s", output)
+	}
+}
+
+func TestLogger_Error_WithPartialMetadata(t *testing.T) {
+	// Create an error chain where only some errors have metadata
+	innerErr := zerr.With(zerr.New("database timeout"), "timeout_ms", 5000)
+	middleErr := zerr.Wrap(innerErr, "failed to fetch user") // No metadata
+	outerErr := zerr.With(middleErr, "user_id", "12345")
+
+	// Capture stderr output
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.Error(outerErr)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert main error has metadata
+	if !strings.Contains(output, "user_id: 12345") {
+		t.Errorf("Expected output to contain 'user_id: 12345', got: %s", output)
+	}
+
+	// Assert inner error has metadata
+	if !strings.Contains(output, "timeout_ms: 5000") {
+		t.Errorf("Expected output to contain 'timeout_ms: 5000', got: %s", output)
+	}
+
+	// Assert middle error doesn't have metadata lines
+	// It should still show the message but no extra metadata
+	if !strings.Contains(output, "failed to fetch user") {
+		t.Errorf("Expected output to contain 'failed to fetch user', got: %s", output)
+	}
+}
+
+func TestLogger_Error_MetadataSorting(t *testing.T) {
+	// Create an error with metadata in non-alphabetical order
+	baseErr := zerr.New("validation failed")
+	// Add metadata in arbitrary order
+	metaErr := zerr.With(baseErr, "zebra", "z")
+	metaErr = zerr.With(metaErr, "alpha", "a")
+	metaErr = zerr.With(metaErr, "mike", "m")
+
+	// Capture stderr output
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.Error(metaErr)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert all metadata fields are present
+	if !strings.Contains(output, "alpha: a") {
+		t.Errorf("Expected output to contain 'alpha: a', got: %s", output)
+	}
+	if !strings.Contains(output, "mike: m") {
+		t.Errorf("Expected output to contain 'mike: m', got: %s", output)
+	}
+	if !strings.Contains(output, "zebra: z") {
+		t.Errorf("Expected output to contain 'zebra: z', got: %s", output)
+	}
+
+	// Verify they appear in sorted order (alpha, mike, zebra)
+	alphaIdx := strings.Index(output, "alpha: a")
+	mikeIdx := strings.Index(output, "mike: m")
+	zebraIdx := strings.Index(output, "zebra: z")
+
+	if alphaIdx == -1 || mikeIdx == -1 || zebraIdx == -1 {
+		t.Fatalf("Could not find all expected metadata fields in output: %s", output)
+	}
+
+	if alphaIdx >= mikeIdx || mikeIdx >= zebraIdx {
+		t.Errorf(
+			"Expected metadata to be sorted alphabetically (alpha < mike < zebra), got indices: alpha=%d, mike=%d, zebra=%d",
+			alphaIdx, mikeIdx, zebraIdx,
+		)
+	}
+}
+
+func TestLogger_Error_MainErrorWithMetadata(t *testing.T) {
+	// Create an error where the main error (not just a cause) has metadata
+	innerErr := errors.New("connection refused")
+	outerErr := zerr.Wrap(innerErr, "service unavailable")
+	// Attach metadata to the outer error
+	outerErr = zerr.With(outerErr, "service", "auth-api")
+	outerErr = zerr.With(outerErr, "retry_count", 3)
+
+	// Capture stderr output
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.Error(outerErr)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Assert main error message is displayed
+	if !strings.Contains(output, "service unavailable") {
+		t.Errorf("Expected output to contain 'service unavailable', got: %s", output)
+	}
+
+	// Assert metadata is displayed on the main error with proper indentation (7 spaces)
+	if !strings.Contains(output, "       retry_count: 3") {
+		t.Errorf("Expected output to contain '       retry_count: 3' (7-space indent), got: %s", output)
+	}
+
+	if !strings.Contains(output, "       service: auth-api") {
+		t.Errorf("Expected output to contain '       service: auth-api' (7-space indent), got: %s", output)
+	}
+
+	// Verify the cause chain is also shown
+	if !strings.Contains(output, "Caused by:") {
+		t.Errorf("Expected output to contain 'Caused by:', got: %s", output)
+	}
+
+	if !strings.Contains(output, "connection refused") {
+		t.Errorf("Expected output to contain 'connection refused', got: %s", output)
+	}
+}

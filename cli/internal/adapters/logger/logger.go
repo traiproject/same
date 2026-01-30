@@ -3,9 +3,11 @@ package logger
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -17,6 +19,18 @@ import (
 // If zerr's API changes, errors will gracefully fall back to standard error handling.
 type messager interface {
 	Message() string
+}
+
+// metadataer describes an error that can return structured metadata.
+// This matches the Metadata() method provided by zerr.Error (go.trai.ch/zerr v0.3.0+).
+type metadataer interface {
+	Metadata() map[string]any
+}
+
+// errorEntry holds a message and its associated metadata for formatting.
+type errorEntry struct {
+	message  string
+	metadata map[string]any
 }
 
 // Logger implements ports.Logger using log/slog.
@@ -119,49 +133,107 @@ func (l *Logger) Error(err error) {
 		return
 	}
 
-	// Collect messages by traversing the error chain programmatically
-	var messages []string
+	entries := collectErrorEntries(err)
+	msg := formatErrorEntries(entries)
+	l.logger.Error(msg)
+}
+
+// collectErrorEntries traverses the error chain and extracts messages with metadata.
+func collectErrorEntries(err error) []errorEntry {
+	// Pre-allocate with typical error chain depth (3-5 levels)
+	entries := make([]errorEntry, 0, 4) //nolint:mnd // typical error chain depth
 	current := err
 
 	for current != nil {
+		entry := errorEntry{}
+
+		// Extract metadata if available (check before processing message)
+		if md, ok := current.(metadataer); ok {
+			entry.metadata = md.Metadata()
+		}
+
 		if m, ok := current.(messager); ok {
 			// zerr error: get raw message without chain
-			messages = append(messages, m.Message())
+			entry.message = m.Message()
 			current = errors.Unwrap(current)
 		} else {
-			// Standard error: append full Error() and stop
-			messages = append(messages, current.Error())
-			break
+			// Standard error: use full Error() and stop
+			entry.message = current.Error()
+			current = nil
 		}
+
+		entries = append(entries, entry)
 	}
 
-	// Format the collected messages hierarchically
+	return entries
+}
+
+// formatErrorEntries formats the collected entries into a human-readable string.
+func formatErrorEntries(entries []errorEntry) string {
 	var formattedLines []string
 
-	for i, msg := range messages {
-		lines := strings.Split(msg, "\n")
+	for i, entry := range entries {
+		lines := strings.Split(entry.message, "\n")
 
-		if i == 0 {
-			// Main error
-			formattedLines = append(formattedLines, "Error: "+lines[0])
-			// Indent any continuation lines to align with "Error: "
-			for _, line := range lines[1:] {
-				formattedLines = append(formattedLines, "       "+line)
-			}
-		} else {
-			if i == 1 {
-				// Add "Caused by:" header before first cause
-				formattedLines = append(formattedLines, "", "  Caused by:")
-			}
-			// Add cause with arrow
-			formattedLines = append(formattedLines, "    → "+lines[0])
-			// Indent any continuation lines to align with the arrow
-			for _, line := range lines[1:] {
-				formattedLines = append(formattedLines, "      "+line)
-			}
+		formattedLines = append(formattedLines, formatErrorMessage(i, lines)...)
+		formattedLines = append(formattedLines, formatErrorMetadata(i, entry.metadata)...)
+	}
+
+	return strings.Join(formattedLines, "\n")
+}
+
+// formatErrorMessage formats the message lines for a single error entry.
+func formatErrorMessage(index int, lines []string) []string {
+	var result []string
+
+	if index == 0 {
+		// Main error
+		result = append(result, "Error: "+lines[0])
+		// Indent any continuation lines to align with "Error: "
+		for _, line := range lines[1:] {
+			result = append(result, "       "+line)
+		}
+	} else {
+		if index == 1 {
+			// Add "Caused by:" header before first cause
+			result = append(result, "", "  Caused by:")
+		}
+		// Add cause with arrow
+		result = append(result, "    → "+lines[0])
+		// Indent any continuation lines to align with the arrow
+		for _, line := range lines[1:] {
+			result = append(result, "      "+line)
 		}
 	}
 
-	msg := strings.Join(formattedLines, "\n")
-	l.logger.Error(msg)
+	return result
+}
+
+// formatErrorMetadata formats metadata fields for a single error entry.
+func formatErrorMetadata(index int, metadata map[string]any) []string {
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	// Sort keys for deterministic output
+	keys := make([]string, 0, len(metadata))
+	for k := range metadata {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	var result []string
+	// Add each metadata field with appropriate indentation
+	for _, k := range keys {
+		v := metadata[k]
+		if index == 0 {
+			// Main error: indent to align with "Error: " (7 spaces)
+			result = append(result, fmt.Sprintf("       %s: %v", k, v))
+		} else {
+			// Caused by: indent to align with arrow (6 spaces)
+			result = append(result, fmt.Sprintf("      %s: %v", k, v))
+		}
+	}
+
+	return result
 }
