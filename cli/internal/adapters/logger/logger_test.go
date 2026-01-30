@@ -476,3 +476,168 @@ func TestLogger_Error_MainErrorWithMetadata(t *testing.T) {
 		t.Errorf("Expected output to contain 'connection refused', got: %s", output)
 	}
 }
+
+func TestLogger_SetJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		jsonMode bool
+		errMsg   string
+	}{
+		{
+			name:     "JSON mode enabled",
+			jsonMode: true,
+			errMsg:   "test error message",
+		},
+		{
+			name:     "JSON mode disabled (pretty format)",
+			jsonMode: false,
+			errMsg:   "test error message",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := captureStderr(func() {
+				lg := logger.New()
+				lg.SetJSON(tt.jsonMode)
+				lg.Error(errors.New(tt.errMsg))
+			})
+			if err != nil {
+				t.Fatalf("Failed to capture stderr: %v", err)
+			}
+
+			// Verify error message is present in output
+			if !strings.Contains(output, tt.errMsg) {
+				t.Errorf("Expected output to contain error message '%s', got: %s", tt.errMsg, output)
+			}
+
+			// Verify format-specific markers
+			if tt.jsonMode {
+				verifyJSONFormat(t, output)
+			} else {
+				verifyPrettyFormat(t, output)
+			}
+		})
+	}
+}
+
+func verifyJSONFormat(t *testing.T, output string) {
+	t.Helper()
+
+	// Verify JSON format: should contain "error" field
+	if !strings.Contains(output, `"error"`) {
+		t.Errorf("Expected JSON output to contain '\"error\"' field, got: %s", output)
+	}
+
+	// Should NOT contain pretty format markers
+	if strings.Contains(output, "✗") || strings.Contains(output, "Error:") {
+		t.Errorf("Expected JSON format (no pretty markers), got: %s", output)
+	}
+}
+
+func verifyPrettyFormat(t *testing.T, output string) {
+	t.Helper()
+
+	// Verify pretty format: should contain error icon
+	if !strings.Contains(output, "✗") {
+		t.Errorf("Expected pretty output to contain error icon '✗', got: %s", output)
+	}
+
+	if !strings.Contains(output, "Error:") {
+		t.Errorf("Expected pretty output to contain 'Error:', got: %s", output)
+	}
+
+	// Should NOT contain JSON field markers
+	if strings.Contains(output, `"error"`) {
+		t.Errorf("Expected pretty format (no JSON markers), got: %s", output)
+	}
+}
+
+func TestLogger_SetJSON_WithErrorChain(t *testing.T) {
+	// Test JSON mode with a complex error chain
+	innerErr := errors.New("database connection failed")
+	middleErr := zerr.Wrap(innerErr, "failed to load user data")
+	outerErr := zerr.With(middleErr, "user_id", "12345")
+
+	output, err := captureStderr(func() {
+		lg := logger.New()
+		lg.SetJSON(true)
+		lg.Error(outerErr)
+	})
+	if err != nil {
+		t.Fatalf("Failed to capture stderr: %v", err)
+	}
+
+	// Verify JSON format
+	if !strings.Contains(output, `"error"`) {
+		t.Errorf("Expected JSON output to contain '\"error\"' field, got: %s", output)
+	}
+
+	// Should NOT contain pretty format markers
+	if strings.Contains(output, "✗") || strings.Contains(output, "Caused by:") {
+		t.Errorf("Expected JSON format (no pretty markers), got: %s", output)
+	}
+
+	// Should contain some representation of the error
+	if !strings.Contains(output, "failed to load user data") {
+		t.Errorf("Expected JSON output to contain error message, got: %s", output)
+	}
+
+	// Should contain metadata in JSON output
+	if !strings.Contains(output, "user_id") || !strings.Contains(output, "12345") {
+		t.Errorf("Expected JSON output to contain metadata user_id=12345, got: %s", output)
+	}
+}
+
+func TestLogger_SetJSON_FormatSwitching(t *testing.T) {
+	// Test switching formats mid-execution on the same logger instance
+	var buf strings.Builder
+
+	// Create a single logger instance that we'll switch formats on
+	// Type assert to access SetOutput method
+	lg := logger.New().(*logger.Logger)
+	lg.SetOutput(&buf)
+
+	// Phase 1: Log with default pretty format
+	err1 := errors.New("error in pretty mode")
+	lg.Error(err1)
+	prettyOutput := buf.String()
+	buf.Reset()
+
+	// Verify pretty format
+	if !strings.Contains(prettyOutput, "✗") {
+		t.Errorf("Expected pretty format with error icon '✗', got: %s", prettyOutput)
+	}
+	if strings.Contains(prettyOutput, `"error"`) {
+		t.Errorf("Expected pretty format (no JSON markers), got: %s", prettyOutput)
+	}
+
+	// Phase 2: Switch to JSON mode on the same logger and log
+	lg.SetJSON(true)
+	err2 := errors.New("error in json mode")
+	lg.Error(err2)
+	jsonOutput := buf.String()
+	buf.Reset()
+
+	// Verify JSON format
+	if !strings.Contains(jsonOutput, `"error"`) {
+		t.Errorf("Expected JSON format with \"error\" field, got: %s", jsonOutput)
+	}
+	if strings.Contains(jsonOutput, "✗") {
+		t.Errorf("Expected JSON format (no pretty markers), got: %s", jsonOutput)
+	}
+
+	// Phase 3: Switch back to pretty format and log
+	lg.SetJSON(false)
+	err3 := errors.New("error back in pretty mode")
+	lg.Error(err3)
+	backToPrettyOutput := buf.String()
+
+	// Verify we're back to pretty format
+	if !strings.Contains(backToPrettyOutput, "✗") {
+		t.Errorf("Expected pretty format after switching back, got: %s", backToPrettyOutput)
+	}
+	if strings.Contains(backToPrettyOutput, `"error"`) {
+		t.Errorf("Expected pretty format (no JSON markers) after switching back, got: %s", backToPrettyOutput)
+	}
+}

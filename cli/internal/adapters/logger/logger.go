@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"go.trai.ch/same/internal/core/ports"
+	"go.trai.ch/zerr"
 )
 
 // messager describes an error that can report its own message without the chain.
@@ -26,6 +27,14 @@ type messager interface {
 type metadataer interface {
 	Metadata() map[string]any
 }
+
+// Compile-time assertions to ensure zerr.Error implements our interfaces.
+// These will cause a compile-time failure if zerr.Error's API changes,
+// preventing silent degradation of error output quality.
+var (
+	_ messager   = (*zerr.Error)(nil)
+	_ metadataer = (*zerr.Error)(nil)
+)
 
 // errorEntry holds a message and its associated metadata for formatting.
 type errorEntry struct {
