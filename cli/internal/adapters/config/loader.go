@@ -2,8 +2,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -18,11 +19,23 @@ import (
 // Loader implements ports.ConfigLoader using a YAML file.
 type Loader struct {
 	Logger ports.Logger
+	FS     FileSystem
 }
 
 // NewLoader creates a new Loader with the given logger.
 func NewLoader(logger ports.Logger) *Loader {
-	return &Loader{Logger: logger}
+	return &Loader{
+		Logger: logger,
+		FS:     NewOSFS(),
+	}
+}
+
+// NewLoaderWithFS creates a new Loader with the given logger and filesystem.
+func NewLoaderWithFS(logger ports.Logger, filesystem FileSystem) *Loader {
+	return &Loader{
+		Logger: logger,
+		FS:     filesystem,
+	}
 }
 
 // Mode represents the configuration mode of same.
@@ -60,13 +73,13 @@ func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 
 	for {
 		workfilePath := filepath.Join(currentDir, domain.WorkFileName)
-		if _, err := os.Stat(workfilePath); err == nil {
+		if _, err := l.FS.Stat(workfilePath); err == nil {
 			return workfilePath, ModeWorkspace, nil
 		}
 
 		if standaloneCandidate == "" {
 			samefilePath := filepath.Join(currentDir, domain.SameFileName)
-			if _, err := os.Stat(samefilePath); err == nil {
+			if _, err := l.FS.Stat(samefilePath); err == nil {
 				standaloneCandidate = samefilePath
 			}
 		}
@@ -88,7 +101,7 @@ func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 
 func (l *Loader) loadSamefile(configPath string) (*domain.Graph, error) {
 	var samefile Samefile
-	if err := readAndUnmarshalYAML(configPath, &samefile); err != nil {
+	if err := readAndUnmarshal(l, configPath, &samefile); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +169,7 @@ func validateTaskDependencies(deps []string, taskNames map[string]bool) error {
 
 func (l *Loader) loadWorkfile(configPath string) (*domain.Graph, error) {
 	var workfile Workfile
-	if err := readAndUnmarshalYAML(configPath, &workfile); err != nil {
+	if err := readAndUnmarshal(l, configPath, &workfile); err != nil {
 		return nil, err
 	}
 
@@ -189,7 +202,7 @@ func (l *Loader) resolveProjectPaths(workspaceRoot string, patterns []string) ([
 		// Join with workspaceRoot to match against absolute paths
 		absPattern := filepath.Join(workspaceRoot, pattern)
 
-		matches, err := filepath.Glob(absPattern)
+		matches, err := l.FS.Glob(absPattern)
 		if err != nil {
 			return nil, zerr.Wrap(err, "glob pattern failed: "+pattern)
 		}
@@ -234,17 +247,17 @@ func (l *Loader) processProject(
 	relPath, _ := filepath.Rel(workspaceRoot, projectPath)
 
 	// Check if the match is actually a directory (Glob returns files too)
-	info, pathErr := os.Stat(projectPath)
+	isDir, pathErr := l.FS.IsDir(projectPath)
 	if pathErr != nil {
 		return pathErr
 	}
-	if !info.IsDir() {
+	if !isDir {
 		return nil
 	}
 
 	// Check for same.yaml existence
 	sameYamlPath := filepath.Join(projectPath, domain.SameFileName)
-	if _, fileErr := os.Stat(sameYamlPath); os.IsNotExist(fileErr) {
+	if _, fileErr := l.FS.Stat(sameYamlPath); errors.Is(fileErr, fs.ErrNotExist) {
 		l.Logger.Warn(fmt.Sprintf("%s missing in project %s, skipping", domain.SameFileName, relPath))
 		return nil
 	}
@@ -279,7 +292,7 @@ func (l *Loader) processProject(
 
 func (l *Loader) loadSamefileFromPath(sameYamlPath, relPath string) (*Samefile, error) {
 	// #nosec G304 -- sameYamlPath is constructed from validated projectPath
-	projectConfigFile, pathErr := os.ReadFile(sameYamlPath)
+	projectConfigFile, pathErr := l.FS.ReadFile(sameYamlPath)
 	if pathErr != nil {
 		pathErr = zerr.Wrap(pathErr, domain.ErrConfigReadFailed.Error())
 		pathErr = zerr.With(pathErr, "directory", relPath)
@@ -412,9 +425,10 @@ func resolveRoot(configPath, configuredRoot string) string {
 }
 
 // readAndUnmarshalYAML reads a YAML file and unmarshals it into the target struct.
-func readAndUnmarshalYAML[T any](configPath string, target *T) error {
+// This is the internal method that accepts any type.
+func (l *Loader) readAndUnmarshalYAML(configPath string, target any) error {
 	// #nosec G304 -- configPath is validated by caller
-	configFile, err := os.ReadFile(configPath)
+	configFile, err := l.FS.ReadFile(configPath)
 	if err != nil {
 		return zerr.Wrap(err, domain.ErrConfigReadFailed.Error())
 	}
@@ -424,6 +438,12 @@ func readAndUnmarshalYAML[T any](configPath string, target *T) error {
 	}
 
 	return nil
+}
+
+// readAndUnmarshal is a type-safe wrapper around readAndUnmarshalYAML.
+// It ensures at compile time that target is a pointer.
+func readAndUnmarshal[T any](l *Loader, configPath string, target *T) error {
+	return l.readAndUnmarshalYAML(configPath, target)
 }
 
 // validateTaskName checks if the task name is reserved or contains invalid characters.
