@@ -212,6 +212,7 @@ func (a *App) Run(ctx context.Context, targetNames []string, opts RunOptions) er
 
 	// Scheduler Routine
 	g.Go(func() error {
+		var schedErr error
 		defer func() {
 			// Handle panic recovery for the scheduler goroutine
 			if r := recover(); r != nil {

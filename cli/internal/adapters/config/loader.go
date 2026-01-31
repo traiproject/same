@@ -74,12 +74,12 @@ func (l *Loader) findConfiguration(cwd string) (string, Mode, error) {
 	}
 
 	workfilePath := filepath.Join(root, domain.WorkFileName)
-	if _, err := os.Stat(workfilePath); err == nil {
+	if _, err := l.FS.Stat(workfilePath); err == nil {
 		return workfilePath, ModeWorkspace, nil
 	}
 
 	samefilePath := filepath.Join(root, domain.SameFileName)
-	if _, err := os.Stat(samefilePath); err == nil {
+	if _, err := l.FS.Stat(samefilePath); err == nil {
 		return samefilePath, ModeStandalone, nil
 	}
 
@@ -577,7 +577,7 @@ func (l *Loader) DiscoverConfigPaths(cwd string) (map[string]int64, error) {
 
 	for {
 		workfilePath := filepath.Join(currentDir, domain.WorkFileName)
-		if info, err := os.Stat(workfilePath); err == nil {
+		if info, err := l.FS.Stat(workfilePath); err == nil {
 			// Found workspace file, add it
 			paths[workfilePath] = info.ModTime().UnixNano()
 
@@ -591,7 +591,7 @@ func (l *Loader) DiscoverConfigPaths(cwd string) (map[string]int64, error) {
 
 		if standaloneCandidate == "" {
 			samefilePath := filepath.Join(currentDir, domain.SameFileName)
-			if info, err := os.Stat(samefilePath); err == nil {
+			if info, err := l.FS.Stat(samefilePath); err == nil {
 				standaloneCandidate = samefilePath
 				paths[samefilePath] = info.ModTime().UnixNano()
 			}
@@ -617,7 +617,7 @@ func (l *Loader) DiscoverConfigPaths(cwd string) (map[string]int64, error) {
 func (l *Loader) discoverWorkspaceProjectPaths(workspaceRoot string, paths map[string]int64) error {
 	workfilePath := filepath.Join(workspaceRoot, domain.WorkFileName)
 	//nolint:gosec // G304: Path is constructed from validated workspace root, safe for use
-	workfileData, readErr := os.ReadFile(workfilePath)
+	workfileData, readErr := l.FS.ReadFile(workfilePath)
 	if readErr != nil {
 		return zerr.Wrap(readErr, "failed to read workfile")
 	}
@@ -634,7 +634,7 @@ func (l *Loader) discoverWorkspaceProjectPaths(workspaceRoot string, paths map[s
 
 	for _, projectPath := range projectPaths {
 		sameYamlPath := filepath.Join(projectPath, domain.SameFileName)
-		if info, statErr := os.Stat(sameYamlPath); statErr == nil {
+		if info, statErr := l.FS.Stat(sameYamlPath); statErr == nil {
 			paths[sameYamlPath] = info.ModTime().UnixNano()
 		}
 	}

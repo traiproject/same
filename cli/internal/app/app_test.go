@@ -69,7 +69,9 @@ func TestApp_Build(t *testing.T) {
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
 		// Expectations
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get(".", "task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -126,7 +128,9 @@ func TestApp_Run_NoTargets(t *testing.T) {
 			WithDisableTick()
 
 		// Expectations
-		mockLoader.EXPECT().Load(".").Return(domain.NewGraph(), nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(domain.NewGraph(), nil)
 
 		// Execute
 		err = a.Run(context.Background(), nil, app.RunOptions{NoCache: false})
@@ -181,7 +185,9 @@ func TestApp_Run_ConfigLoaderError(t *testing.T) {
 			WithDisableTick()
 
 		// Expectations - loader fails
-		mockLoader.EXPECT().Load(".").Return(nil, errors.New("config load error"))
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(nil, errors.New("config load error"))
 
 		// Execute
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
@@ -247,7 +253,9 @@ func TestApp_Run_BuildExecutionFailed(t *testing.T) {
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
 		// Expectations
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get(".", "task1").Return(nil, nil)
 		// Mock Executor failure
@@ -379,14 +387,16 @@ func TestApp_Clean(t *testing.T) {
 				ctrl := gomock.NewController(t)
 				defer ctrl.Finish()
 
+				mockLoader := mocks.NewMockConfigLoader(ctrl)
 				mockLogger := mocks.NewMockLogger(ctrl)
 				// We expect some logs, but we can be loose or strict.
 				// Let's just allow any Info calls.
 				mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 				// Null dependencies for others
-				a := app.New(nil, nil, mockLogger, nil, nil, nil, nil, nil)
+				a := app.New(mockLoader, nil, mockLogger, nil, nil, nil, nil, nil)
 
+				mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
 				err = a.Clean(context.Background(), tt.options)
 				if err != nil {
 					t.Errorf("Clean() error = %v", err)
@@ -443,7 +453,9 @@ func TestApp_Run_LinearMode(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get(".", "task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -504,7 +516,9 @@ func TestApp_Run_InspectMode(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockStore.EXPECT().Get(".", "task1").Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -547,11 +561,15 @@ func TestApp_Run_TaskNotFound(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -560,7 +578,9 @@ func TestApp_Run_TaskNotFound(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 
 		err = a.Run(context.Background(), []string{"nonexistent"}, app.RunOptions{NoCache: false})
 		if err == nil {
@@ -600,13 +620,17 @@ func TestApp_Run_HasherError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -616,7 +640,9 @@ func TestApp_Run_HasherError(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("", errors.New("hash computation failed"))
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
@@ -656,13 +682,17 @@ func TestApp_Run_StoreGetError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -672,9 +702,11 @@ func TestApp_Run_StoreGetError(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, errors.New("store read error"))
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, errors.New("store read error"))
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		if err == nil {
@@ -713,13 +745,17 @@ func TestApp_Run_InputResolverError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -729,7 +765,9 @@ func TestApp_Run_InputResolverError(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return(nil, errors.New("input resolution failed"))
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		if err == nil {
@@ -768,6 +806,7 @@ func TestApp_Run_EnvironmentFactoryError(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -779,7 +818,10 @@ func TestApp_Run_EnvironmentFactoryError(t *testing.T) {
 		}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -790,7 +832,9 @@ func TestApp_Run_EnvironmentFactoryError(t *testing.T) {
 
 		// Environment factory is called BEFORE hasher and store in Phase 1 (prepareEnvironments)
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), tools).Return(nil, errors.New("environment resolution failed"))
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
@@ -830,13 +874,17 @@ func TestApp_Run_CacheHit(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -846,9 +894,11 @@ func TestApp_Run_CacheHit(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash123", nil)
-		mockStore.EXPECT().Get("task1").Return(&domain.BuildInfo{
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(&domain.BuildInfo{
 			TaskName:   "task1",
 			InputHash:  "hash123",
 			OutputHash: "",
@@ -889,13 +939,17 @@ func TestApp_Run_NoCacheMode(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -905,11 +959,13 @@ func TestApp_Run_NoCacheMode(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		// With NoCache=true, ComputeInputHash is called but store.Get is skipped
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil)
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: true})
 		if err != nil {
@@ -945,6 +1001,7 @@ func TestApp_Run_RebuildAlwaysStrategy(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -955,7 +1012,10 @@ func TestApp_Run_RebuildAlwaysStrategy(t *testing.T) {
 		}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -965,11 +1025,13 @@ func TestApp_Run_RebuildAlwaysStrategy(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		// With RebuildAlways, store.Get is skipped
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil)
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		if err != nil {
@@ -1005,6 +1067,7 @@ func TestApp_Run_MultipleTasks(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -1013,7 +1076,10 @@ func TestApp_Run_MultipleTasks(t *testing.T) {
 		_ = g.AddTask(task1)
 		_ = g.AddTask(task2)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -1023,14 +1089,16 @@ func TestApp_Run_MultipleTasks(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task1, nil, []string{}).Return("hash1", nil)
 		mockHasher.EXPECT().ComputeInputHash(task2, nil, []string{}).Return("hash2", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, nil)
-		mockStore.EXPECT().Get("task2").Return(nil, nil)
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task1, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task2, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
+		mockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 		err = a.Run(context.Background(), []string{"task1", "task2"}, app.RunOptions{NoCache: false})
 		if err != nil {
@@ -1066,6 +1134,7 @@ func TestApp_Run_TaskWithDependencies(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -1078,7 +1147,10 @@ func TestApp_Run_TaskWithDependencies(t *testing.T) {
 		_ = g.AddTask(depTask)
 		_ = g.AddTask(mainTask)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -1088,14 +1160,16 @@ func TestApp_Run_TaskWithDependencies(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(depTask, nil, []string{}).Return("hash1", nil)
 		mockHasher.EXPECT().ComputeInputHash(mainTask, nil, []string{}).Return("hash2", nil)
-		mockStore.EXPECT().Get("dep").Return(nil, nil)
-		mockStore.EXPECT().Get("main").Return(nil, nil)
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), depTask, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), mainTask, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
+		mockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 		err = a.Run(context.Background(), []string{"main"}, app.RunOptions{NoCache: false})
 		if err != nil {
@@ -1131,6 +1205,7 @@ func TestApp_Run_AllTarget(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -1139,7 +1214,10 @@ func TestApp_Run_AllTarget(t *testing.T) {
 		_ = g.AddTask(task1)
 		_ = g.AddTask(task2)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -1149,14 +1227,16 @@ func TestApp_Run_AllTarget(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task1, nil, []string{}).Return("hash1", nil)
 		mockHasher.EXPECT().ComputeInputHash(task2, nil, []string{}).Return("hash2", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, nil)
-		mockStore.EXPECT().Get("task2").Return(nil, nil)
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task1, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mockExecutor.EXPECT().Execute(gomock.Any(), task2, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
+		mockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 		err = a.Run(context.Background(), []string{"all"}, app.RunOptions{NoCache: false})
 		if err != nil {
@@ -1192,13 +1272,17 @@ func TestApp_Run_ContextCancellation(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
 		task := &domain.Task{Name: domain.NewInternedString("task1"), WorkingDir: domain.NewInternedString("Root")}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -1210,9 +1294,11 @@ func TestApp_Run_ContextCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
 		// Cancel context before execution completes
 		mockExecutor.EXPECT().Execute(gomock.Any(), task, gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, _ *domain.Task, _ []string, _, _ interface{}) error {
@@ -1254,11 +1340,13 @@ func TestApp_Clean_NoOptions(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		a := app.New(nil, nil, mockLogger, nil, nil, nil, nil)
+		a := app.New(mockLoader, nil, mockLogger, nil, nil, nil, nil, nil)
 
 		// Clean with no options - should not remove anything
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
 		err = a.Clean(context.Background(), app.CleanOptions{Build: false, Tools: false})
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
@@ -1301,6 +1389,7 @@ func TestApp_Run_TaskWithTools(t *testing.T) {
 		mockResolver := mocks.NewMockInputResolver(ctrl)
 		mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
+		mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
 		g := domain.NewGraph()
 		g.SetRoot(".")
@@ -1312,7 +1401,10 @@ func TestApp_Run_TaskWithTools(t *testing.T) {
 		}
 		_ = g.AddTask(task)
 
-		a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+		a := app.New(
+			mockLoader, mockExecutor, mockLogger, mockStore,
+			mockHasher, mockResolver, mockEnvFactory, mockConnector,
+		).
 			WithTeaOptions(
 				tea.WithInput(strings.NewReader("")),
 				tea.WithOutput(io.Discard),
@@ -1322,14 +1414,16 @@ func TestApp_Run_TaskWithTools(t *testing.T) {
 			WithDisableTick()
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).AnyTimes()
-		mockLoader.EXPECT().Load(".").Return(g, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
+		mockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockLoader.EXPECT().Load(gomock.Any()).Return(g, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, nil, []string{}).Return("hash", nil)
-		mockStore.EXPECT().Get("task1").Return(nil, nil)
+		mockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
 		mockEnvFactory.EXPECT().GetEnvironment(gomock.Any(), tools).Return([]string{"PATH=/nix/store/go/bin"}, nil)
 		mockExecutor.EXPECT().Execute(
 			gomock.Any(), task, []string{"PATH=/nix/store/go/bin"}, gomock.Any(), gomock.Any(),
 		).Return(nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil)
 
 		err = a.Run(context.Background(), []string{"task1"}, app.RunOptions{NoCache: false})
 		if err != nil {
@@ -1355,7 +1449,7 @@ func TestApp_SetLogJSON(t *testing.T) {
 			mockLogger := mocks.NewMockLogger(ctrl)
 			mockLogger.EXPECT().SetJSON(tt.enable).Times(1)
 
-			a := app.New(nil, nil, mockLogger, nil, nil, nil, nil)
+			a := app.New(nil, nil, mockLogger, nil, nil, nil, nil, nil)
 			a.SetLogJSON(tt.enable)
 		})
 	}
@@ -1386,9 +1480,11 @@ func TestApp_Clean_RemoveAllError(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
+		mockLoader := mocks.NewMockConfigLoader(ctrl)
 		mockLogger := mocks.NewMockLogger(ctrl)
 
-		a := app.New(nil, nil, mockLogger, nil, nil, nil, nil)
+		a := app.New(mockLoader, nil, mockLogger, nil, nil, nil, nil, nil)
+		mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil)
 		err = a.Clean(context.Background(), app.CleanOptions{Build: true})
 
 		require.Error(t, err)
