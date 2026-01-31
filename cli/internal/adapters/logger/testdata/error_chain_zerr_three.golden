@@ -1,0 +1,5 @@
+✗ Error: failed to process request
+
+  Caused by:
+    → failed to load user data
+    → database connection failed

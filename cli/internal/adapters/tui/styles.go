@@ -1,52 +1,41 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+	"go.trai.ch/same/internal/ui/style"
+)
 
 var (
-	// Private brand colors.
-	colorIris  = lipgloss.Color("#8B5CF6")
-	colorSlate = lipgloss.Color("#667085")
-	colorWhite = lipgloss.Color("#FFFFFF")
-	colorInk   = lipgloss.Color("#0B0F19")
-	colorMist  = lipgloss.Color("#F6F7FB")
-	colorGreen = lipgloss.Color("#22A06B")
-	colorRed   = lipgloss.Color("#D93025")
-	_          = colorInk // Silence unused warning
-	_          = colorMist
-
-	// Task Status Styles.
 	taskPendingStyle = lipgloss.NewStyle().
-				Foreground(colorSlate)
+				Foreground(style.Slate)
 
 	taskRunningStyle = lipgloss.NewStyle().
-				Foreground(colorIris).
+				Foreground(style.Iris).
 				Bold(true)
 
 	taskDoneStyle = lipgloss.NewStyle().
-			Foreground(colorGreen)
+			Foreground(style.Green)
 
 	taskErrorStyle = lipgloss.NewStyle().
-			Foreground(colorRed)
+			Foreground(style.Red)
 
 	taskCachedStyle = lipgloss.NewStyle().
-			Foreground(colorSlate).
+			Foreground(style.Slate).
 			Faint(true)
 
-	// Selection Style.
 	selectedStyle = lipgloss.NewStyle().
-			Foreground(colorIris).
+			Foreground(style.Iris).
 			Bold(true)
 
-	// Header Styles.
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Padding(0, 1).
-			Background(colorIris).
-			Foreground(colorWhite)
+			Background(style.Iris).
+			Foreground(style.White)
 
 	failureTitleStyle = lipgloss.NewStyle().
 				Bold(true).
 				Padding(0, 1).
-				Background(colorRed).
-				Foreground(colorWhite)
+				Background(style.Red).
+				Foreground(style.White)
 )

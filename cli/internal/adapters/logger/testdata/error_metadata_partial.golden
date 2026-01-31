@@ -1,0 +1,6 @@
+✗ Error: failed to fetch user
+       user_id: 12345
+
+  Caused by:
+    → database timeout
+      timeout_ms: 5000

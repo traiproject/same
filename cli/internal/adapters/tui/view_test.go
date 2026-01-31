@@ -51,7 +51,7 @@ func TestView_TaskList(t *testing.T) {
 	assert.Contains(t, output, "✓") // Done
 	assert.Contains(t, output, "✗") // Error
 	assert.Contains(t, output, "○") // Pending
-	assert.Contains(t, output, "⚡") // Cached
+	assert.Contains(t, output, "~") // Cached
 
 	// Check selection indicator
 	// We expect task1 to have ">" and others to have "  "

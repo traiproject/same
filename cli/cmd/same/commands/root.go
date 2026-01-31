@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.trai.ch/same/internal/app"
 	"go.trai.ch/same/internal/build"
+	"go.trai.ch/zerr"
 )
 
 // CLI represents the command line interface for same.
@@ -24,6 +25,14 @@ func New(a *app.App) *CLI {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       build.Version,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			jsonFlag, err := cmd.Flags().GetBool("json")
+			if err != nil {
+				return zerr.Wrap(err, "failed to get json flag")
+			}
+			a.SetLogJSON(jsonFlag)
+			return nil
+		},
 	}
 
 	rootCmd.SetVersionTemplate(fmt.Sprintf(
@@ -36,6 +45,8 @@ func New(a *app.App) *CLI {
 
 	rootCmd.InitDefaultHelpFlag()
 	rootCmd.Flags().Lookup("help").Usage = "Show help for command"
+
+	rootCmd.PersistentFlags().Bool("json", false, "Output logs in JSON format")
 
 	c := &CLI{
 		app:     a,

@@ -7,4 +7,5 @@ type Logger interface {
 	Info(msg string)
 	Warn(msg string)
 	Error(err error)
+	SetJSON(enable bool)
 }

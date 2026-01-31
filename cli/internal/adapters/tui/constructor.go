@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"go.trai.ch/same/internal/ui/output"
 )
 
 const defaultTickInterval = 100
@@ -17,7 +18,7 @@ func NewModel(w io.Writer) Model {
 		w = os.Stderr
 	}
 
-	out := NewOutput(w)
+	out := output.New(w)
 	lipgloss.SetColorProfile(out.Profile)
 
 	return Model{

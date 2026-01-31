@@ -10,13 +10,14 @@ require (
 	github.com/grindlemire/graft v0.2.3
 	github.com/muesli/termenv v0.16.0
 	github.com/rogpeppe/go-internal v1.14.1
+	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/vito/midterm v0.2.3
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/sdk v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
-	go.trai.ch/zerr v0.2.1
+	go.trai.ch/zerr v0.3.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/term v0.39.0
@@ -47,6 +48,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/sergi/go-diff v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

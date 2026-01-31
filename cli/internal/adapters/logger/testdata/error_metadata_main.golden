@@ -1,0 +1,6 @@
+✗ Error: service unavailable
+       retry_count: 3
+       service: auth-api
+
+  Caused by:
+    → connection refused

@@ -5,7 +5,7 @@ stderr '\[greet\] ✓ Completed'
 
 # Second run hits cache
 exec same run --ci greet
-stderr '\[greet\] ⚡ Cached'
+stderr '\[greet\] ~ Cached'
 
 -- same.yaml --
 version: "1"
