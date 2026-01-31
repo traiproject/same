@@ -34,6 +34,7 @@
           mockgen
           gci
           gofumpt
+          buf
         ];
 
       in
@@ -43,7 +44,7 @@
           inherit version;
 
           src = ./cli;
-          vendorHash = "sha256-qhlkXYwRqzCNYgKZX+KUvFI5gTVQUBeFsWcSN/Kefyo=";
+          vendorHash = "sha256-Kbw6mK+Ja47yD0fcdZBc34RQHpRmKTWY/SryTA/1iNU=";
 
           env.CGO_ENABLED = 0;
 

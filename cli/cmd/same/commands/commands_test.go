@@ -16,14 +16,15 @@ import (
 )
 
 type testCLI struct {
-	CLI          *commands.CLI
-	Ctrl         *gomock.Controller
-	MockLoader   *mocks.MockConfigLoader
-	MockExecutor *mocks.MockExecutor
-	MockStore    *mocks.MockBuildInfoStore
-	MockHasher   *mocks.MockHasher
-	MockResolver *mocks.MockInputResolver
-	MockLogger   *mocks.MockLogger
+	CLI           *commands.CLI
+	Ctrl          *gomock.Controller
+	MockLoader    *mocks.MockConfigLoader
+	MockExecutor  *mocks.MockExecutor
+	MockStore     *mocks.MockBuildInfoStore
+	MockHasher    *mocks.MockHasher
+	MockResolver  *mocks.MockInputResolver
+	MockLogger    *mocks.MockLogger
+	MockConnector *mocks.MockDaemonConnector
 }
 
 func setupTestCLI(t *testing.T) *testCLI {
@@ -37,19 +38,21 @@ func setupTestCLI(t *testing.T) *testCLI {
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
+	mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory, mockConnector).
 		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
 	return &testCLI{
-		CLI:          commands.New(a),
-		Ctrl:         ctrl,
-		MockLoader:   mockLoader,
-		MockExecutor: mockExecutor,
-		MockStore:    mockStore,
-		MockHasher:   mockHasher,
-		MockResolver: mockResolver,
-		MockLogger:   mockLogger,
+		CLI:           commands.New(a),
+		Ctrl:          ctrl,
+		MockLoader:    mockLoader,
+		MockExecutor:  mockExecutor,
+		MockStore:     mockStore,
+		MockHasher:    mockHasher,
+		MockResolver:  mockResolver,
+		MockLogger:    mockLogger,
+		MockConnector: mockConnector,
 	}
 }
 
@@ -64,8 +67,9 @@ func setupSimpleTestCLI(t *testing.T) (*commands.CLI, *gomock.Controller, *mocks
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
+	mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory, mockConnector).
 		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
 	return commands.New(a), ctrl, mockLogger
@@ -75,18 +79,21 @@ func TestRun_Success(t *testing.T) {
 	tc := setupTestCLI(t)
 
 	g := domain.NewGraph()
+	g.SetRoot(".")
 	buildTask := &domain.Task{Name: domain.NewInternedString("build"), WorkingDir: domain.NewInternedString("Root")}
 	_ = g.AddTask(buildTask)
 
 	tc.MockLogger.EXPECT().SetJSON(false).Times(1)
-	tc.MockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+	tc.MockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil).Times(1)
+	tc.MockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+	tc.MockLoader.EXPECT().Load(gomock.Any()).Return(g, nil).Times(1)
 	tc.MockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
 	tc.MockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
-	tc.MockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+	tc.MockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 	tc.MockExecutor.EXPECT().Execute(
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Return(nil).Times(1)
-	tc.MockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
+	tc.MockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	tc.CLI.SetArgs([]string{"run", "build"})
 
@@ -145,7 +152,7 @@ func TestVersionCmd(t *testing.T) {
 }
 
 // setupCleanTest creates a test CLI with mocked dependencies for clean command tests.
-func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger) {
+func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockConfigLoader, *mocks.MockLogger) {
 	t.Helper()
 
 	cwd, err := os.Getwd()
@@ -172,11 +179,12 @@ func setupCleanTest(t *testing.T) (*commands.CLI, *mocks.MockLogger) {
 	mockResolver := mocks.NewMockInputResolver(ctrl)
 	mockEnvFactory := mocks.NewMockEnvironmentFactory(ctrl)
 	mockLogger := mocks.NewMockLogger(ctrl)
+	mockConnector := mocks.NewMockDaemonConnector(ctrl)
 
-	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory).
+	a := app.New(mockLoader, mockExecutor, mockLogger, mockStore, mockHasher, mockResolver, mockEnvFactory, mockConnector).
 		WithTeaOptions(tea.WithInput(nil), tea.WithOutput(io.Discard))
 
-	return commands.New(a), mockLogger
+	return commands.New(a), mockLoader, mockLogger
 }
 
 func createDirWithMarker(t *testing.T, dirPath string) {
@@ -191,9 +199,10 @@ func createDirWithMarker(t *testing.T, dirPath string) {
 }
 
 func TestCleanCmd_Default(t *testing.T) {
-	cli, mockLogger := setupCleanTest(t)
+	cli, mockLoader, mockLogger := setupCleanTest(t)
 	mockLogger.EXPECT().SetJSON(false).Times(1)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+	mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil).Times(1)
 
 	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
 	if err := os.MkdirAll(storePath, domain.DirPerm); err != nil {
@@ -216,9 +225,10 @@ func TestCleanCmd_Default(t *testing.T) {
 }
 
 func TestCleanCmd_Tools(t *testing.T) {
-	cli, mockLogger := setupCleanTest(t)
+	cli, mockLoader, mockLogger := setupCleanTest(t)
 	mockLogger.EXPECT().SetJSON(false).Times(1)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+	mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil).Times(1)
 
 	nixHubPath := domain.DefaultNixHubCachePath()
 	if err := os.MkdirAll(nixHubPath, domain.DirPerm); err != nil {
@@ -253,9 +263,10 @@ func TestCleanCmd_Tools(t *testing.T) {
 }
 
 func TestCleanCmd_All(t *testing.T) {
-	cli, mockLogger := setupCleanTest(t)
+	cli, mockLoader, mockLogger := setupCleanTest(t)
 	mockLogger.EXPECT().SetJSON(false).Times(1)
 	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+	mockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil).Times(1)
 
 	storePath := filepath.Join(domain.DefaultSamePath(), domain.StoreDirName)
 	createDirWithMarker(t, storePath)
@@ -308,14 +319,16 @@ func TestRun_OutputModeFlags(t *testing.T) {
 			_ = g.AddTask(buildTask)
 
 			tc.MockLogger.EXPECT().SetJSON(false).Times(1)
-			tc.MockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+			tc.MockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil).Times(1)
+			tc.MockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+			tc.MockLoader.EXPECT().Load(gomock.Any()).Return(g, nil).Times(1)
 			tc.MockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(1)
 			tc.MockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
-			tc.MockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+			tc.MockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			tc.MockExecutor.EXPECT().Execute(
 				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 			).Return(nil).Times(1)
-			tc.MockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
+			tc.MockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 			tc.CLI.SetArgs(tt.args)
 
@@ -335,14 +348,16 @@ func TestRun_JSONFlag(t *testing.T) {
 	_ = g.AddTask(buildTask)
 
 	tc.MockLogger.EXPECT().SetJSON(true).Times(1)
-	tc.MockLoader.EXPECT().Load(".").Return(g, nil).Times(1)
+	tc.MockLoader.EXPECT().DiscoverRoot(gomock.Any()).Return(".", nil).Times(1)
+	tc.MockConnector.EXPECT().Connect(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+	tc.MockLoader.EXPECT().Load(gomock.Any()).Return(g, nil).Times(1)
 	tc.MockResolver.EXPECT().ResolveInputs(gomock.Any(), gomock.Any()).Return([]string{}, nil).Times(1)
 	tc.MockHasher.EXPECT().ComputeInputHash(gomock.Any(), gomock.Any(), gomock.Any()).Return("hash123", nil).Times(1)
-	tc.MockStore.EXPECT().Get("build").Return(nil, nil).Times(1)
+	tc.MockStore.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 	tc.MockExecutor.EXPECT().Execute(
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Return(nil).Times(1)
-	tc.MockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(1)
+	tc.MockStore.EXPECT().Put(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	tc.CLI.SetArgs([]string{"--json", "run", "build"})
 

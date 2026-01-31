@@ -1,12 +1,12 @@
 # Run task from sub-project
 cd proj1
-exec same run --ci build
-stderr '\[build\] ✓ Completed'
+exec same run --ci proj1:build
+stderr '\[proj1:build\] ✓ Completed'
 
 # Run task from another project
 cd ../proj2
-exec same run --ci test
-stderr '\[test\] ✓ Completed'
+exec same run --ci proj2:test
+stderr '\[proj2:test\] ✓ Completed'
 
 -- same.work.yaml --
 version: "1"

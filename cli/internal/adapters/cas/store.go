@@ -15,30 +15,22 @@ import (
 )
 
 // Store implements ports.BuildInfoStore using a file-per-task strategy.
-type Store struct {
-	dir string
-}
+type Store struct{}
 
 // NewStore creates a new BuildInfoStore backed by the directory at the given path.
 func NewStore() (*Store, error) {
-	return newStoreWithPath(domain.DefaultStorePath())
+	return &Store{}, nil
 }
 
-// newStoreWithPath creates a Store with a custom path (used for testing).
-func newStoreWithPath(path string) (*Store, error) {
-	cleanPath := filepath.Clean(path)
-	if err := os.MkdirAll(cleanPath, domain.DirPerm); err != nil {
-		return nil, zerr.Wrap(err, domain.ErrStoreCreateFailed.Error())
-	}
-
-	return &Store{
-		dir: cleanPath,
-	}, nil
+// newStoreWithPath is retained for test compatibility but no longer uses the path parameter.
+// All operations now require an explicit root parameter. Tests should pass tmpDir as root to Get/Put.
+func newStoreWithPath(_ string) (*Store, error) {
+	return &Store{}, nil
 }
 
 // Get retrieves the build info for a given task name.
-func (s *Store) Get(taskName string) (*domain.BuildInfo, error) {
-	filename := s.getFilename(taskName)
+func (s *Store) Get(root, taskName string) (*domain.BuildInfo, error) {
+	filename := s.getFilename(root, taskName)
 	//nolint:gosec // Path is constructed from trusted directory and hashed filename
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -57,13 +49,18 @@ func (s *Store) Get(taskName string) (*domain.BuildInfo, error) {
 }
 
 // Put stores the build info.
-func (s *Store) Put(info domain.BuildInfo) error {
+func (s *Store) Put(root string, info domain.BuildInfo) error {
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
 		return zerr.Wrap(err, domain.ErrStoreMarshalFailed.Error())
 	}
 
-	filename := s.getFilename(info.TaskName)
+	filename := s.getFilename(root, info.TaskName)
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, domain.DirPerm); err != nil {
+		return zerr.Wrap(err, domain.ErrStoreCreateFailed.Error())
+	}
+
 	//nolint:gosec // Path is constructed from trusted directory and hashed filename
 	if err := os.WriteFile(filename, data, domain.FilePerm); err != nil {
 		return zerr.Wrap(err, domain.ErrStoreWriteFailed.Error())
@@ -72,8 +69,9 @@ func (s *Store) Put(info domain.BuildInfo) error {
 	return nil
 }
 
-func (s *Store) getFilename(taskName string) string {
+func (s *Store) getFilename(root, taskName string) string {
 	hash := sha256.Sum256([]byte(taskName))
 	hexHash := hex.EncodeToString(hash[:])
-	return filepath.Join(s.dir, hexHash+".json")
+	storeDir := filepath.Join(root, domain.DefaultStorePath())
+	return filepath.Join(storeDir, hexHash+".json")
 }

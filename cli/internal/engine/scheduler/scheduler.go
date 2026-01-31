@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,6 +16,8 @@ import (
 	"go.trai.ch/same/internal/core/ports"
 	"go.trai.ch/zerr"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // TaskStatus represents the status of a task.
@@ -39,6 +42,8 @@ type Scheduler struct {
 	resolver   ports.InputResolver
 	tracer     ports.Tracer
 	envFactory ports.EnvironmentFactory
+	daemon     ports.DaemonClient
+	noDaemon   bool // When true, skip remote execution
 
 	mu         sync.RWMutex
 	taskStatus map[domain.InternedString]TaskStatus
@@ -67,6 +72,18 @@ func NewScheduler(
 	return s
 }
 
+// WithDaemon sets the daemon client for the scheduler and returns itself for chaining.
+func (s *Scheduler) WithDaemon(daemon ports.DaemonClient) *Scheduler {
+	s.daemon = daemon
+	return s
+}
+
+// WithNoDaemon sets whether to skip remote execution and returns itself for chaining.
+func (s *Scheduler) WithNoDaemon(noDaemon bool) *Scheduler {
+	s.noDaemon = noDaemon
+	return s
+}
+
 // initTaskStatuses initializes the status of tasks in the graph to Pending.
 func (s *Scheduler) initTaskStatuses(tasks []domain.InternedString) {
 	s.mu.Lock()
@@ -78,10 +95,10 @@ func (s *Scheduler) initTaskStatuses(tasks []domain.InternedString) {
 }
 
 // updateStatus updates the status of a task.
-func (s *Scheduler) updateStatus(name domain.InternedString, status TaskStatus) {
+func (s *Scheduler) updateStatus(name domain.InternedString, taskStatus TaskStatus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.taskStatus[name] = status
+	s.taskStatus[name] = taskStatus
 }
 
 // Run executes the tasks in the graph with the specified parallelism.
@@ -267,6 +284,8 @@ func (state *schedulerRunState) runExecutionLoop() error {
 }
 
 // prepareEnvironments resolves all required environments concurrently.
+//
+//nolint:cyclop // complexity due to daemon fallback logic
 func (state *schedulerRunState) prepareEnvironments(ctx context.Context) error {
 	// Identify unique environment IDs needed for this run
 	neededEnvIDs := make(map[string]map[string]string) // envID -> tools map (sample)
@@ -311,7 +330,21 @@ func (state *schedulerRunState) prepareEnvironments(ctx context.Context) error {
 				return nil
 			}
 
-			env, err := state.s.envFactory.GetEnvironment(ctx, item.tools)
+			var env []string
+			var err error
+
+			// Try to use daemon client if available
+			if state.s.daemon != nil {
+				env, _, err = state.s.daemon.GetEnvironment(ctx, item.id, item.tools)
+				if err != nil {
+					// Fallback to local factory on daemon error
+					env, err = state.s.envFactory.GetEnvironment(ctx, item.tools)
+				}
+			} else {
+				// Use local factory when daemon is not available
+				env, err = state.s.envFactory.GetEnvironment(ctx, item.tools)
+			}
+
 			if err != nil {
 				return zerr.Wrap(err, "failed to hydrate environment")
 			}
@@ -420,6 +453,10 @@ func (state *schedulerRunState) schedule() {
 }
 
 func (state *schedulerRunState) executeTask(t *domain.Task) {
+	state.executeWithStrategy(t)
+}
+
+func (state *schedulerRunState) executeWithStrategy(t *domain.Task) {
 	// Execute the task logic within a function to ensure the span is ended
 	// BEFORE we send the result to the channel. This prevents race conditions
 	// in tests where the scheduler loop finishes before the span is recorded.
@@ -471,8 +508,8 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 			env = cachedEnv.([]string)
 		}
 
-		// Step 4: Execute
-		err = state.s.executor.Execute(ctx, t, env, span, span)
+		// Step 4: Execute (Remote or Local)
+		err = state.executeWithFallback(ctx, t, env, span, span)
 		if err != nil {
 			span.RecordError(err)
 		}
@@ -486,6 +523,49 @@ func (state *schedulerRunState) executeTask(t *domain.Task) {
 	}()
 
 	state.resultsCh <- res
+}
+
+func (state *schedulerRunState) executeWithFallback(
+	ctx context.Context,
+	t *domain.Task,
+	env []string,
+	stdout, stderr io.Writer,
+) error {
+	var execErr error
+
+	// Try remote execution via daemon if available and not disabled
+	if state.s.daemon != nil && !state.s.noDaemon {
+		execErr = state.s.daemon.ExecuteTask(ctx, t, env, stdout, stderr)
+		if execErr != nil && isConnectionError(execErr) {
+			// Fallback to local on connection errors only
+			execErr = state.s.executor.Execute(ctx, t, env, stdout, stderr)
+		}
+	} else {
+		// Local execution
+		execErr = state.s.executor.Execute(ctx, t, env, stdout, stderr)
+	}
+
+	return execErr
+}
+
+// isConnectionError checks if the error is a gRPC connection-related error.
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Unwrap error chain to handle wrapped gRPC errors
+	for unwrapped := err; unwrapped != nil; unwrapped = errors.Unwrap(unwrapped) {
+		st, ok := status.FromError(unwrapped)
+		if ok {
+			// Check for codes indicating connection issues
+			switch st.Code() {
+			case codes.Unavailable, codes.DeadlineExceeded:
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (state *schedulerRunState) computeInputHash(t *domain.Task) (skipped bool, hash string, err error) {
@@ -576,7 +656,7 @@ func (state *schedulerRunState) handleSuccess(res result) {
 	if !res.skipped {
 		outputHash := state.computeOutputHash(res)
 		if outputHash != "" || len(res.taskOutputs) == 0 {
-			err := state.s.store.Put(domain.BuildInfo{
+			err := state.s.store.Put(state.graph.Root(), domain.BuildInfo{
 				TaskName:   res.task.String(),
 				InputHash:  res.inputHash,
 				OutputHash: outputHash,
@@ -658,7 +738,7 @@ func (s *Scheduler) checkTaskCache(
 	}
 
 	// Step B: Get Build Info from Store
-	info, err := s.store.Get(task.Name.String())
+	info, err := s.store.Get(root, task.Name.String())
 	if err != nil {
 		return false, hash, zerr.Wrap(err, domain.ErrStoreReadFailed.Error())
 	}

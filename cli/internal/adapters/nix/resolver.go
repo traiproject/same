@@ -46,9 +46,6 @@ func NewResolver() (*Resolver, error) {
 // newResolverWithPath creates a Resolver with a custom cache path (used for testing).
 func newResolverWithPath(path string) (*Resolver, error) {
 	cleanPath := filepath.Clean(path)
-	if err := os.MkdirAll(cleanPath, domain.DirPerm); err != nil {
-		return nil, zerr.Wrap(err, domain.ErrNixCacheCreateFailed.Error())
-	}
 
 	return &Resolver{
 		cacheDir: cleanPath,

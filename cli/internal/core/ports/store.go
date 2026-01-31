@@ -8,8 +8,8 @@ import "go.trai.ch/same/internal/core/domain"
 type BuildInfoStore interface {
 	// Get retrieves the build info for a given task name.
 	// Returns nil, nil if not found.
-	Get(taskName string) (*domain.BuildInfo, error)
+	Get(root, taskName string) (*domain.BuildInfo, error)
 
 	// Put stores the build info.
-	Put(info domain.BuildInfo) error
+	Put(root string, info domain.BuildInfo) error
 }

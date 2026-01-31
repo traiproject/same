@@ -155,4 +155,16 @@ var (
 
 	// ErrCacheMiss is returned when a requested item is not found in the cache.
 	ErrCacheMiss = zerr.New("cache miss")
+
+	// ErrDaemonNotRunning is returned when the daemon is not running.
+	ErrDaemonNotRunning = zerr.New("daemon is not running")
+
+	// ErrDaemonSpawnFailed is returned when spawning the daemon fails.
+	ErrDaemonSpawnFailed = zerr.New("failed to spawn daemon process")
+
+	// ErrDaemonShutdownFailed is returned when graceful shutdown fails.
+	ErrDaemonShutdownFailed = zerr.New("failed to shutdown daemon gracefully")
+
+	// ErrDaemonAlreadyRunning is returned when attempting to start a daemon that's already running.
+	ErrDaemonAlreadyRunning = zerr.New("daemon is already running")
 )

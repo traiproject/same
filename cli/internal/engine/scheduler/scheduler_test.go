@@ -90,8 +90,8 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
 		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, []string{}).Return("hash", nil).Times(3)
-		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(2)
+		mockStore.EXPECT().Get(".", gomock.Any()).Return(nil, nil).Times(3)
+		mockStore.EXPECT().Put(".", gomock.Any()).Return(nil).Times(2)
 
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 			func(_ context.Context, task *domain.Task, _ []string, _, _ io.Writer) error {
@@ -133,6 +133,7 @@ func TestScheduler_Run_Diamond(t *testing.T) {
 
 		close(bProceed)
 		close(cProceed)
+		synctest.Wait()
 
 		err := <-errCh
 		if err == nil {
@@ -190,8 +191,8 @@ func TestScheduler_Run_Partial(t *testing.T) {
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
 		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, []string{}).Return("hash", nil).Times(3)
-		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(3)
+		mockStore.EXPECT().Get(".", gomock.Any()).Return(nil, nil).Times(3)
+		mockStore.EXPECT().Put(".", gomock.Any()).Return(nil).Times(3)
 
 		executedTasks := make(map[string]bool)
 		var mu sync.Mutex
@@ -247,8 +248,8 @@ func TestScheduler_Run_ExplicitAll(t *testing.T) {
 
 		mockResolver.EXPECT().ResolveInputs(gomock.Any(), ".").Return([]string{}, nil).Times(3)
 		mockHasher.EXPECT().ComputeInputHash(gomock.Any(), nil, []string{}).Return("hash", nil).Times(3)
-		mockStore.EXPECT().Get(gomock.Any()).Return(nil, nil).Times(3)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil).Times(3)
+		mockStore.EXPECT().Get(".", gomock.Any()).Return(nil, nil).Times(3)
+		mockStore.EXPECT().Put(".", gomock.Any()).Return(nil).Times(3)
 
 		mockExec.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(3)
 
@@ -340,7 +341,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 	t.Run("CacheHit", func(t *testing.T) {
 		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(testHash, nil)
-		mockStore.EXPECT().Get("test-task").Return(&domain.BuildInfo{
+		mockStore.EXPECT().Get(".", "test-task").Return(&domain.BuildInfo{
 			TaskName:   "test-task",
 			InputHash:  testHash,
 			OutputHash: outputHash,
@@ -357,7 +358,7 @@ func TestScheduler_CheckTaskCache(t *testing.T) {
 	t.Run("CacheMiss_InputMismatch", func(t *testing.T) {
 		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(testHash, nil)
-		mockStore.EXPECT().Get("test-task").Return(&domain.BuildInfo{
+		mockStore.EXPECT().Get(".", "test-task").Return(&domain.BuildInfo{
 			TaskName:  "test-task",
 			InputHash: "old-hash",
 		}, nil)
@@ -402,10 +403,10 @@ func TestScheduler_Run_Caching(t *testing.T) {
 
 		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(hash1, nil)
-		mockStore.EXPECT().Get("build").Return(nil, nil)
+		mockStore.EXPECT().Get(".", "build").Return(nil, nil)
 		mockExec.EXPECT().Execute(ctx, task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mockHasher.EXPECT().ComputeOutputHash([]string{"out"}, ".").Return(outputHash, nil)
-		mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+		mockStore.EXPECT().Put(".", gomock.Any()).Return(nil)
 
 		err := s.Run(ctx, g, []string{"build"}, 1, false)
 		require.NoError(t, err)
@@ -419,7 +420,7 @@ func TestScheduler_Run_Caching(t *testing.T) {
 
 		mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
 		mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(hash1, nil)
-		mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
+		mockStore.EXPECT().Get(".", "build").Return(&domain.BuildInfo{
 			TaskName:   "build",
 			InputHash:  hash1,
 			OutputHash: outputHash,
@@ -462,7 +463,7 @@ func setupCacheBypassTest(t *testing.T, rebuildStrategy domain.RebuildStrategy, 
 	mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
 	mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return("hash1", nil)
 	mockExec.EXPECT().Execute(ctx, task, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-	mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+	mockStore.EXPECT().Put(".", gomock.Any()).Return(nil)
 
 	err := s.Run(ctx, g, []string{"build"}, 1, noCache)
 	require.NoError(t, err)
@@ -516,7 +517,7 @@ func TestScheduler_RebuildStrategy(t *testing.T) {
 			// RebuildOnChange should call Store.Get
 			mockResolver.EXPECT().ResolveInputs([]string{}, ".").Return([]string{}, nil)
 			mockHasher.EXPECT().ComputeInputHash(task, task.Environment, []string{}).Return(hash1, nil)
-			mockStore.EXPECT().Get("build").Return(&domain.BuildInfo{
+			mockStore.EXPECT().Get(".", "build").Return(&domain.BuildInfo{
 				TaskName:   "build",
 				InputHash:  hash1,
 				OutputHash: outputHash,

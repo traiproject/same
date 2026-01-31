@@ -15,11 +15,7 @@ func init() {
 		ID:        NodeID,
 		Cacheable: true,
 		Run: func(_ context.Context) (ports.BuildInfoStore, error) {
-			store, err := NewStore()
-			if err != nil {
-				return nil, err
-			}
-			return store, nil
+			return NewStore()
 		},
 	})
 }

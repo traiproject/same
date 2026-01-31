@@ -63,14 +63,14 @@ func TestScheduler_Execute_UsesEnvFactory(t *testing.T) {
 	mockHasher.EXPECT().ComputeInputHash(task, gomock.Any(), gomock.Any()).Return("hash1", nil)
 
 	// 3. Cache Check
-	mockStore.EXPECT().Get("build").Return(nil, nil)
+	mockStore.EXPECT().Get(".", "build").Return(nil, nil)
 
 	// 5. Execution with Env
 	mockExec.EXPECT().Execute(ctx, task, expectedEnv, gomock.Any(), gomock.Any()).Return(nil)
 
 	// 6. Output Hashing & Store Put
 	mockHasher.EXPECT().ComputeOutputHash(gomock.Any(), ".").Return("outHash", nil)
-	mockStore.EXPECT().Put(gomock.Any()).Return(nil)
+	mockStore.EXPECT().Put(".", gomock.Any()).Return(nil)
 
 	err := s.Run(ctx, g, []string{"build"}, 1, false)
 	require.NoError(t, err)
