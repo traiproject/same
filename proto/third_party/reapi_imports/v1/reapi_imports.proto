@@ -1,0 +1,7 @@
+syntax = "proto3";
+package third_party.reapi_imports.v1;
+
+// buf:lint:ignore IMPORT_USED
+import "build/bazel/remote/execution/v2/remote_execution.proto";
+// buf:lint:ignore IMPORT_USED
+import "google/bytestream/bytestream.proto";
